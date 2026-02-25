@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "verify": "bun src/verify-config.ts",
-    "dev": "bun run --watch src/bot.ts"
+    "dev": "bun run --watch src/bot.ts",
+    "check:bot-parse": "bun build src/bot.ts --target bun --outfile /tmp/bot-parse-check.js"
   },
   "devDependencies": {
     "@types/bun": "latest",
