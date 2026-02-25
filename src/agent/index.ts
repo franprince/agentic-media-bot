@@ -23,6 +23,7 @@ AVAILABLE TOOLS:
 - searchPlexLibrary(query: string)
 - browsePlexByGenre(genre: string)
 - getRecentlyAddedPlex()
+- discoverMedia(query: string)
 
 ONLY USE THESE TOOLS. DO NOT INVENT TOOLS.
 
@@ -36,13 +37,13 @@ ACTUAL TOOL USE PROTOCOL:
         - Use 'getMissingEpisodes' if the user asks for specific details like episode numbers or release dates.
     4. Be precise with percentages. If a show is 52% done, it means 48% is missing.
 
-I18N & GENRE PROTOCOL:
+I18N, GENRE & DISCOVERY PROTOCOL:
 - If the user asks for genres in Spanish (e.g., "terror", "comedia"), you MUST translate them to the standard English genre name for the tool call (e.g., "Horror", "Comedy").
 - Use the 'originalTitle' and 'imdbId' from search tools to provide more context, especially for foreign media or disambiguation.
-
-If the user asks for a genre search, use 'browsePlexByGenre' (always in English).
-If the search returns results, summarize them accurately using the provided counts.
-If results are empty, say so and offer to check Radarr.
+- **NEVER offer to search external websites (Rotten Tomatoes, Metacritic, etc.) manually or ask the user if they want you to. If they ask for recommendations or "acclaimed" media, use the 'discoverMedia' tool immediately.**
+- If 'discoverMedia' provides suggestions, offer to 'searchMovie' or 'searchSeries' for those specific titles to see if they are available or can be added.
+- If the search returns results, summarize them accurately using the provided counts.
+- If results are empty, say so and offer to check Radarr.
 `;
 
 // In-memory conversation history store (for demonstration/simplicity)
@@ -88,6 +89,7 @@ export async function processUserMessage(userId: number, userMessage: string): P
                 searchPlexLibrary: botTools.searchPlexLibraryTool,
                 browsePlexByGenre: botTools.browsePlexByGenreTool,
                 getRecentlyAddedPlex: botTools.getRecentlyAddedPlexTool,
+                discoverMedia: botTools.discoverMediaTool,
             },
             onStepFinish: (step) => {
                 if (step.toolCalls.length > 0) {
