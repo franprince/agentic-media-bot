@@ -21,6 +21,7 @@
 - API keys for Radarr, Sonarr, Plex, and Gemini must be injected via read-only `.env` file.
 - `/restart` command authorization is enforced using `ALLOWED_USER_IDS`.
 - `/restart` stops the current polling runner, launches `scripts/restart-bot.sh` as a detached supervisor (passing current PID + absolute script path), and exits the current process; the supervisor waits for shutdown, force-kills if needed, and starts a fresh process with Bun. Restart paths resolve from project root instead of current shell directory. `BOT_RESTART_COMMAND` can override this behavior. If supervisor launch fails, it retries with a detached `nohup` fallback before in-process runner fallback.
+- `/restart` persists the requester chat ID and, on successful startup, sends a localized "back online" confirmation once, then clears the notification metadata.
 - Slash commands are excluded from generic `message:text` LLM handling to avoid command leakage into tool-calling flow.
 
 ## AI Agent Design

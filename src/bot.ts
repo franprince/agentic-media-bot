@@ -155,6 +155,12 @@ bot.command("restart", async (ctx) => {
 
     await ctx.reply("Restarting bot process...");
     setMetadata("skip_catchup_once", "1");
+    const restartNotifyChatId = ctx.chat?.id;
+    if (typeof restartNotifyChatId === "number") {
+        setMetadata("restart_notify_chat_id", String(restartNotifyChatId));
+        const isSpanish = ctx.from?.language_code?.toLowerCase().startsWith("es");
+        setMetadata("restart_notify_lang", isSpanish ? "es" : "en");
+    }
 
     setTimeout(() => {
         try {
@@ -253,6 +259,22 @@ await verifyConfig();
 bot.api.getMe().then(async (me) => {
     console.log(`✅ Bot is online and listening as @${me.username}`);
 
+    const restartNotifyChatId = Number(getMetadata("restart_notify_chat_id"));
+    if (Number.isFinite(restartNotifyChatId) && restartNotifyChatId > 0) {
+        const restartNotifyLang = getMetadata("restart_notify_lang");
+        const message = restartNotifyLang === "es"
+            ? "✅ Volví a estar en línea."
+            : "✅ I am back online.";
+        try {
+            await bot.api.sendMessage(restartNotifyChatId, message);
+        } catch (error) {
+            console.error(`Failed to send restart notification to ${restartNotifyChatId}:`, error);
+        } finally {
+            setMetadata("restart_notify_chat_id", "");
+            setMetadata("restart_notify_lang", "");
+        }
+    }
+
     // Initial health check
     console.log("📡 performing initial service health check...");
     const results = await checkAllServices();
@@ -288,6 +310,7 @@ bot.api.getMe().then(async (me) => {
 - **External Restart Reliability**: "/restart" now stops polling, starts a detached sibling bot process, and retries via nohup fallback before exiting; custom BOT_RESTART_COMMAND remains supported.
 - **Supervisor Restart Script**: Default "/restart" now launches a detached supervisor script that waits for bot shutdown and then starts a fresh process.
 - **Restart Path Robustness**: Supervisor and fallback now resolve absolute paths from project root so restarts work from any working directory.
+- **Restart Online Confirmation**: After `/restart`, bot now sends a one-time "back online" confirmation to the requester chat on successful startup.
 - **Restart Catch-up Guard**: Admin restart now skips one startup catch-up cycle to avoid unrelated retroactive replies.
 - **Command Leakage Guard**: Slash commands are ignored by generic text-to-LLM middleware.
 - **Tool Guardrails**: Add-movie/series calls now gracefully prompt for a search match when IDs are missing.
