@@ -290,7 +290,7 @@ bot.api.getMe().then(async (me) => {
         const changelog = `
 *Recent Changes:*
 - **Warmer Status Updates**: More informative, localized status messages with friendly phrasing.
-- **Localized Transition Banner**: Initial "Thinking" and catch-up status messages now match the user's language.
+- **Localized Transition Banner**: Initial "Thinking" and catch-up status messages now match the user language.
 - **Conversation Language Lock**: Final replies now enforce the detected conversation language (Spanish/English) before sending.
 - **Exact Count Prefix**: Plex country/genre replies now always include the precise total found count.
 - **Count Prefix Wording**: Plex count prefix no longer says "exactly"; it now uses simpler phrasing.
@@ -301,7 +301,7 @@ bot.api.getMe().then(async (me) => {
 - **Deterministic Country/Genre Replies**: Plex browse answers now render directly from tool data to prevent mismatched counts/titles.
 - **Country Name Clarity**: Country search status now uses noun country names (e.g., "Germany") instead of demonyms.
 - **Spanish Detection Robustness**: Language detection now handles Spanish inputs without accent marks (e.g., "peliculas").
-- **Country Param Canonicalization**: findPlexByCountry now canonicalizes demonyms to country nouns at tool boundary.
+- **Country Param Canonicalization**: "findPlexByCountry" now canonicalizes demonyms to country nouns at tool boundary.
 - **Plex Filter Precision**: Direct Plex tag paths are now preferred and aggregated results are deduplicated across sections.
 - **Country Canonicalization Unification**: Execution, status, and logs now share one country normalizer (e.g., Danish -> Denmark).
 - **Strict Primary Country Filter**: Country browsing now validates each item’s primary "Country" tag and ignores language tags.
@@ -312,7 +312,7 @@ bot.api.getMe().then(async (me) => {
 - **Missing Alias Transparency**: Non-Latin titles now explicitly show when an English/Spanish alias is unavailable in Plex metadata.
 - **Detail-Intent Safety Guard**: Detail/info requests now disable add tools unless explicit add intent is present.
 - **Admin Restart Command**: Added "/restart" command to gracefully restart the bot process for allowed users.
-- **External Restart Reliability**: "/restart" now stops polling, starts a detached sibling bot process, and retries via nohup fallback before exiting; custom BOT_RESTART_COMMAND remains supported.
+- **External Restart Reliability**: "/restart" now stops polling, starts a detached sibling bot process, and retries via nohup fallback before exiting; custom "BOT_RESTART_COMMAND" remains supported.
 - **Supervisor Restart Script**: Default "/restart" now launches a detached supervisor script that waits for bot shutdown and then starts a fresh process.
 - **Restart Path Robustness**: Supervisor and fallback now resolve absolute paths from project root so restarts work from any working directory.
 - **Restart Online Confirmation**: After "/restart", bot now sends a one-time "back online" confirmation to the requester chat on successful startup.
