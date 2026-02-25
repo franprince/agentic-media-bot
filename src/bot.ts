@@ -293,6 +293,7 @@ bot.api.getMe().then(async (me) => {
 - **Localized Transition Banner**: Initial "Thinking" and catch-up status messages now match the user's language.
 - **Exact Count Prefix**: Plex country/genre replies now always include the precise total found count.
 - **Count Prefix Wording**: Plex count prefix no longer says "exactly"; it now uses simpler phrasing.
+- **List Header Wording**: Plex country/genre lists now say "This is the list of {search parameter} movies:" instead of "Muestra/Sample".
 - **Synthesis Count Fix**: Exact count now comes from first-pass tool results, so it is preserved even with capable-model synthesis.
 - **Country Filter Accuracy**: Plex country filtering now normalizes full tag-key query paths to avoid mixed or unfiltered results.
 - **Deterministic Country/Genre Replies**: Plex browse answers now render directly from tool data to prevent mismatched counts/titles.

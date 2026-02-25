@@ -47,6 +47,7 @@ describe("response helpers", () => {
                 toolName: "findPlexByCountry",
                 result: {
                     totalFound: 2,
+                    searchParam: "Germany",
                     sampleItems: [{ title: "Das Boot", year: 1981 }, { title: "M", year: 1931 }],
                 },
             }],
@@ -54,6 +55,7 @@ describe("response helpers", () => {
         );
 
         expect(text).toInclude("Encontré 2 títulos en Plex.");
+        expect(text).toInclude("This is the list of Germany movies:");
         expect(text).toInclude("- Das Boot (1981)");
         expect(text).toInclude("- M (1931)");
     });

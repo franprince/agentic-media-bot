@@ -42,6 +42,7 @@
 - **Plex Tag-Key Normalization**: Country/genre filters parse Plex tag keys that may arrive as full query paths (not only numeric IDs), ensuring accurate filter requests.
 - **Plex Direct Tag-Path Preference**: When Plex provides a full filter path in tag keys, the service uses that path directly to preserve server-side filter semantics.
 - **Deterministic Plex Browse Rendering**: Final text for Plex country/genre browse requests is generated from tool payload (`totalFound` + `sampleItems`) rather than relying only on LLM prose.
+- **Deterministic List Label**: Plex country/genre tools return `searchParam` + `listLabel` so output uses "This is the list of {search parameter} movies:" instead of locale-default sample headers.
 - **Country Noun Normalization**: Status rendering and prompt rules normalize country demonyms to country nouns to keep tool intent explicit and logs consistent.
 - **Tool-Boundary Country Canonicalization**: `findPlexByCountry` normalizes demonyms to country nouns in the tool schema before execution.
 - **Single Country Canonicalizer**: Country normalization for tool execution, status rendering, and tool-call logging is centralized in `src/services/plex.ts` to avoid drift.
