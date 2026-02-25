@@ -6,6 +6,7 @@ import { getHistory, saveHistory, getUserName } from "../services/database.ts";
 import { detectStatusLanguage, formatToolCallsStatus, type StatusLanguage } from "./status";
 import { buildExactCountPrefix, buildPlexBrowseAuthoritativeText, extractToolResultsFromMessages } from "./response";
 import { normalizeCountryName } from "../services/plex";
+import { shouldDisableAddActions } from "./intent";
 
 function getLastUserTextFromHistory(history: CoreMessage[]): string | undefined {
     for (let i = history.length - 1; i >= 0; i--) {
@@ -129,6 +130,7 @@ ONLY USE THESE TOOLS. DO NOT INVENT TOOLS.
 
 ACTUAL TOOL USE PROTOCOL:
 - You have access to tools that can query your media server.
+- If the user asks for details/info/synopsis about a movie/series, NEVER add it automatically. Use search tools only unless the user explicitly asks to add/download.
 - When summarizing tool results:
     1. EXACT COUNT RULE: You MUST always state the exact total number of items found (using 'totalFound' or 'totalMissing' from the tool) even if you only show a short sample list. Be precise!
     2. List the titles found in the 'sampleItems' or 'sample' array.
@@ -245,6 +247,35 @@ export async function processUserMessage(
         const userName = getUserName(userId) || "Friend";
 
         // --- Step 1: Tool Execution Loop (using FAST model) ---
+        const shouldDisableAddTools = shouldDisableAddActions(statusSeedText);
+        const tools: any = {
+            searchMovie: botTools.searchMovieTool,
+            addMovie: botTools.addMovieTool,
+            getMovieQueue: botTools.getMovieQueueTool,
+            searchSeries: botTools.searchSeriesTool,
+            addSeries: botTools.addSeriesTool,
+            getSeriesQueue: botTools.getSeriesQueueTool,
+            getTorrents: botTools.getTorrentsTool,
+            pauseTorrent: botTools.pauseTorrentTool,
+            resumeTorrent: botTools.resumeTorrentTool,
+            checkServiceHealth: botTools.checkServiceHealthTool,
+            getMissingMovies: botTools.getMissingMoviesTool,
+            getMissingSeries: botTools.getMissingSeriesTool,
+            getMissingEpisodes: botTools.getMissingEpisodesTool,
+            searchPlexByTitleOnly: botTools.searchPlexByTitleOnlyTool,
+            browsePlexByGenre: botTools.browsePlexByGenreTool,
+            findPlexByCountry: botTools.findPlexByCountryTool,
+            getRecentlyAddedPlex: botTools.getRecentlyAddedPlexTool,
+            getPlexLibraryStats: botTools.getPlexLibraryStatsTool,
+            discoverMedia: botTools.discoverMediaTool,
+            saveUserName: botTools.saveUserNameTool,
+        };
+
+        if (shouldDisableAddTools) {
+            delete tools.addMovie;
+            delete tools.addSeries;
+        }
+
         const firstPassParams = {
             model: modelFast as any,
             system: DEFAULT_SYSTEM_PROMPT
@@ -252,28 +283,7 @@ export async function processUserMessage(
                 .replace("{{userName}}", userName)
                 .trim(),
             messages: history,
-            tools: {
-                searchMovie: botTools.searchMovieTool,
-                addMovie: botTools.addMovieTool,
-                getMovieQueue: botTools.getMovieQueueTool,
-                searchSeries: botTools.searchSeriesTool,
-                addSeries: botTools.addSeriesTool,
-                getSeriesQueue: botTools.getSeriesQueueTool,
-                getTorrents: botTools.getTorrentsTool,
-                pauseTorrent: botTools.pauseTorrentTool,
-                resumeTorrent: botTools.resumeTorrentTool,
-                checkServiceHealth: botTools.checkServiceHealthTool,
-                getMissingMovies: botTools.getMissingMoviesTool,
-                getMissingSeries: botTools.getMissingSeriesTool,
-                getMissingEpisodes: botTools.getMissingEpisodesTool,
-                searchPlexByTitleOnly: botTools.searchPlexByTitleOnlyTool,
-                browsePlexByGenre: botTools.browsePlexByGenreTool,
-                findPlexByCountry: botTools.findPlexByCountryTool,
-                getRecentlyAddedPlex: botTools.getRecentlyAddedPlexTool,
-                getPlexLibraryStats: botTools.getPlexLibraryStatsTool,
-                discoverMedia: botTools.discoverMediaTool,
-                saveUserName: botTools.saveUserNameTool,
-            },
+            tools,
             onStepFinish: async (step: any) => {
                 const thought = step.text?.trim();
                 if (onStep && (thought || step.toolCalls.length > 0)) {

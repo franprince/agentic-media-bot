@@ -162,10 +162,11 @@ bot.api.getMe().then(async (me) => {
 - **Plex Filter Precision**: Direct Plex tag paths are now preferred and aggregated results are deduplicated across sections.
 - **Country Canonicalization Unification**: Execution, status, and logs now share one country normalizer (e.g., Danish -> Denmark).
 - **Strict Primary Country Filter**: Country browsing now validates each item’s primary "Country" tag and ignores language tags.
-- **Title Country Verification**: Country yes/no answers now use Plex `primaryCountry` from title search metadata.
+- **Title Country Verification**: Country yes/no answers now use Plex "primaryCountry" from title search metadata.
 - **Ranked Country Lists**: "Top N from country" queries now request ranked results with explicit limit.
 - **Deterministic Foreign Title Alias**: Country/genre list output now appends original title when it differs.
 - **Metadata Title Enrichment**: Country ranked output now enriches aliases from Plex metadata (`originalTitle`/`titleSort`) when possible.
+- **Detail-Intent Safety Guard**: Detail/info requests now disable add tools unless explicit add intent is present.
 - **Tool Guardrails**: Add-movie/series calls now gracefully prompt for a search match when IDs are missing.
 - **Radarr Resilience**: Title-based adds now handle Radarr lookup errors without crashing.
 - **Tool Error Containment**: Radarr search/add failures now return safe responses and keep the message flow alive.

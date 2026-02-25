@@ -68,3 +68,4 @@ A conversational Telegram bot that controls a user's home media server stack, ca
     - If a user asks to add a movie or series by title, the bot must search first to obtain the correct ID before adding.
     - If Radarr is unavailable during a title-based add, the bot should surface a friendly error and offer to try again or check Plex.
     - If Radarr returns a bad add/search request, the bot should respond gracefully and avoid crashing the conversation flow.
+    - Detail/info/synopsis requests must not trigger add/download actions unless the user explicitly asks to add.
