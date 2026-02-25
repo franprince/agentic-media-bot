@@ -8,7 +8,8 @@
 - **HTTP Client:** Native `fetch` API.
 
 ## Project Structure
-- `src/bot.ts`: Entry point. Initializes Telegram bot and logs incoming traffic.
+- `src/bot.ts`: Entry point. Initializes Telegram bot, logs incoming traffic, and handles direct commands like `/start` and `/status`.
+, and handles direct commands like `/start` and `/status`.
 - `src/agent/index.ts`: LLM abstraction. Handles message history, conditional model loading, and iterative tool execution.
 - `src/services/`: Modular wrappers for Radarr, Sonarr, qBittorrent, and Plex APIs.
 - `src/agent/tools.ts`: Unified tool repository for AI integration.

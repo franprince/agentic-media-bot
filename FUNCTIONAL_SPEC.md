@@ -27,7 +27,11 @@ A conversational Telegram bot that controls a user's home media server stack, ca
    - User asks: "Am I missing any episodes?"
    - Bot provides high-level summary (e.g., "Maching 2 series") or granular detail (Season, Episode, Air Date) upon request.
 
-5. **Advanced Search**
+5. **System Health & Commands**
+   - User writes: `/status`
+   - Bot checks all services (Radarr, Sonarr, qBittorrent, Plex) and returns a consolidated report showing which are online or offline.
+
+6. **Advanced Search**
    - When searching for media, the bot provides original titles, genres, and metadata identifiers (IMDb, TMDB, TVDB) to help the user identify foreign or correctly localized content.
 
 6. **LLM Personality & I18n**
