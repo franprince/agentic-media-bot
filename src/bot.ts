@@ -88,6 +88,7 @@ bot.command("restart", async (ctx) => {
     }
 
     await ctx.reply("Restarting bot process...");
+    setMetadata("skip_catchup_once", "1");
 
     setTimeout(() => {
         try {
@@ -102,6 +103,7 @@ bot.command("restart", async (ctx) => {
 // Handle text messages
 bot.on("message:text", async (ctx) => {
     if (!ctx.from) return;
+    if (ctx.message.text.startsWith("/")) return;
     const userId = ctx.from.id;
     const user = ctx.from.username || ctx.from.first_name;
     console.log(`📩 Message from @${user} (${userId}): ${ctx.message.text}`);
@@ -205,6 +207,8 @@ bot.api.getMe().then(async (me) => {
 - **Metadata Title Enrichment**: Country ranked output now enriches aliases from Plex metadata ("originalTitle"/"titleSort") when possible.
 - **Detail-Intent Safety Guard**: Detail/info requests now disable add tools unless explicit add intent is present.
 - **Admin Restart Command**: Added "/restart" command to gracefully restart the bot process for allowed users.
+- **Restart Catch-up Guard**: Admin restart now skips one startup catch-up cycle to avoid unrelated retroactive replies.
+- **Command Leakage Guard**: Slash commands are ignored by generic text-to-LLM middleware.
 - **Tool Guardrails**: Add-movie/series calls now gracefully prompt for a search match when IDs are missing.
 - **Radarr Resilience**: Title-based adds now handle Radarr lookup errors without crashing.
 - **Tool Error Containment**: Radarr search/add failures now return safe responses and keep the message flow alive.
@@ -232,8 +236,14 @@ bot.api.getMe().then(async (me) => {
     }
 
     // Catch-up logic for unreplied messages
-    console.log("📥 Checking for unreplied messages...");
-    await syncUnrepliedMessages();
+    const skipCatchupOnce = getMetadata("skip_catchup_once") === "1";
+    if (skipCatchupOnce) {
+        setMetadata("skip_catchup_once", "0");
+        console.log("⏭️ Skipping catch-up once after admin restart.");
+    } else {
+        console.log("📥 Checking for unreplied messages...");
+        await syncUnrepliedMessages();
+    }
 
     // Use grammyjs/runner to handle graceful restarts and long-polling concurrently
     botRunner = run(bot);

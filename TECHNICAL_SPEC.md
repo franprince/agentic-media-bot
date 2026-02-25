@@ -20,6 +20,7 @@
 - The bot must implement an allowlist of Telegram User IDs. If a message is received from an unknown ID, it should be ignored or gracefully rejected.
 - API keys for Radarr, Sonarr, Plex, and Gemini must be injected via read-only `.env` file.
 - `/restart` command authorization is enforced using `ALLOWED_USER_IDS`.
+- Slash commands are excluded from generic `message:text` LLM handling to avoid command leakage into tool-calling flow.
 
 ## AI Agent Design
 - The agent utilizes an LLM capable of function calling.
@@ -58,6 +59,7 @@
     2. Ensure service connectivity.
     3. Verify that the agent's current tool set matches the functionalities described in the FUNCTIONAL_SPEC.
     4. If significant spec changes are detected since the last run, notify administrators.
+- Startup catch-up can be skipped once after admin-triggered restart via metadata flag.
 - **Verification Logic:**
     - On every run, the bot executing `src/verify-config.ts` (or equivalent) to audit its environment against `TECHNICAL_SPEC.md` and `FUNCTIONAL_SPEC.md`.
     - **Deployment:** The bot MUST be restarted after any functional or technical update to apply changes and trigger the startup audit/changelog notification.
