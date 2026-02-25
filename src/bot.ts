@@ -24,22 +24,29 @@ function getAllowedUserIdSet(): Set<number> {
     );
 }
 
-function getRestartShellCommand(): string {
-    return process.env.BOT_RESTART_COMMAND
-        || 'pkill -f "bun run src/bot.ts" || true && sleep 1 && bun run src/bot.ts';
-}
-
 function triggerExternalRestart(): boolean {
-    const restartCommand = getRestartShellCommand();
+    const customRestartCommand = process.env.BOT_RESTART_COMMAND?.trim();
     try {
-        Bun.spawn({
-            cmd: ["sh", "-c", restartCommand],
-            cwd: process.cwd(),
-            stdin: "ignore",
-            stdout: "ignore",
-            stderr: "ignore",
-            detached: true,
-        });
+        if (customRestartCommand) {
+            Bun.spawn({
+                cmd: ["sh", "-c", customRestartCommand],
+                cwd: process.cwd(),
+                stdin: "ignore",
+                stdout: "ignore",
+                stderr: "ignore",
+                detached: true,
+            });
+        } else {
+            const scriptPath = process.argv[1] || "src/bot.ts";
+            Bun.spawn({
+                cmd: [process.execPath, scriptPath],
+                cwd: process.cwd(),
+                stdin: "ignore",
+                stdout: "ignore",
+                stderr: "ignore",
+                detached: true,
+            });
+        }
         return true;
     } catch (error) {
         console.error("Failed to spawn external restart command:", error);
@@ -114,6 +121,12 @@ bot.command("restart", async (ctx) => {
     setMetadata("skip_catchup_once", "1");
 
     setTimeout(() => {
+        try {
+            botRunner?.stop();
+        } catch (stopError) {
+            console.error("Failed to stop bot runner before restart:", stopError);
+        }
+
         const spawned = triggerExternalRestart();
         if (spawned) {
             process.exit(0);
@@ -200,8 +213,6 @@ console.log("Starting the bot...");
 
 // Audit specs and verify config on every run
 await verifyConfig();
-// Audit specs and verify config on every run
-await verifyConfig();
 
 bot.api.getMe().then(async (me) => {
     console.log(`✅ Bot is online and listening as @${me.username}`);
@@ -238,7 +249,7 @@ bot.api.getMe().then(async (me) => {
 - **Metadata Title Enrichment**: Country ranked output now enriches aliases from Plex metadata ("originalTitle"/"titleSort") when possible.
 - **Detail-Intent Safety Guard**: Detail/info requests now disable add tools unless explicit add intent is present.
 - **Admin Restart Command**: Added "/restart" command to gracefully restart the bot process for allowed users.
-- **External Restart Command**: "/restart" now spawns an external shell restart command, with in-process runner fallback if shell spawn fails.
+- **External Restart Reliability**: "/restart" now stops polling, starts a detached sibling bot process, then exits; custom BOT_RESTART_COMMAND remains supported.
 - **Restart Catch-up Guard**: Admin restart now skips one startup catch-up cycle to avoid unrelated retroactive replies.
 - **Command Leakage Guard**: Slash commands are ignored by generic text-to-LLM middleware.
 - **Tool Guardrails**: Add-movie/series calls now gracefully prompt for a search match when IDs are missing.
