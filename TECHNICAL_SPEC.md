@@ -43,8 +43,8 @@
 - **Single Country Canonicalizer**: Country normalization for tool execution, status rendering, and tool-call logging is centralized in `src/services/plex.ts` to avoid drift.
 - **Accent-Resilient I18N Detection**: Status language detection handles common Spanish forms with and without diacritics.
 - **Plex Result Deduplication**: Country/genre aggregation across multiple sections deduplicates media entries before computing `totalFound`.
-- **Strict Country Tag Filter**: After Plex country browsing, each item is verified by fetching metadata and checking `Country` tags against the requested country; language tags are ignored.
-- **Title-Level Country Verification**: `searchPlexByTitleOnly` includes normalized `countries` tags so country yes/no answers are grounded in Plex metadata.
+- **Strict Country Tag Filter**: After Plex country browsing, each item is verified by fetching metadata and checking `Country` tags against the requested country; language tags are ignored and primary-country matching is used by default.
+- **Title-Level Country Verification**: `searchPlexByTitleOnly` includes normalized `countries` and `primaryCountry` so country yes/no answers are grounded in Plex metadata.
 - **Ranked Country Query Support**: `findPlexByCountry` supports `ranked` and `limit` arguments and orders results by available Plex rating fields for top-N responses.
 - **Deterministic Original-Title Rendering**: `buildPlexBrowseAuthoritativeText` appends `originalTitle` when different from displayed title.
 - **Browse Title Enrichment**: Ranked country sample items fetch Plex item metadata and fallback to `titleSort` when `originalTitle` is unavailable.

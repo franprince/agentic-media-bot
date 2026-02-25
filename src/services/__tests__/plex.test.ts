@@ -162,6 +162,30 @@ describe("Plex Service", () => {
         expect(filtered[0]?.ratingKey).toBe("1");
     });
 
+    test("filterItemsByCountryTag should enforce primary country by default", async () => {
+        const items = [
+            { ratingKey: "11", title: "Co-production" },
+        ];
+
+        global.fetch = mock((input: any) => {
+            const url = String(input);
+            if (url.includes("/library/metadata/11")) {
+                return Promise.resolve(new Response(JSON.stringify({
+                    MediaContainer: {
+                        Metadata: [{ Country: [{ tag: "United States" }, { tag: "France" }] }],
+                    },
+                }), { status: 200 }));
+            }
+            return Promise.resolve(new Response("not found", { status: 404 }));
+        }) as any;
+
+        const defaultFiltered = await plex.filterItemsByCountryTag(items, "France");
+        const nonPrimaryFiltered = await plex.filterItemsByCountryTag(items, "France", { primaryOnly: false });
+
+        expect(defaultFiltered.length).toBe(0);
+        expect(nonPrimaryFiltered.length).toBe(1);
+    });
+
     test("getItemCountryTags should return normalized country tags", async () => {
         global.fetch = mock((input: any) => {
             const url = String(input);

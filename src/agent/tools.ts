@@ -320,6 +320,7 @@ export const searchPlexByTitleOnlyTool = tool({
                 tmdbId: tmdbMatch ? tmdbMatch[1] : undefined,
                 originalTitle: m.originalTitle,
                 countries,
+                primaryCountry: countries[0],
                 posterUrl: plex.getPosterUrl(m.thumb),
             };
         }))) as any;
@@ -531,7 +532,7 @@ export const findPlexByCountryTool = tool({
         }
 
         const uniqueResults = deduplicatePlexItems(allResults);
-        const strictCountryResults = await plex.filterItemsByCountryTag(uniqueResults, country);
+        const strictCountryResults = await plex.filterItemsByCountryTag(uniqueResults, country, { primaryOnly: true });
 
         if (strictCountryResults.length === 0) {
             return {

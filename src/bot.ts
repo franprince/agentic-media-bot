@@ -161,8 +161,8 @@ bot.api.getMe().then(async (me) => {
 - **Country Param Canonicalization**: findPlexByCountry now canonicalizes demonyms to country nouns at tool boundary.
 - **Plex Filter Precision**: Direct Plex tag paths are now preferred and aggregated results are deduplicated across sections.
 - **Country Canonicalization Unification**: Execution, status, and logs now share one country normalizer (e.g., Danish -> Denmark).
-- **Strict Country Tag Filter**: Country browsing now validates each item’s "Country" tags and ignores language tags.
-- **Title Country Verification**: Country yes/no answers now use Plex "Country" tags returned by title search.
+- **Strict Primary Country Filter**: Country browsing now validates each item’s primary "Country" tag and ignores language tags.
+- **Title Country Verification**: Country yes/no answers now use Plex `primaryCountry` from title search metadata.
 - **Ranked Country Lists**: "Top N from country" queries now request ranked results with explicit limit.
 - **Deterministic Foreign Title Alias**: Country/genre list output now appends original title when it differs.
 - **Metadata Title Enrichment**: Country ranked output now enriches aliases from Plex metadata (`originalTitle`/`titleSort`) when possible.

@@ -81,16 +81,24 @@ async function mapWithConcurrency<T, R>(
     return results;
 }
 
-export async function filterItemsByCountryTag(items: any[], countryName: string): Promise<any[]> {
+export async function filterItemsByCountryTag(
+    items: any[],
+    countryName: string,
+    options: { primaryOnly?: boolean } = {}
+): Promise<any[]> {
     const target = normalizeCountryName(countryName);
     if (!target) return [];
     if (items.length === 0) return [];
+    const primaryOnly = options.primaryOnly ?? true;
 
     const filteredFlags = await mapWithConcurrency(items, 5, async (item) => {
         const ratingKey = item?.ratingKey;
         if (!ratingKey) return false;
         const tags = await getItemCountryTags(String(ratingKey));
-        return tags.includes(target);
+        if (tags.length === 0) return false;
+        if (!tags.includes(target)) return false;
+        if (!primaryOnly) return true;
+        return tags[0] === target;
     });
 
     return items.filter((_item, idx) => filteredFlags[idx]);
