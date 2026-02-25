@@ -28,7 +28,7 @@ function triggerExternalRestart(): boolean {
     const customRestartCommand = process.env.BOT_RESTART_COMMAND?.trim();
     try {
         if (customRestartCommand) {
-            Bun.spawn({
+            const child = Bun.spawn({
                 cmd: ["sh", "-c", customRestartCommand],
                 cwd: process.cwd(),
                 stdin: "ignore",
@@ -36,9 +36,11 @@ function triggerExternalRestart(): boolean {
                 stderr: "ignore",
                 detached: true,
             });
+            child.unref();
+            return true;
         } else {
             const scriptPath = process.argv[1] || "src/bot.ts";
-            Bun.spawn({
+            const child = Bun.spawn({
                 cmd: [process.execPath, scriptPath],
                 cwd: process.cwd(),
                 stdin: "ignore",
@@ -46,10 +48,27 @@ function triggerExternalRestart(): boolean {
                 stderr: "ignore",
                 detached: true,
             });
+            child.unref();
+            return true;
         }
-        return true;
     } catch (error) {
-        console.error("Failed to spawn external restart command:", error);
+        console.error("Failed to spawn detached restart process directly:", error);
+    }
+
+    try {
+        const fallback = Bun.spawn({
+            cmd: ["sh", "-c", "nohup bun run src/bot.ts >/tmp/agentic-media-bot-restart.log 2>&1 &"],
+            cwd: process.cwd(),
+            stdin: "ignore",
+            stdout: "ignore",
+            stderr: "ignore",
+            detached: true,
+        });
+        fallback.unref();
+        console.log("✅ Restart fallback launched via nohup.");
+        return true;
+    } catch (fallbackError) {
+        console.error("Failed to launch restart fallback:", fallbackError);
         return false;
     }
 }
@@ -249,7 +268,7 @@ bot.api.getMe().then(async (me) => {
 - **Metadata Title Enrichment**: Country ranked output now enriches aliases from Plex metadata ("originalTitle"/"titleSort") when possible.
 - **Detail-Intent Safety Guard**: Detail/info requests now disable add tools unless explicit add intent is present.
 - **Admin Restart Command**: Added "/restart" command to gracefully restart the bot process for allowed users.
-- **External Restart Reliability**: "/restart" now stops polling, starts a detached sibling bot process, then exits; custom BOT_RESTART_COMMAND remains supported.
+- **External Restart Reliability**: "/restart" now stops polling, starts a detached sibling bot process, and retries via nohup fallback before exiting; custom BOT_RESTART_COMMAND remains supported.
 - **Restart Catch-up Guard**: Admin restart now skips one startup catch-up cycle to avoid unrelated retroactive replies.
 - **Command Leakage Guard**: Slash commands are ignored by generic text-to-LLM middleware.
 - **Tool Guardrails**: Add-movie/series calls now gracefully prompt for a search match when IDs are missing.

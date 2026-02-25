@@ -20,7 +20,7 @@
 - The bot must implement an allowlist of Telegram User IDs. If a message is received from an unknown ID, it should be ignored or gracefully rejected.
 - API keys for Radarr, Sonarr, Plex, and Gemini must be injected via read-only `.env` file.
 - `/restart` command authorization is enforced using `ALLOWED_USER_IDS`.
-- `/restart` stops the current polling runner, starts a new detached bot process using the current Bun executable/script path, then exits the current process; `BOT_RESTART_COMMAND` can override this behavior. If spawning fails, it falls back to in-process runner restart.
+- `/restart` stops the current polling runner, starts a new detached bot process using the current Bun executable/script path, then exits the current process; `BOT_RESTART_COMMAND` can override this behavior. If direct spawn fails, it retries with a detached `nohup bun run src/bot.ts` shell fallback before in-process runner fallback.
 - Slash commands are excluded from generic `message:text` LLM handling to avoid command leakage into tool-calling flow.
 
 ## AI Agent Design
