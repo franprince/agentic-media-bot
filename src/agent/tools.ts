@@ -294,9 +294,9 @@ export const checkServiceHealthTool = tool({
     execute: async ({ service }: { service: string }) => {
         try {
             if (service === "Radarr") await radarr.getSystemStatus();
-            if (service === "Sonarr") await sonarr.getSystemStatus();
-            if (service === "Plex") await plex.getSystemStatus();
-            if (service === "qBittorrent") await qbittorrent.getTorrents("all");
+            else if (service === "Sonarr") await sonarr.getSystemStatus();
+            else if (service === "Plex") await plex.getSystemStatus();
+            else if (service === "qBittorrent") await qbittorrent.getTorrents("all");
             return { online: true, message: `${service} is online and responsive.` };
         } catch (error) {
             return { online: false, message: `${service} appears to be offline or unreachable.` };
