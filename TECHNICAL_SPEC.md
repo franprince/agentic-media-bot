@@ -19,6 +19,7 @@
 ## Security & Authentication
 - The bot must implement an allowlist of Telegram User IDs. If a message is received from an unknown ID, it should be ignored or gracefully rejected.
 - API keys for Radarr, Sonarr, Plex, and Gemini must be injected via read-only `.env` file.
+- `/restart` command authorization is enforced using `ALLOWED_USER_IDS`.
 
 ## AI Agent Design
 - The agent utilizes an LLM capable of function calling.

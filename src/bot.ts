@@ -13,6 +13,16 @@ if (!token) {
 }
 
 const bot = new Bot(token);
+let botRunner: ReturnType<typeof run> | undefined;
+
+function getAllowedUserIdSet(): Set<number> {
+    const raw = process.env.ALLOWED_USER_IDS?.split(",") || [];
+    return new Set(
+        raw
+            .map((value) => Number(value.trim()))
+            .filter((value) => Number.isFinite(value))
+    );
+}
 
 function getLocalizedThinkingStatus(text: string | undefined): string {
     const lang = detectStatusLanguage(text);
@@ -61,6 +71,28 @@ bot.command("status", async (ctx) => {
     }).join("\n");
 
     await ctx.reply(`📡 *Service Status Report*\n\n${message}`, { parse_mode: "Markdown" });
+});
+
+// Handle /restart command (admin-only)
+bot.command("restart", async (ctx) => {
+    const userId = ctx.from.id;
+    const allowedUserIds = getAllowedUserIdSet();
+
+    if (allowedUserIds.size > 0 && !allowedUserIds.has(userId)) {
+        await ctx.reply("You are not authorized to restart this bot.");
+        return;
+    }
+
+    await ctx.reply("Restarting bot process...");
+
+    setTimeout(() => {
+        try {
+            botRunner?.stop();
+        } catch {
+            // Ignore and exit anyway.
+        }
+        process.exit(0);
+    }, 200);
 });
 
 // Handle text messages
@@ -165,8 +197,9 @@ bot.api.getMe().then(async (me) => {
 - **Title Country Verification**: Country yes/no answers now use Plex "primaryCountry" from title search metadata.
 - **Ranked Country Lists**: "Top N from country" queries now request ranked results with explicit limit.
 - **Deterministic Foreign Title Alias**: Country/genre list output now appends original title when it differs.
-- **Metadata Title Enrichment**: Country ranked output now enriches aliases from Plex metadata (`originalTitle`/`titleSort`) when possible.
+- **Metadata Title Enrichment**: Country ranked output now enriches aliases from Plex metadata ("originalTitle"/"titleSort") when possible.
 - **Detail-Intent Safety Guard**: Detail/info requests now disable add tools unless explicit add intent is present.
+- **Admin Restart Command**: Added `/restart` command to gracefully restart the bot process for allowed users.
 - **Tool Guardrails**: Add-movie/series calls now gracefully prompt for a search match when IDs are missing.
 - **Radarr Resilience**: Title-based adds now handle Radarr lookup errors without crashing.
 - **Tool Error Containment**: Radarr search/add failures now return safe responses and keep the message flow alive.
@@ -198,7 +231,7 @@ bot.api.getMe().then(async (me) => {
     await syncUnrepliedMessages();
 
     // Use grammyjs/runner to handle graceful restarts and long-polling concurrently
-    const runner = run(bot);
+    botRunner = run(bot);
 
     console.log("🚀 Bot is ready for messages on Telegram.");
 });
