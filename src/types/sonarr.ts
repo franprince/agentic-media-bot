@@ -12,6 +12,10 @@ export interface SonarrSeries {
     imdbId?: string;
     monitored?: boolean;
     images?: Array<{ coverType: string; url: string }>;
+    ratings?: {
+        votes: number;
+        value: number;
+    };
     // Additional fields needed for adding
     qualityProfileId?: number;
     languageProfileId?: number;

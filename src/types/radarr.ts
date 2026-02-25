@@ -11,6 +11,12 @@ export interface RadarrMovie {
     monitored?: boolean;
     sizeOnDisk?: number;
     images?: Array<{ coverType: string; url: string }>;
+    ratings?: {
+        imdb?: { value: number; votes: number };
+        tmdb?: { value: number; votes: number };
+        metacritic?: { value: number; votes: number };
+        rottenTomatoes?: { value: number; votes: number };
+    };
     // Additional fields needed for adding
     qualityProfileId?: number;
     rootFolderPath?: string;
