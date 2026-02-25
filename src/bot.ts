@@ -208,7 +208,7 @@ bot.api.getMe().then(async (me) => {
 - **Metadata Title Enrichment**: Country ranked output now enriches aliases from Plex metadata ("originalTitle"/"titleSort") when possible.
 - **Detail-Intent Safety Guard**: Detail/info requests now disable add tools unless explicit add intent is present.
 - **Admin Restart Command**: Added "/restart" command to gracefully restart the bot process for allowed users.
-- **In-Process Runner Restart**: `/restart` now restarts polling in-process instead of exiting.
+- **In-Process Runner Restart**: "/restart" now restarts polling in-process instead of exiting.
 - **Restart Catch-up Guard**: Admin restart now skips one startup catch-up cycle to avoid unrelated retroactive replies.
 - **Command Leakage Guard**: Slash commands are ignored by generic text-to-LLM middleware.
 - **Tool Guardrails**: Add-movie/series calls now gracefully prompt for a search match when IDs are missing.
