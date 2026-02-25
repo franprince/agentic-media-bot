@@ -24,6 +24,29 @@ function getAllowedUserIdSet(): Set<number> {
     );
 }
 
+function getRestartShellCommand(): string {
+    return process.env.BOT_RESTART_COMMAND
+        || 'pkill -f "bun run src/bot.ts" || true && sleep 1 && bun run src/bot.ts';
+}
+
+function triggerExternalRestart(): boolean {
+    const restartCommand = getRestartShellCommand();
+    try {
+        Bun.spawn({
+            cmd: ["sh", "-c", restartCommand],
+            cwd: process.cwd(),
+            stdin: "ignore",
+            stdout: "ignore",
+            stderr: "ignore",
+            detached: true,
+        });
+        return true;
+    } catch (error) {
+        console.error("Failed to spawn external restart command:", error);
+        return false;
+    }
+}
+
 function getLocalizedThinkingStatus(text: string | undefined): string {
     const lang = detectStatusLanguage(text);
     return lang === "es" ? "⏳ _Pensando..._" : "⏳ _Thinking..._";
@@ -87,16 +110,23 @@ bot.command("restart", async (ctx) => {
         return;
     }
 
-    await ctx.reply("Restarting bot runner...");
+    await ctx.reply("Restarting bot process...");
     setMetadata("skip_catchup_once", "1");
 
     setTimeout(() => {
+        const spawned = triggerExternalRestart();
+        if (spawned) {
+            process.exit(0);
+            return;
+        }
+
+        // Fallback for environments where shell spawning is restricted.
         try {
             botRunner?.stop();
             botRunner = run(bot);
-            console.log("✅ Bot runner restarted via /restart command.");
-        } catch (error) {
-            console.error("Failed to restart bot runner:", error);
+            console.log("✅ Bot runner restarted in-process via fallback.");
+        } catch (fallbackError) {
+            console.error("Failed to restart bot runner via fallback:", fallbackError);
         }
     }, 200);
 });
@@ -208,7 +238,7 @@ bot.api.getMe().then(async (me) => {
 - **Metadata Title Enrichment**: Country ranked output now enriches aliases from Plex metadata ("originalTitle"/"titleSort") when possible.
 - **Detail-Intent Safety Guard**: Detail/info requests now disable add tools unless explicit add intent is present.
 - **Admin Restart Command**: Added "/restart" command to gracefully restart the bot process for allowed users.
-- **In-Process Runner Restart**: "/restart" now restarts polling in-process instead of exiting.
+- **External Restart Command**: "/restart" now spawns an external shell restart command, with in-process runner fallback if shell spawn fails.
 - **Restart Catch-up Guard**: Admin restart now skips one startup catch-up cycle to avoid unrelated retroactive replies.
 - **Command Leakage Guard**: Slash commands are ignored by generic text-to-LLM middleware.
 - **Tool Guardrails**: Add-movie/series calls now gracefully prompt for a search match when IDs are missing.

@@ -31,7 +31,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
    - User writes: `/status`
    - Bot checks all services (Radarr, Sonarr, qBittorrent, Plex) and returns a consolidated report showing which are online or offline.
    - User writes: `/restart`
-   - Bot restarts its polling runner in-process (admin/allowed users only).
+   - Bot executes a restart shell command (admin/allowed users only), with in-process runner restart fallback if shell spawn fails.
    - Restart command skips one startup catch-up pass to avoid unrelated retroactive replies immediately after restart.
 
     - User writes: `/status`
