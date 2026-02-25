@@ -373,7 +373,6 @@ export const browsePlexByGenreTool = tool({
             totalFound: uniqueResults.length,
             queryType: "genre",
             searchParam: genre,
-            listLabel: `This is the list of ${genre} movies:`,
             sampleItems: uniqueResults.slice(0, 15).map(m => ({
                 title: m.title,
                 originalTitle: m.originalTitle,
@@ -590,9 +589,6 @@ export const findPlexByCountryTool = tool({
             requestedLimit: limit,
             queryType: "country",
             searchParam: country,
-            listLabel: ranked
-                ? `Top ${Math.min(limit, orderedResults.length)} by rating`
-                : `This is the list of movies from ${country}:`,
             sampleItems,
         } as any;
     },

@@ -37,6 +37,7 @@
 - **History Migration**: Dynamically renames legacy tool calls in the conversation history to maintain compatibility with updated tool schemas.
 - **Real-time Status Feed**: Captures "thinking" preamble from the LLM to provide localized, real-time status updates via the Telegram `onStep` callback.
 - **Localized Entry Status**: `src/bot.ts` localizes initial "thinking" and restart catch-up status messages based on detected user-message language.
+- **Final Language Enforcement**: `processUserMessage` performs a post-generation language guard; if output language does not match the detected user language (es/en), it rewrites the final text in the target language while preserving content/format.
 - **Deterministic Count Prefix**: Final responses prepend a localized exact-count line for Plex country/genre tool results using `totalFound`.
 - **Count Source of Truth**: Exact-count prefixes must use tool results from the execution pass (`firstPass`) even when a synthesis model generates the final prose.
 - **Plex Tag-Key Normalization**: Country/genre filters parse Plex tag keys that may arrive as full query paths (not only numeric IDs), ensuring accurate filter requests.

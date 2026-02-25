@@ -56,7 +56,7 @@ describe("response helpers", () => {
         );
 
         expect(text).toInclude("Encontré 2 títulos en Plex.");
-        expect(text).toInclude("This is the list of movies from Germany:");
+        expect(text).toInclude("Esta es la lista de películas de Germany:");
         expect(text).toInclude("- Das Boot (1981)");
         expect(text).toInclude("- M (1931)");
     });

@@ -85,6 +85,10 @@ export function buildPlexBrowseAuthoritativeText(toolResults: ToolResultLike[], 
         const queryType = entry.result?.queryType === "country" || entry.result?.queryType === "genre"
             ? entry.result.queryType as "country" | "genre"
             : undefined;
+        const ranked = entry.result?.ranked === true;
+        const requestedLimit = typeof entry.result?.requestedLimit === "number" && Number.isFinite(entry.result.requestedLimit)
+            ? entry.result.requestedLimit
+            : undefined;
 
         if (typeof totalFound !== "number" || !Number.isFinite(totalFound)) continue;
 
@@ -99,12 +103,25 @@ export function buildPlexBrowseAuthoritativeText(toolResults: ToolResultLike[], 
             return `${header}\n\n${empty}`;
         }
 
+        const rankedHeader = ranked
+            ? (lang === "es"
+                ? `Top ${Math.min(requestedLimit ?? sampleItems.length, sampleItems.length)} por calificación`
+                : `Top ${Math.min(requestedLimit ?? sampleItems.length, sampleItems.length)} by rating`)
+            : undefined;
+
         const listHeader = customListLabel
+            || rankedHeader
             || (searchParam && queryType === "country"
-                ? `This is the list of movies from ${searchParam}:`
+                ? (lang === "es"
+                    ? `Esta es la lista de películas de ${searchParam}:`
+                    : `This is the list of movies from ${searchParam}:`)
                 : searchParam
-                    ? `This is the list of ${searchParam} movies:`
-                    : "This is the list of matching movies:");
+                    ? (lang === "es"
+                        ? `Esta es la lista de películas de ${searchParam}:`
+                        : `This is the list of ${searchParam} movies:`)
+                    : (lang === "es"
+                        ? "Esta es la lista de películas encontradas:"
+                        : "This is the list of matching movies:"));
         const list = sampleItems.map(item => `- ${formatTitle(item, lang)}`).join("\n");
         return `${header}\n\n${listHeader}\n${list}`;
     }

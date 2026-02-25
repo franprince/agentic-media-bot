@@ -291,6 +291,7 @@ bot.api.getMe().then(async (me) => {
 *Recent Changes:*
 - **Warmer Status Updates**: More informative, localized status messages with friendly phrasing.
 - **Localized Transition Banner**: Initial "Thinking" and catch-up status messages now match the user's language.
+- **Conversation Language Lock**: Final replies now enforce the detected conversation language (Spanish/English) before sending.
 - **Exact Count Prefix**: Plex country/genre replies now always include the precise total found count.
 - **Count Prefix Wording**: Plex count prefix no longer says "exactly"; it now uses simpler phrasing.
 - **List Header Wording**: Plex country/genre lists now say "This is the list of {search parameter} movies:" instead of "Muestra/Sample".

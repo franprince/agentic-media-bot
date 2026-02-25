@@ -86,6 +86,27 @@ function normalizeToolCallsForLogging(toolCalls: any[]): any[] {
     });
 }
 
+function shouldRewriteForTargetLanguage(text: string, target: StatusLanguage): boolean {
+    const detected = detectStatusLanguage(text);
+    if (target === "es") return detected !== "es";
+    return detected === "es";
+}
+
+function buildLanguageRewritePrompt(target: StatusLanguage): string {
+    if (target === "es") {
+        return [
+            "Reescribe el siguiente mensaje completamente en español.",
+            "Mantén exactamente el mismo contenido, números, títulos, viñetas, enlaces y formato Markdown.",
+            "No agregues ni quites elementos; solo cambia el idioma.",
+        ].join(" ");
+    }
+    return [
+        "Rewrite the following message fully in English.",
+        "Keep exactly the same facts, numbers, titles, bullet points, links, and Markdown formatting.",
+        "Do not add or remove items; only change language.",
+    ].join(" ");
+}
+
 const DEFAULT_SYSTEM_PROMPT = `
 You are an Agentic Media Bot. You manage Radarr, Sonarr, Plex, and qBittorrent.
 Your tone is warm, friendly, and helpful. Use emojis to make the conversation inviting! ✨
@@ -331,7 +352,12 @@ export async function processUserMessage(
 
         // --- Step 2: Synthesis (using CAPABLE model if tools were involved) ---
         if (firstPass.toolResults.length > 0 && modelFastName !== modelCapableName) {
-            if (onStep) await onStep("✍️ _Synthesizing final response..._");
+            if (onStep) {
+                const synthesisStatus = statusLang === "es"
+                    ? "✍️ _Redactando la respuesta final..._"
+                    : "✍️ _Synthesizing final response..._";
+                await onStep(synthesisStatus);
+            }
 
             console.log(`🧠 Synthesizing final response with CAPABLE model: ${modelCapableName}`);
 
@@ -403,12 +429,33 @@ export async function processUserMessage(
             text = text.replace(/POSTER:.*?(https?:\/\/\S+)/i, "").trim();
         }
 
+        if (text && shouldRewriteForTargetLanguage(text, statusLang)) {
+            try {
+                const rewritten = await generateText({
+                    model: modelCapable as any,
+                    messages: [
+                        { role: "system", content: buildLanguageRewritePrompt(statusLang) },
+                        { role: "user", content: text },
+                    ],
+                });
+                const candidate = rewritten.text?.trim();
+                if (candidate) text = candidate;
+            } catch (rewriteError) {
+                console.warn("Language rewrite step failed; returning original text.", rewriteError);
+            }
+        }
+
         console.log(`🤖 Bot Response to ${userId}:`, text);
         if (imageUrl) console.log(`🖼️ Attached Poster:`, imageUrl);
 
         return { text, imageUrl };
     } catch (error) {
         console.error("Error processing LLM response:", error);
-        return { text: "Sorry, I encountered an error while trying to process your request." };
+        const fallbackLang = detectStatusLanguage(userMessage ?? getLastUserTextFromHistory(history));
+        return {
+            text: fallbackLang === "es"
+                ? "Lo siento, tuve un error al procesar tu pedido."
+                : "Sorry, I encountered an error while trying to process your request."
+        };
     }
 }

@@ -63,6 +63,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
    - **Thinking Protocol**: While processing tools, the bot provides real-time status updates in the user's language with warm, specific phrasing (e.g., "Buscando películas en Plex..." instead of generic "Working on...").
    - **Localized Transition Banner**: Initial transition messages (such as "Thinking..." and restart catch-up notices) are shown in the same language as the user's message.
    - **Accent-Resilient Language Detection**: Spanish should be detected correctly even when users omit accents (e.g., "peliculas" vs "películas").
+   - **Final Reply Language Guard**: Final answer text is forced to match the detected user language (Spanish/English) before sending.
 
 9. **Update Notifications & Changelogs**
    - After a restart, if new features or fixes have been implemented, the bot automatically notifies administrators with a detailed changelog. 
