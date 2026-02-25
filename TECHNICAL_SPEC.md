@@ -20,6 +20,7 @@
 - The bot must implement an allowlist of Telegram User IDs. If a message is received from an unknown ID, it should be ignored or gracefully rejected.
 - API keys for Radarr, Sonarr, Plex, and Gemini must be injected via read-only `.env` file.
 - `/restart` command authorization is enforced using `ALLOWED_USER_IDS`.
+- `/restart` performs in-process runner restart (stop + run) for environments without external process supervisors.
 - Slash commands are excluded from generic `message:text` LLM handling to avoid command leakage into tool-calling flow.
 
 ## AI Agent Design
