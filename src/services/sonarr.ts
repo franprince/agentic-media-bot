@@ -109,3 +109,11 @@ export async function getMissingSeries(): Promise<SonarrSeries[]> {
     // Return series where monitored is true and statistics.percentOfEpisodes < 100
     return series.filter(s => s.monitored && (s.statistics?.percentOfEpisodes ?? 100) < 100);
 }
+
+/**
+ * Get specific missing episodes with series details.
+ */
+export async function getMissingEpisodes(pageSize: number = 20): Promise<any> {
+    const result = await fetchSonarr<any>(`/wanted/missing?pageSize=${pageSize}&includeSeries=true`);
+    return result;
+}
