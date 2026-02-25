@@ -305,6 +305,7 @@ bot.api.getMe().then(async (me) => {
 - **Ranked Country Lists**: "Top N from country" queries now request ranked results with explicit limit.
 - **Deterministic Foreign Title Alias**: Country/genre list output now appends original title when it differs.
 - **Metadata Title Enrichment**: Country ranked output now enriches aliases from Plex metadata ("originalTitle"/"titleSort") when possible.
+- **Missing Alias Transparency**: Non-Latin titles now explicitly show when an English/Spanish alias is unavailable in Plex metadata.
 - **Detail-Intent Safety Guard**: Detail/info requests now disable add tools unless explicit add intent is present.
 - **Admin Restart Command**: Added "/restart" command to gracefully restart the bot process for allowed users.
 - **External Restart Reliability**: "/restart" now stops polling, starts a detached sibling bot process, and retries via nohup fallback before exiting; custom BOT_RESTART_COMMAND remains supported.

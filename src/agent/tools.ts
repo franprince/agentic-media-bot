@@ -555,6 +555,7 @@ export const findPlexByCountryTool = tool({
 
         const sampleItems = await Promise.all(orderedResults.slice(0, limit).map(async (m) => {
             let enrichedOriginalTitle = m.originalTitle;
+            let aliasTitle = typeof m.titleSort === "string" ? m.titleSort.trim() : undefined;
 
             if (m.ratingKey) {
                 try {
@@ -563,9 +564,8 @@ export const findPlexByCountryTool = tool({
                     const detailTitleSort = typeof details?.titleSort === "string" ? details.titleSort.trim() : "";
                     if (detailOriginalTitle) {
                         enrichedOriginalTitle = detailOriginalTitle;
-                    } else if (detailTitleSort && detailTitleSort.toLowerCase() !== String(m.title || "").toLowerCase()) {
-                        enrichedOriginalTitle = detailTitleSort;
                     }
+                    if (detailTitleSort) aliasTitle = detailTitleSort;
                 } catch {
                     // Best-effort enrichment only.
                 }
@@ -574,6 +574,7 @@ export const findPlexByCountryTool = tool({
             return {
                 title: m.title,
                 originalTitle: enrichedOriginalTitle,
+                aliasTitle,
                 year: m.year,
                 overview: m.summary,
                 posterUrl: plex.getPosterUrl(m.thumb),

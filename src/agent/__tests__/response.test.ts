@@ -90,6 +90,36 @@ describe("response helpers", () => {
         expect(text).toInclude("- オーディション (Audition) (1999)");
     });
 
+    test("uses alias title when original title is unavailable", () => {
+        const text = buildPlexBrowseAuthoritativeText(
+            [{
+                toolName: "findPlexByCountry",
+                result: {
+                    totalFound: 1,
+                    sampleItems: [{ title: "紅の豚", aliasTitle: "Porco Rosso", year: 1992 }],
+                },
+            }],
+            "en"
+        );
+
+        expect(text).toInclude("- 紅の豚 (Porco Rosso) (1992)");
+    });
+
+    test("explicitly marks missing english/spanish alias for non-latin titles", () => {
+        const text = buildPlexBrowseAuthoritativeText(
+            [{
+                toolName: "findPlexByCountry",
+                result: {
+                    totalFound: 1,
+                    sampleItems: [{ title: "椿三十郎", year: 1962 }],
+                },
+            }],
+            "en"
+        );
+
+        expect(text).toInclude("- 椿三十郎 (English/Spanish title unavailable) (1962)");
+    });
+
     test("does not duplicate alias when titles are the same", () => {
         const text = buildPlexBrowseAuthoritativeText(
             [{

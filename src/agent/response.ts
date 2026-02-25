@@ -10,6 +10,7 @@ const EXACT_COUNT_TOOLS = new Set(["findPlexByCountry", "browsePlexByGenre"]);
 type SampleItemLike = {
     title?: string;
     originalTitle?: string;
+    aliasTitle?: string;
     year?: number;
 };
 
@@ -47,13 +48,26 @@ export function extractToolResultsFromMessages(messages: any[] | undefined): Too
     return extracted;
 }
 
-function formatTitle(item: SampleItemLike): string {
+function hasNonLatinCharacters(value: string): boolean {
+    return /[^\u0000-\u024f\s"'`~!@#$%^&*()\-_=+\[\]{}\\|;:,./<>?0-9]/.test(value);
+}
+
+function formatTitle(item: SampleItemLike, lang: StatusLanguage): string {
     const title = item.title || "Untitled";
     const originalTitle = item.originalTitle?.trim();
+    const aliasTitle = item.aliasTitle?.trim();
+    const displayAlias = originalTitle || aliasTitle;
     const yearSuffix = typeof item.year === "number" && Number.isFinite(item.year) ? ` (${item.year})` : "";
 
-    if (originalTitle && originalTitle.toLowerCase() !== title.toLowerCase()) {
-        return `${title} (${originalTitle})${yearSuffix}`;
+    if (displayAlias && displayAlias.toLowerCase() !== title.toLowerCase()) {
+        return `${title} (${displayAlias})${yearSuffix}`;
+    }
+
+    if (hasNonLatinCharacters(title)) {
+        const missingAliasLabel = lang === "es"
+            ? "título en inglés/español no disponible"
+            : "English/Spanish title unavailable";
+        return `${title} (${missingAliasLabel})${yearSuffix}`;
     }
 
     return `${title}${yearSuffix}`;
@@ -82,7 +96,7 @@ export function buildPlexBrowseAuthoritativeText(toolResults: ToolResultLike[], 
         }
 
         const listHeader = customListLabel || (lang === "es" ? "Muestra:" : "Sample:");
-        const list = sampleItems.map(item => `- ${formatTitle(item)}`).join("\n");
+        const list = sampleItems.map(item => `- ${formatTitle(item, lang)}`).join("\n");
         return `${header}\n\n${listHeader}\n${list}`;
     }
     return undefined;

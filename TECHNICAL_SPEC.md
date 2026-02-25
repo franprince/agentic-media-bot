@@ -52,6 +52,7 @@
 - **Ranked Country Query Support**: `findPlexByCountry` supports `ranked` and `limit` arguments and orders results by available Plex rating fields for top-N responses.
 - **Deterministic Original-Title Rendering**: `buildPlexBrowseAuthoritativeText` appends `originalTitle` when different from displayed title.
 - **Browse Title Enrichment**: Ranked country sample items fetch Plex item metadata and fallback to `titleSort` when `originalTitle` is unavailable.
+- **Alias Fallback Rendering**: If `originalTitle` is missing, deterministic rendering can use enriched `aliasTitle`; if a non-Latin title still has no alias, output explicitly marks the English/Spanish alias as unavailable.
 - **Intent-Based Tool Gating**: For detail/info/synopsis user intent, add tools (`addMovie`, `addSeries`) are removed from the tool set unless explicit add intent is detected.
 
 ## Startup Verification & Specification Auditing
