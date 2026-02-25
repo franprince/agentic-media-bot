@@ -23,8 +23,8 @@ export function buildExactCountPrefix(toolResults: ToolResultLike[], lang: Statu
         if (typeof totalFound !== "number" || !Number.isFinite(totalFound)) continue;
 
         return lang === "es"
-            ? `Encontré exactamente ${totalFound} títulos en Plex.`
-            : `I found exactly ${totalFound} titles in Plex.`;
+            ? `Encontré ${totalFound} títulos en Plex.`
+            : `I found ${totalFound} titles in Plex.`;
     }
     return undefined;
 }
@@ -85,8 +85,8 @@ export function buildPlexBrowseAuthoritativeText(toolResults: ToolResultLike[], 
         if (typeof totalFound !== "number" || !Number.isFinite(totalFound)) continue;
 
         const header = lang === "es"
-            ? `Encontré exactamente ${totalFound} títulos en Plex.`
-            : `I found exactly ${totalFound} titles in Plex.`;
+            ? `Encontré ${totalFound} títulos en Plex.`
+            : `I found ${totalFound} titles in Plex.`;
 
         if (sampleItems.length === 0) {
             const empty = lang === "es"

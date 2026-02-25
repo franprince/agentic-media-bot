@@ -7,7 +7,7 @@ describe("response helpers", () => {
             [{ toolName: "findPlexByCountry", result: { totalFound: 14 } }],
             "es"
         );
-        expect(prefix).toBe("Encontré exactamente 14 títulos en Plex.");
+        expect(prefix).toBe("Encontré 14 títulos en Plex.");
     });
 
     test("builds English exact-count prefix for country/genre Plex tools", () => {
@@ -15,7 +15,7 @@ describe("response helpers", () => {
             [{ toolName: "browsePlexByGenre", result: { totalFound: 8 } }],
             "en"
         );
-        expect(prefix).toBe("I found exactly 8 titles in Plex.");
+        expect(prefix).toBe("I found 8 titles in Plex.");
     });
 
     test("returns undefined when no exact-count tool results exist", () => {
@@ -53,7 +53,7 @@ describe("response helpers", () => {
             "es"
         );
 
-        expect(text).toInclude("Encontré exactamente 2 títulos en Plex.");
+        expect(text).toInclude("Encontré 2 títulos en Plex.");
         expect(text).toInclude("- Das Boot (1981)");
         expect(text).toInclude("- M (1931)");
     });
@@ -71,7 +71,7 @@ describe("response helpers", () => {
             "en"
         );
 
-        expect(text).toInclude("I found exactly 12 titles in Plex.");
+        expect(text).toInclude("I found 12 titles in Plex.");
         expect(text).toInclude("Top 10 by rating");
     });
 
