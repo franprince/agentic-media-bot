@@ -5,6 +5,30 @@ import * as sonarr from "../services/sonarr";
 import * as qbittorrent from "../services/qbittorrent";
 import * as plex from "../services/plex";
 
+// --- Caching for Profiles & Folders --- //
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const configCache: Record<string, { data: any, timestamp: number }> = {};
+
+async function withCache<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+    const cached = configCache[key];
+    const now = Date.now();
+    if (cached && (now - cached.timestamp < CACHE_TTL)) {
+        return cached.data;
+    }
+    const data = await fetcher();
+    configCache[key] = { data, timestamp: now };
+    return data;
+}
+
+function deduplicatePlexItems(items: any[]): any[] {
+    const unique = new Map<string, any>();
+    for (const item of items) {
+        const dedupeKey = item?.ratingKey || item?.guid || `${item?.title ?? "untitled"}::${item?.year ?? ""}`;
+        if (!unique.has(dedupeKey)) unique.set(dedupeKey, item);
+    }
+    return [...unique.values()];
+}
+
 // --- Radarr Tools --- //
 
 export const searchMovieTool = tool({
@@ -13,53 +37,96 @@ export const searchMovieTool = tool({
         term: z.string().describe("The name of the movie to search for."),
     }),
     execute: async ({ term }: { term: string }) => {
-        const results = await radarr.searchMovie(term);
-        // Limit results to avoid massive context payloads
-        return results.slice(0, 5).map(m => ({
-            title: m.title,
-            originalTitle: m.originalTitle,
-            year: m.year,
-            genres: m.genres,
-            tmdbId: m.tmdbId,
-            imdbId: m.imdbId,
-            hasFile: m.hasFile,
-            monitored: m.monitored,
-            ratings: m.ratings,
-        })) as any;
+        const normalizedTerm = term?.trim();
+        if (!normalizedTerm) {
+            return { message: "Please provide a movie title to search in Radarr." } as any;
+        }
+
+        try {
+            const results = await radarr.searchMovie(normalizedTerm);
+            // Limit results to avoid massive context payloads
+            return results.slice(0, 5).map(m => ({
+                title: m.title,
+                originalTitle: m.originalTitle,
+                year: m.year,
+                genres: m.genres,
+                tmdbId: m.tmdbId,
+                imdbId: m.imdbId,
+                overview: m.overview,
+                posterUrl: m.images?.find(i => i.coverType === "poster")?.remoteUrl || m.images?.find(i => i.coverType === "poster")?.url,
+                hasFile: m.hasFile,
+                monitored: m.monitored,
+                ratings: m.ratings,
+            })) as any;
+        } catch (_error: any) {
+            return { message: "I couldn't query Radarr right now. Please try again in a moment." } as any;
+        }
     },
 });
 
 export const addMovieTool = tool({
     description: "Add a movie to Radarr to begin downloading it. Requires the TMDB ID from a previous search.",
     parameters: z.object({
-        tmdbId: z.number().describe("The TMDB ID of the movie to add."),
+        tmdbId: z.union([z.number(), z.string().transform(Number)]).nullable().describe("The TMDB ID of the movie to add."),
         title: z.string().describe("The title of the movie."),
-        year: z.number().describe("The release year of the movie."),
+        year: z.union([z.number(), z.string().transform(Number)]).nullable().describe("The release year of the movie."),
     }),
-    execute: async ({ tmdbId, title, year }: { tmdbId: number, title: string, year: number }) => {
-        // Fetch required configuration dynamically to ensure we add it correctly
-        const [profiles, folders] = await Promise.all([
-            radarr.getQualityProfiles(),
-            radarr.getRootFolders()
-        ]);
+    execute: async ({ tmdbId, title, year }: { tmdbId: number | null, title: string, year: number | null }) => {
+        const normalizedTmdbId = typeof tmdbId === "number" ? tmdbId : Number(tmdbId);
+        const normalizedYear = typeof year === "number" ? year : Number(year);
 
-        if (profiles.length === 0 || folders.length === 0) {
-            throw new Error("Cannot add movie: missing quality profiles or root folders in Radarr.");
+        if (!Number.isFinite(normalizedTmdbId) || !Number.isFinite(normalizedYear)) {
+            try {
+                const results = await radarr.searchMovie(title);
+                return {
+                    message: "Missing TMDB ID or year. Please choose the correct match first.",
+                    suggestions: results.slice(0, 5).map(m => ({
+                        title: m.title,
+                        originalTitle: m.originalTitle,
+                        year: m.year,
+                        genres: m.genres,
+                        tmdbId: m.tmdbId,
+                        imdbId: m.imdbId,
+                        overview: m.overview,
+                        posterUrl: m.images?.find(i => i.coverType === "poster")?.remoteUrl || m.images?.find(i => i.coverType === "poster")?.url,
+                    })),
+                } as any;
+            } catch (error: any) {
+                return {
+                    message: "I couldn't search Radarr for that title due to a service error. Please try again in a moment, or ask me to search Plex instead.",
+                } as any;
+            }
         }
 
-        // Use the first available profile and folder as defaults
-        const qualityProfileId = profiles[0]?.id;
-        const rootFolderPath = folders[0]?.path;
+        try {
+            // Fetch required configuration dynamically to ensure we add it correctly
+            const [profiles, folders] = await Promise.all([
+                withCache("radarr_profiles", () => radarr.getQualityProfiles()),
+                withCache("radarr_folders", () => radarr.getRootFolders())
+            ]);
 
-        if (!qualityProfileId || !rootFolderPath) {
-            return { message: "Error: Could not retrieve base Radarr quality profile or root folder configuration." } as any;
+            if (profiles.length === 0 || folders.length === 0) {
+                return { message: "Cannot add movie right now: Radarr quality profiles or root folders are unavailable." } as any;
+            }
+
+            // Use the first available profile and folder as defaults
+            const qualityProfileId = profiles[0]?.id;
+            const rootFolderPath = folders[0]?.path;
+
+            if (!qualityProfileId || !rootFolderPath) {
+                return { message: "Error: Could not retrieve base Radarr quality profile or root folder configuration." } as any;
+            }
+
+            const result = await radarr.addMovie(normalizedTmdbId, title, normalizedYear, rootFolderPath, qualityProfileId);
+            return {
+                success: true,
+                message: `Successfully added '${result.title}' to Radarr.`
+            };
+        } catch (_error: any) {
+            return {
+                message: "Radarr rejected that add request. I'll need to re-check the exact match first.",
+            } as any;
         }
-
-        const result = await radarr.addMovie(tmdbId, title, year, rootFolderPath, qualityProfileId);
-        return {
-            success: true,
-            message: `Successfully added '${result.title}' to Radarr.`
-        };
     },
 });
 
@@ -95,6 +162,8 @@ export const searchSeriesTool = tool({
             genres: s.genres,
             tvdbId: s.tvdbId,
             imdbId: s.imdbId,
+            overview: s.overview,
+            posterUrl: s.images?.find(i => i.coverType === "poster")?.remoteUrl || s.images?.find(i => i.coverType === "poster")?.url,
             network: s.network,
             monitored: s.monitored,
             ratings: s.ratings,
@@ -105,14 +174,32 @@ export const searchSeriesTool = tool({
 export const addSeriesTool = tool({
     description: "Add a TV series to Sonarr to begin downloading it. Requires the TVDB ID.",
     parameters: z.object({
-        tvdbId: z.number().describe("The TVDB ID of the series."),
+        tvdbId: z.union([z.number(), z.string().transform(Number)]).nullable().describe("The TVDB ID of the series."),
         title: z.string().describe("The title of the series."),
     }),
-    execute: async ({ tvdbId, title }: { tvdbId: number, title: string }) => {
+    execute: async ({ tvdbId, title }: { tvdbId: number | null, title: string }) => {
+        const normalizedTvdbId = typeof tvdbId === "number" ? tvdbId : Number(tvdbId);
+        if (!Number.isFinite(normalizedTvdbId)) {
+            const results = await sonarr.searchSeries(title);
+            return {
+                message: "Missing TVDB ID. Please choose the correct series first.",
+                suggestions: results.slice(0, 5).map(s => ({
+                    title: s.title,
+                    originalTitle: s.originalTitle,
+                    year: s.year,
+                    genres: s.genres,
+                    tvdbId: s.tvdbId,
+                    imdbId: s.imdbId,
+                    overview: s.overview,
+                    posterUrl: s.images?.find(i => i.coverType === "poster")?.remoteUrl || s.images?.find(i => i.coverType === "poster")?.url,
+                })),
+            } as any;
+        }
+
         const [profiles, languageProfiles, folders, seriesDetails] = await Promise.all([
-            sonarr.getQualityProfiles(),
-            sonarr.getLanguageProfiles(),
-            sonarr.getRootFolders(),
+            withCache("sonarr_profiles", () => sonarr.getQualityProfiles()),
+            withCache("sonarr_languages", () => sonarr.getLanguageProfiles()),
+            withCache("sonarr_folders", () => sonarr.getRootFolders()),
             sonarr.searchSeries(title)
         ]);
 
@@ -120,7 +207,7 @@ export const addSeriesTool = tool({
             throw new Error("Cannot add series: missing profiles or root folders in Sonarr.");
         }
 
-        const exactSeries = seriesDetails.find(s => s.tvdbId === tvdbId);
+        const exactSeries = seriesDetails.find(s => s.tvdbId === normalizedTvdbId);
         if (!exactSeries) {
             throw new Error("Could not fetch full details for series to add.");
         }
@@ -137,7 +224,7 @@ export const addSeriesTool = tool({
         // Monitor all seasons by default
         const seasons = exactSeries.seasons?.map(s => ({ seasonNumber: s.seasonNumber, monitored: true })) || [];
 
-        const result = await sonarr.addSeries(tvdbId, title, qualityProfileId, languageProfileId, rootFolderPath, seasons);
+        const result = await sonarr.addSeries(normalizedTvdbId, title, qualityProfileId, languageProfileId, rootFolderPath, seasons);
         return {
             success: true,
         };
@@ -207,8 +294,8 @@ export const resumeTorrentTool = tool({
 
 // --- Plex Tools --- //
 
-export const searchPlexLibraryTool = tool({
-    description: "Search the local Plex library to see if a movie or show already exists by title.",
+export const searchPlexByTitleOnlyTool = tool({
+    description: "Search the local Plex library to see if a movie or show already exists BY TITLE ONLY. DO NOT use this for genre or country queries.",
     parameters: z.object({
         query: z.string().describe("The name of the movie or show to search for in Plex."),
     }),
@@ -217,11 +304,22 @@ export const searchPlexLibraryTool = tool({
         if (!result.Metadata || result.Metadata.length === 0) {
             return { message: `No results found in Plex library for '${query}'.` };
         }
-        return result.Metadata.slice(0, 5).map(m => ({
-            title: m.title,
-            type: m.type,
-            year: m.year,
-        })) as any;
+        return result.Metadata.slice(0, 5).map(m => {
+            // Extract IDs from GUID if possible (e.g. com.plexapp.agents.imdb://tt12345)
+            const imdbMatch = m.guid.match(/imdb:\/\/(tt\d+)/);
+            const tmdbMatch = m.guid.match(/tmdb:\/\/(\d+)/);
+
+            return {
+                title: m.title,
+                type: m.type,
+                year: m.year,
+                overview: m.summary,
+                imdbId: imdbMatch ? imdbMatch[1] : undefined,
+                tmdbId: tmdbMatch ? tmdbMatch[1] : undefined,
+                originalTitle: m.originalTitle,
+                posterUrl: plex.getPosterUrl(m.thumb),
+            };
+        }) as any;
     },
 });
 
@@ -257,15 +355,24 @@ export const browsePlexByGenreTool = tool({
             }
         }
 
-        if (allResults.length === 0) {
-            return { message: `No items found in your Plex library for genre '${genre}' across checked sections (${sectionIds.join(", ")}).` };
+        const uniqueResults = deduplicatePlexItems(allResults);
+
+        if (uniqueResults.length === 0) {
+            return {
+                totalFound: 0,
+                sampleItems: [],
+                message: `No items found in your Plex library for genre '${genre}' across checked sections (${sectionIds.join(", ")}).`,
+            } as any;
         }
 
         return {
-            totalFound: allResults.length,
-            sampleItems: allResults.slice(0, 15).map(m => ({
+            totalFound: uniqueResults.length,
+            sampleItems: uniqueResults.slice(0, 15).map(m => ({
                 title: m.title,
+                originalTitle: m.originalTitle,
                 year: m.year,
+                overview: m.summary,
+                posterUrl: plex.getPosterUrl(m.thumb),
             })),
         } as any;
     },
@@ -291,7 +398,7 @@ export const getRecentlyAddedPlexTool = tool({
 export const checkServiceHealthTool = tool({
     description: "Check if a specific service (Radarr, Sonarr, qBittorrent, or Plex) is online and responsive.",
     parameters: z.object({
-        service: z.enum(["Radarr", "Sonarr", "qBittorrent", "Plex"]).describe("The service to check health for."),
+        service: z.string().describe("The service to check health for (e.g., Radarr, Sonarr, qBittorrent, Plex, Jellyfin)."),
     }),
     execute: async ({ service }: { service: string }) => {
         try {
@@ -299,6 +406,12 @@ export const checkServiceHealthTool = tool({
             else if (service === "Sonarr") await sonarr.getSystemStatus();
             else if (service === "Plex") await plex.getSystemStatus();
             else if (service === "qBittorrent") await qbittorrent.getTorrents("all");
+            else {
+                return {
+                    online: false,
+                    message: `Service '${service}' is not currently configured or supported for health checks. Supported services are: Radarr, Sonarr, qBittorrent, and Plex.`
+                };
+            }
             return { online: true, message: `${service} is online and responsive.` };
         } catch (error) {
             return { online: false, message: `${service} appears to be offline or unreachable.` };
@@ -378,5 +491,95 @@ export const discoverMediaTool = tool({
             ],
             note: "These are suggested titles. Please use 'searchMovie' or 'searchSeries' to get more specific details or to add them to your library."
         } as any;
+    },
+});
+
+export const findPlexByCountryTool = tool({
+    description: "Find movies or shows in the Plex library that match a specific country of origin (e.g., Japan, France, USA). Use this when the user asks for 'Japanese movies' or 'films from Italy'.",
+    parameters: z.object({
+        country: z.string().transform((value) => plex.normalizeCountryName(value)).describe("The country to browse for as a noun (e.g., Germany, France, Japan)."),
+    }),
+    execute: async ({ country }: { country: string }) => {
+        let sectionIds = plex.getMovieSectionIds();
+
+        if (sectionIds.length === 0) {
+            const sections = await plex.getLibrarySections();
+            sectionIds = (sections.Directory as any[])
+                ?.filter(d => d.type === "movie")
+                .map(d => d.key) || [];
+        }
+
+        if (sectionIds.length === 0) {
+            return { message: "Could not find any 'movie' sections in your Plex library." };
+        }
+
+        const allResults: any[] = [];
+        for (const sectionId of sectionIds) {
+            try {
+                const result = await plex.getItemsByCountry(sectionId, country);
+                if (result.Metadata) {
+                    allResults.push(...result.Metadata);
+                }
+            } catch (error) {
+                console.error(`Error browsing section ${sectionId} for country ${country}:`, error);
+            }
+        }
+
+        const uniqueResults = deduplicatePlexItems(allResults);
+
+        if (uniqueResults.length === 0) {
+            return {
+                totalFound: 0,
+                sampleItems: [],
+                message: `No items found in your Plex library for country '${country}' across checked sections.`,
+            } as any;
+        }
+
+        return {
+            totalFound: uniqueResults.length,
+            sampleItems: uniqueResults.slice(0, 15).map(m => ({
+                title: m.title,
+                originalTitle: m.originalTitle,
+                year: m.year,
+                overview: m.summary,
+                posterUrl: plex.getPosterUrl(m.thumb),
+            })),
+        } as any;
+    },
+});
+
+export const saveUserNameTool = tool({
+    description: "Save or update the user's preferred name in the database. Use this when the user introduces themselves or asks to be called by a specific name.",
+    parameters: z.object({
+        name: z.string().describe("The name to save for the user."),
+        userId: z.number().describe("The numeric ID of the user (provided in your system prompt)."),
+    }),
+    execute: async ({ name, userId }: { name: string, userId: number }) => {
+        const { setUserName } = await import("../services/database");
+        setUserName(userId, name);
+        return { message: `I've saved your name as ${name}. I'll remember it for our future chats!`, name };
+    },
+});
+
+export const getPlexLibraryStatsTool = tool({
+    description: "Get statistics about the Plex library, specifically the total number of movies and TV shows.",
+    parameters: z.object({}),
+    execute: async (_args: any) => {
+        const movieSectionIds = plex.getMovieSectionIds();
+        const showSectionIds = plex.getShowSectionIds();
+
+        const [movieCounts, showCounts] = await Promise.all([
+            Promise.all(movieSectionIds.map(id => plex.getLibrarySize(id))),
+            Promise.all(showSectionIds.map(id => plex.getLibrarySize(id))),
+        ]);
+
+        const totalMovies = movieCounts.reduce((a, b) => a + b, 0);
+        const totalShows = showCounts.reduce((a, b) => a + b, 0);
+
+        return {
+            totalMovies,
+            totalShows,
+            message: `You have ${totalMovies} movies and ${totalShows} TV shows in your Plex library across monitored sections.`
+        };
     },
 });

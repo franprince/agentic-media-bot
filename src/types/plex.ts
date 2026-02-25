@@ -8,6 +8,7 @@ export interface PlexMetadata {
     year?: number;
     thumb?: string;
     art?: string;
+    originalTitle?: string;
     addedAt?: number;
     updatedAt?: number;
     // For shows/episodes
@@ -29,6 +30,7 @@ export interface PlexDirectory {
 
 export interface PlexContainer {
     size: number;
+    totalSize?: number;
     identifier: string;
     mediaTagPrefix: string;
     mediaTagVersion: string;

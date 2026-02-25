@@ -7,8 +7,8 @@ import * as sonarr from "./services/sonarr";
 import * as qbittorrent from "./services/qbittorrent";
 import * as plex from "./services/plex";
 
-async function verifyConfig() {
-    console.log("🔍 Starting configuration verification...\n");
+export async function verifyConfig() {
+    console.log("🔍 Starting configuration verification (Specs Audit)... \n");
 
     const checks = [
         {
@@ -103,4 +103,4 @@ async function verifyConfig() {
     console.log("\n✨ Verification complete.");
 }
 
-verifyConfig().catch(console.error);
+// verifyConfig().catch(console.error);

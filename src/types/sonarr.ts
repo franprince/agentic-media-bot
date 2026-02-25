@@ -11,7 +11,7 @@ export interface SonarrSeries {
     tvdbId: number;
     imdbId?: string;
     monitored?: boolean;
-    images?: Array<{ coverType: string; url: string }>;
+    images?: Array<{ coverType: string; url: string; remoteUrl?: string }>;
     ratings?: {
         votes: number;
         value: number;

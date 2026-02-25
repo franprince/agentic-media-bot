@@ -31,9 +31,35 @@ A conversational Telegram bot that controls a user's home media server stack, ca
    - User writes: `/status`
    - Bot checks all services (Radarr, Sonarr, qBittorrent, Plex) and returns a consolidated report showing which are online or offline.
 
-6. **Advanced Search**
-   - When searching for media, the bot provides original titles, genres, and metadata identifiers (IMDb, TMDB, TVDB) to help the user identify foreign or correctly localized content.
+    - User writes: `/status`
+    - Bot checks all services (Radarr, Sonarr, qBittorrent, Plex) and returns a consolidated report showing which are online or offline.
 
-6. **LLM Personality & I18n**
-   - The bot is helpful, concise, and confirm massive actions.
-   - It handles Spanish requests intelligently by mapping localized concepts (like "terror") to technical English keywords required by APIs.
+6. **Advanced Search & Localization**
+   - **Origin Search (Plex)**: Supports queries like "Japanese movies" or "películas de Japón" via fuzzy country tag matching.
+   - **Country Noun Input**: Country searches normalize to noun form (e.g., "Germany", not "German") for tool calls and status output clarity.
+   - **Canonical Country Normalization**: Demonyms (e.g., "Danish") are normalized to country nouns (e.g., "Denmark") consistently across tool execution and status logs.
+   - **Country Filter Accuracy**: Country-tag browsing uses normalized Plex tag keys to avoid unfiltered or mixed-country results.
+   - **Cross-Section Deduplication**: Country/genre browse results are deduplicated before reporting totals and samples.
+   - **Title Localization Protocol**: If a title is not in Spanish or English, the bot provides the English/Original title in parentheses.
+   - **Exact Count Rule**: For Plex country/genre browsing, replies always include the precise `totalFound` count from the tool output.
+   - **Deterministic Plex Browse Reply**: Country/genre replies are rendered directly from tool results (count + sampled titles) to avoid model hallucinations or omissions.
+
+7. **Personalization**
+   - **Name Saving**: User can say "Call me Fran," and the bot will persist this in its database and greet the user by name.
+   - **Warm Tone**: The bot maintains a friendly, emoji-rich personality (✨🤖).
+
+8. **Dynamic Status Feedback**
+   - **Thinking Protocol**: While processing tools, the bot provides real-time status updates in the user's language with warm, specific phrasing (e.g., "Buscando películas en Plex..." instead of generic "Working on...").
+   - **Localized Transition Banner**: Initial transition messages (such as "Thinking..." and restart catch-up notices) are shown in the same language as the user's message.
+   - **Accent-Resilient Language Detection**: Spanish should be detected correctly even when users omit accents (e.g., "peliculas" vs "películas").
+
+9. **Update Notifications & Changelogs**
+   - After a restart, if new features or fixes have been implemented, the bot automatically notifies administrators with a detailed changelog. 
+   - Uses persistent state to ensure each unique update is only notified once.
+
+8. **LLM Personality & I18n**
+    - The bot is helpful, concise, and confirms massive actions.
+    - It handles Spanish requests intelligently by mapping localized concepts (like "terror") to technical English keywords required by APIs.
+    - If a user asks to add a movie or series by title, the bot must search first to obtain the correct ID before adding.
+    - If Radarr is unavailable during a title-based add, the bot should surface a friendly error and offer to try again or check Plex.
+    - If Radarr returns a bad add/search request, the bot should respond gracefully and avoid crashing the conversation flow.

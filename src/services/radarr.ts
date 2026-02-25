@@ -38,6 +38,12 @@ export async function searchMovie(term: string): Promise<RadarrMovie[]> {
  * Usually requires rootFolderPath and qualityProfileId to be set from your Radarr instance.
  */
 export async function addMovie(tmdbId: number, title: string, year: number, rootFolderPath: string, qualityProfileId: number): Promise<RadarrMovie> {
+    const allMovies = await fetchRadarr<RadarrMovie[]>("/movie");
+    const existing = allMovies.find(m => m.tmdbId === tmdbId);
+    if (existing) {
+        return existing; // Already exists, return current record
+    }
+
     const payload = {
         title,
         qualityProfileId,

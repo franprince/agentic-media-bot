@@ -29,17 +29,27 @@ describe("Sonarr Service", () => {
     });
 
     test("addSeries should perform POST and map correctly", async () => {
-        const mockResponse = {
+        const mockSeriesListResponse: any[] = [];
+        const mockAddResponse = {
             id: 15, title: "The Office", tvdbId: 73244
         };
 
-        global.fetch = mock(() =>
-            Promise.resolve(new Response(JSON.stringify(mockResponse), { status: 200 }))
-        ) as any;
+        global.fetch = mock((input: any, init?: RequestInit) => {
+            const url = String(input);
+            const method = (init?.method || "GET").toUpperCase();
+
+            if (url.includes("/series") && method === "GET") {
+                return Promise.resolve(new Response(JSON.stringify(mockSeriesListResponse), { status: 200 }));
+            }
+            if (url.includes("/series") && method === "POST") {
+                return Promise.resolve(new Response(JSON.stringify(mockAddResponse), { status: 200 }));
+            }
+            return Promise.resolve(new Response("not found", { status: 404 }));
+        }) as any;
 
         const result = await sonarr.addSeries(73244, "The Office", 1, 1, "/tv", [{ seasonNumber: 1, monitored: true }]);
 
-        expect(global.fetch).toHaveBeenCalledTimes(1);
+        expect(global.fetch).toHaveBeenCalledTimes(2);
         expect(result.id).toBe(15);
         expect(result.title).toBe("The Office");
     });

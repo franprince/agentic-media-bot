@@ -10,7 +10,7 @@ export interface RadarrMovie {
     hasFile?: boolean;
     monitored?: boolean;
     sizeOnDisk?: number;
-    images?: Array<{ coverType: string; url: string }>;
+    images?: Array<{ coverType: string; url: string; remoteUrl?: string }>;
     ratings?: {
         imdb?: { value: number; votes: number };
         tmdb?: { value: number; votes: number };

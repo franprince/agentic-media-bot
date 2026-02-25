@@ -44,6 +44,12 @@ export async function addSeries(
     rootFolderPath: string,
     seasons: Array<{ seasonNumber: number; monitored: boolean }>
 ): Promise<SonarrSeries> {
+    const allSeries = await fetchSonarr<SonarrSeries[]>("/series");
+    const existing = allSeries.find(s => s.tvdbId === tvdbId);
+    if (existing) {
+        return existing;
+    }
+
     const payload = {
         title,
         qualityProfileId,

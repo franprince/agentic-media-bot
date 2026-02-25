@@ -30,17 +30,27 @@ describe("Radarr Service", () => {
     });
 
     test("addMovie should perform POST and map correctly", async () => {
-        const mockResponse = {
+        const mockMovieListResponse: any[] = [];
+        const mockAddResponse = {
             id: 10, title: "Inception", year: 2010, tmdbId: 27205
         };
 
-        global.fetch = mock(() =>
-            Promise.resolve(new Response(JSON.stringify(mockResponse), { status: 200 }))
-        ) as any;
+        global.fetch = mock((input: any, init?: RequestInit) => {
+            const url = String(input);
+            const method = (init?.method || "GET").toUpperCase();
+
+            if (url.includes("/movie") && method === "GET") {
+                return Promise.resolve(new Response(JSON.stringify(mockMovieListResponse), { status: 200 }));
+            }
+            if (url.includes("/movie") && method === "POST") {
+                return Promise.resolve(new Response(JSON.stringify(mockAddResponse), { status: 200 }));
+            }
+            return Promise.resolve(new Response("not found", { status: 404 }));
+        }) as any;
 
         const result = await radarr.addMovie(27205, "Inception", 2010, "/movies", 1);
 
-        expect(global.fetch).toHaveBeenCalledTimes(1);
+        expect(global.fetch).toHaveBeenCalledTimes(2);
         expect(result.id).toBe(10);
         expect(result.title).toBe("Inception");
     });

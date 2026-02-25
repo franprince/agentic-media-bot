@@ -13,6 +13,7 @@
 - `src/agent/index.ts`: LLM abstraction. Handles message history, conditional model loading, and iterative tool execution.
 - `src/services/`: Modular wrappers for Radarr, Sonarr, qBittorrent, and Plex APIs.
 - `src/agent/tools.ts`: Unified tool repository for AI integration.
+- `src/services/database.ts`: Persistence layer using `bun:sqlite` for conversation history and user personalization (names).
 - `src/types/`: TypeScript interfaces representing external payloads.
 
 ## Security & Authentication
@@ -24,5 +25,32 @@
 - State is stateless per-request but keeps a bounded history within the Telegram session.
 - System prompt strongly guides the agent to use tools rather than answering based on local knowledge.
 - Recursive execution loop (`maxSteps: 5`) allows the agent to audit libraries across multiple sections.
-- **Auditing Intelligence:** Includes specialized tools for finding genre-specific content across multiple internal Plex IDs and identifying missing episodes with granular metadata.
-- **Local Adaptation:** System prompt contains strict technical protocols to ensure reliable tool adherence on local LLMs.
+- **Auditing Intelligence**: Includes specialized tools for finding genre-specific content across multiple internal Plex IDs and identifying missing episodes with granular metadata.
+- **Local Adaptation**: System prompt contains strict technical protocols to ensure reliable tool adherence on local LLMs.
+- **Tool-Argument Guardrails**: Tool schemas tolerate missing IDs, but execution returns a "search first" response with suggestions to avoid invalid tool calls and crashes.
+- **Radarr Search Resilience**: If Radarr lookup fails during a title-based add, return a user-facing error instead of crashing.
+- **Tool Error Containment**: Radarr tool execution paths should return structured error messages for API 4xx/5xx responses rather than throw and abort the full LLM turn.
+- **History Migration**: Dynamically renames legacy tool calls in the conversation history to maintain compatibility with updated tool schemas.
+- **Real-time Status Feed**: Captures "thinking" preamble from the LLM to provide localized, real-time status updates via the Telegram `onStep` callback.
+- **Localized Entry Status**: `src/bot.ts` localizes initial "thinking" and restart catch-up status messages based on detected user-message language.
+- **Deterministic Count Prefix**: Final responses prepend a localized exact-count line for Plex country/genre tool results using `totalFound`.
+- **Count Source of Truth**: Exact-count prefixes must use tool results from the execution pass (`firstPass`) even when a synthesis model generates the final prose.
+- **Plex Tag-Key Normalization**: Country/genre filters parse Plex tag keys that may arrive as full query paths (not only numeric IDs), ensuring accurate filter requests.
+- **Plex Direct Tag-Path Preference**: When Plex provides a full filter path in tag keys, the service uses that path directly to preserve server-side filter semantics.
+- **Deterministic Plex Browse Rendering**: Final text for Plex country/genre browse requests is generated from tool payload (`totalFound` + `sampleItems`) rather than relying only on LLM prose.
+- **Country Noun Normalization**: Status rendering and prompt rules normalize country demonyms to country nouns to keep tool intent explicit and logs consistent.
+- **Tool-Boundary Country Canonicalization**: `findPlexByCountry` normalizes demonyms to country nouns in the tool schema before execution.
+- **Single Country Canonicalizer**: Country normalization for tool execution, status rendering, and tool-call logging is centralized in `src/services/plex.ts` to avoid drift.
+- **Accent-Resilient I18N Detection**: Status language detection handles common Spanish forms with and without diacritics.
+- **Plex Result Deduplication**: Country/genre aggregation across multiple sections deduplicates media entries before computing `totalFound`.
+
+## Startup Verification & Specification Auditing
+- On every run, the bot MUST execute `src/verify-config.ts` (or equivalent) to audit its environment against `TECHNICAL_SPEC.md` and `FUNCTIONAL_SPEC.md`.
+- **Validation Rules:**
+    1. Check for missing environment variables.
+    2. Ensure service connectivity.
+    3. Verify that the agent's current tool set matches the functionalities described in the FUNCTIONAL_SPEC.
+    4. If significant spec changes are detected since the last run, notify administrators.
+- **Verification Logic:**
+    - On every run, the bot executing `src/verify-config.ts` (or equivalent) to audit its environment against `TECHNICAL_SPEC.md` and `FUNCTIONAL_SPEC.md`.
+    - **Deployment:** The bot MUST be restarted after any functional or technical update to apply changes and trigger the startup audit/changelog notification.
