@@ -53,7 +53,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
    - **Missing Alias Transparency**: For non-Latin titles with no English/Spanish alias available in Plex metadata, the bot explicitly marks the alias as unavailable.
    - **Exact Count Rule**: For Plex country/genre browsing, replies always include the precise `totalFound` count from the tool output.
    - **Deterministic Plex Browse Reply**: Country/genre replies are rendered directly from tool results (count + sampled titles) to avoid model hallucinations or omissions.
-   - **List Header Wording**: Plex country/genre list responses use "This is the list of {search parameter} movies:" instead of generic "Sample/Muestra".
+   - **List Header Wording**: Plex genre lists use "This is the list of {genre} movies:" and country lists use "This is the list of movies from {country}:" instead of generic "Sample/Muestra".
 
 7. **Personalization**
    - **Name Saving**: User can say "Call me Fran," and the bot will persist this in its database and greet the user by name.

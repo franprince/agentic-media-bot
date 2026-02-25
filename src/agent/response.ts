@@ -82,6 +82,9 @@ export function buildPlexBrowseAuthoritativeText(toolResults: ToolResultLike[], 
         const sampleItems = Array.isArray(entry.result?.sampleItems) ? entry.result.sampleItems as SampleItemLike[] : [];
         const customListLabel = typeof entry.result?.listLabel === "string" ? entry.result.listLabel : undefined;
         const searchParam = typeof entry.result?.searchParam === "string" ? entry.result.searchParam : undefined;
+        const queryType = entry.result?.queryType === "country" || entry.result?.queryType === "genre"
+            ? entry.result.queryType as "country" | "genre"
+            : undefined;
 
         if (typeof totalFound !== "number" || !Number.isFinite(totalFound)) continue;
 
@@ -96,9 +99,12 @@ export function buildPlexBrowseAuthoritativeText(toolResults: ToolResultLike[], 
             return `${header}\n\n${empty}`;
         }
 
-        const listHeader = customListLabel || (searchParam
-            ? `This is the list of ${searchParam} movies:`
-            : "This is the list of matching movies:");
+        const listHeader = customListLabel
+            || (searchParam && queryType === "country"
+                ? `This is the list of movies from ${searchParam}:`
+                : searchParam
+                    ? `This is the list of ${searchParam} movies:`
+                    : "This is the list of matching movies:");
         const list = sampleItems.map(item => `- ${formatTitle(item, lang)}`).join("\n");
         return `${header}\n\n${listHeader}\n${list}`;
     }
