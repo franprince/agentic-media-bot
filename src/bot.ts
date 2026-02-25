@@ -1,5 +1,6 @@
 import { Bot } from "grammy";
 import { run } from "@grammyjs/runner";
+import { resolve, isAbsolute } from "node:path";
 import { processUserMessage } from "./agent/index.ts";
 import { detectStatusLanguage } from "./agent/status.ts";
 import { getMetadata, setMetadata, getAllConversations } from "./services/database.ts";
@@ -14,6 +15,7 @@ if (!token) {
 
 const bot = new Bot(token);
 let botRunner: ReturnType<typeof run> | undefined;
+const projectRoot = resolve(import.meta.dir, "..");
 
 function getAllowedUserIdSet(): Set<number> {
     const raw = process.env.ALLOWED_USER_IDS?.split(",") || [];
@@ -30,7 +32,7 @@ function triggerExternalRestart(): boolean {
         if (customRestartCommand) {
             const child = Bun.spawn({
                 cmd: ["sh", "-c", customRestartCommand],
-                cwd: process.cwd(),
+                cwd: projectRoot,
                 stdin: "ignore",
                 stdout: "ignore",
                 stderr: "ignore",
@@ -39,8 +41,11 @@ function triggerExternalRestart(): boolean {
             child.unref();
             return true;
         } else {
-            const scriptPath = process.argv[1] || "src/bot.ts";
-            const restartScriptPath = "scripts/restart-bot.sh";
+            const entryScript = process.argv[1] || "src/bot.ts";
+            const scriptPath = isAbsolute(entryScript)
+                ? entryScript
+                : resolve(projectRoot, entryScript);
+            const restartScriptPath = resolve(projectRoot, "scripts/restart-bot.sh");
             const child = Bun.spawn({
                 cmd: [
                     "sh",
@@ -50,7 +55,7 @@ function triggerExternalRestart(): boolean {
                     process.execPath,
                     "/tmp/agentic-media-bot-restart.log",
                 ],
-                cwd: process.cwd(),
+                cwd: projectRoot,
                 stdin: "ignore",
                 stdout: "ignore",
                 stderr: "ignore",
@@ -64,9 +69,13 @@ function triggerExternalRestart(): boolean {
     }
 
     try {
+        const entryScript = process.argv[1] || "src/bot.ts";
+        const fallbackScript = isAbsolute(entryScript)
+            ? entryScript
+            : resolve(projectRoot, entryScript);
         const fallback = Bun.spawn({
-            cmd: ["sh", "-c", "nohup bun run src/bot.ts >/tmp/agentic-media-bot-restart.log 2>&1 &"],
-            cwd: process.cwd(),
+            cmd: ["sh", "-c", `nohup "${process.execPath}" run "${fallbackScript}" >/tmp/agentic-media-bot-restart.log 2>&1 &`],
+            cwd: projectRoot,
             stdin: "ignore",
             stdout: "ignore",
             stderr: "ignore",
@@ -278,6 +287,7 @@ bot.api.getMe().then(async (me) => {
 - **Admin Restart Command**: Added "/restart" command to gracefully restart the bot process for allowed users.
 - **External Restart Reliability**: "/restart" now stops polling, starts a detached sibling bot process, and retries via nohup fallback before exiting; custom BOT_RESTART_COMMAND remains supported.
 - **Supervisor Restart Script**: Default "/restart" now launches a detached supervisor script that waits for bot shutdown and then starts a fresh process.
+- **Restart Path Robustness**: Supervisor and fallback now resolve absolute paths from project root so restarts work from any working directory.
 - **Restart Catch-up Guard**: Admin restart now skips one startup catch-up cycle to avoid unrelated retroactive replies.
 - **Command Leakage Guard**: Slash commands are ignored by generic text-to-LLM middleware.
 - **Tool Guardrails**: Add-movie/series calls now gracefully prompt for a search match when IDs are missing.
