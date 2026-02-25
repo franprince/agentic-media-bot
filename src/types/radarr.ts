@@ -1,9 +1,12 @@
 export interface RadarrMovie {
     id?: number;
     title: string;
+    originalTitle?: string;
     overview?: string;
     year: number;
     tmdbId: number;
+    imdbId?: string;
+    genres?: string[];
     hasFile?: boolean;
     monitored?: boolean;
     sizeOnDisk?: number;

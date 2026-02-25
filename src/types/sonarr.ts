@@ -1,12 +1,15 @@
 export interface SonarrSeries {
     id?: number;
     title: string;
+    originalTitle?: string;
     sortTitle?: string;
     status?: string;
     overview?: string;
     network?: string;
+    genres?: string[];
     year: number;
     tvdbId: number;
+    imdbId?: string;
     monitored?: boolean;
     images?: Array<{ coverType: string; url: string }>;
     // Additional fields needed for adding
