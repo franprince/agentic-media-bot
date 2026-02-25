@@ -1,0 +1,37 @@
+export interface PlexMetadata {
+    ratingKey: string;
+    key: string;
+    guid: string;
+    type: string; // "movie", "show", "episode"
+    title: string;
+    summary: string;
+    year?: number;
+    thumb?: string;
+    art?: string;
+    addedAt?: number;
+    updatedAt?: number;
+    // For shows/episodes
+    parentTitle?: string;
+    grandparentTitle?: string;
+}
+
+export interface PlexSearchResult {
+    size: number;
+    Metadata?: PlexMetadata[];
+}
+
+export interface PlexDirectory {
+    key: string;
+    title: string;
+    type: string;
+    composite?: string;
+}
+
+export interface PlexContainer {
+    size: number;
+    identifier: string;
+    mediaTagPrefix: string;
+    mediaTagVersion: string;
+    Metadata?: PlexMetadata[];
+    Directory?: PlexDirectory[];
+}

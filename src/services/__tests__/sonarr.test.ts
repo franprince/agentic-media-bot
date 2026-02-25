@@ -1,0 +1,46 @@
+import { describe, expect, test, mock, beforeEach, beforeAll } from "bun:test";
+
+beforeAll(() => {
+    process.env.SONARR_URL = "http://localhost:8989";
+    process.env.SONARR_API_KEY = "test_key";
+});
+
+import * as sonarr from "../sonarr";
+
+describe("Sonarr Service", () => {
+    beforeEach(() => {
+        mock.restore();
+    });
+
+    test("searchSeries should fetch and return parsed json", async () => {
+        const mockResponse = [
+            { title: "Breaking Bad", tvdbId: 81189, seasons: [] }
+        ];
+
+        global.fetch = mock(() =>
+            Promise.resolve(new Response(JSON.stringify(mockResponse), { status: 200 }))
+        ) as any;
+
+        const result = await sonarr.searchSeries("breaking bad");
+
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+        expect(result).toBeArray();
+        expect(result[0]?.title).toBe("Breaking Bad");
+    });
+
+    test("addSeries should perform POST and map correctly", async () => {
+        const mockResponse = {
+            id: 15, title: "The Office", tvdbId: 73244
+        };
+
+        global.fetch = mock(() =>
+            Promise.resolve(new Response(JSON.stringify(mockResponse), { status: 200 }))
+        ) as any;
+
+        const result = await sonarr.addSeries(73244, "The Office", 1, 1, "/tv", [{ seasonNumber: 1, monitored: true }]);
+
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+        expect(result.id).toBe(15);
+        expect(result.title).toBe("The Office");
+    });
+});
