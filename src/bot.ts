@@ -165,6 +165,7 @@ bot.api.getMe().then(async (me) => {
 - **Title Country Verification**: Country yes/no answers now use Plex "Country" tags returned by title search.
 - **Ranked Country Lists**: "Top N from country" queries now request ranked results with explicit limit.
 - **Deterministic Foreign Title Alias**: Country/genre list output now appends original title when it differs.
+- **Metadata Title Enrichment**: Country ranked output now enriches aliases from Plex metadata (`originalTitle`/`titleSort`) when possible.
 - **Tool Guardrails**: Add-movie/series calls now gracefully prompt for a search match when IDs are missing.
 - **Radarr Resilience**: Title-based adds now handle Radarr lookup errors without crashing.
 - **Tool Error Containment**: Radarr search/add failures now return safe responses and keep the message flow alive.

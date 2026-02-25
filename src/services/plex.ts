@@ -56,6 +56,11 @@ export async function getItemCountryTags(ratingKey: string): Promise<string[]> {
     return extractCountryTags(item);
 }
 
+export async function getItemMetadata(ratingKey: string): Promise<any | undefined> {
+    const result = await fetchPlex<{ MediaContainer: PlexContainer }>(`/library/metadata/${ratingKey}`);
+    return result.MediaContainer?.Metadata?.[0];
+}
+
 async function mapWithConcurrency<T, R>(
     items: T[],
     limit: number,

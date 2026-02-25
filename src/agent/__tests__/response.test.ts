@@ -89,4 +89,20 @@ describe("response helpers", () => {
 
         expect(text).toInclude("- オーディション (Audition) (1999)");
     });
+
+    test("does not duplicate alias when titles are the same", () => {
+        const text = buildPlexBrowseAuthoritativeText(
+            [{
+                toolName: "findPlexByCountry",
+                result: {
+                    totalFound: 1,
+                    sampleItems: [{ title: "Perfect Days", originalTitle: "Perfect Days", year: 2023 }],
+                },
+            }],
+            "en"
+        );
+
+        expect(text).toInclude("- Perfect Days (2023)");
+        expect(text).not.toInclude("Perfect Days (Perfect Days)");
+    });
 });

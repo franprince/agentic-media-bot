@@ -45,6 +45,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
    - **Ranked Country Lists**: For "top/best/ranked N movies from COUNTRY" queries, the bot returns a top-N list sorted by Plex rating fields.
    - **Title Localization Protocol**: If a title is not in Spanish or English, the bot provides the English/Original title in parentheses.
    - **Deterministic Title Localization**: Country/genre deterministic list rendering also appends `originalTitle` when it differs from displayed title.
+   - **Metadata-Enriched Alias**: If `originalTitle` is missing in browse results, the bot enriches sample items from Plex metadata (`originalTitle`/`titleSort`) to provide an alternate English/Spanish title when available.
    - **Exact Count Rule**: For Plex country/genre browsing, replies always include the precise `totalFound` count from the tool output.
    - **Deterministic Plex Browse Reply**: Country/genre replies are rendered directly from tool results (count + sampled titles) to avoid model hallucinations or omissions.
 

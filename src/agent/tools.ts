@@ -552,18 +552,39 @@ export const findPlexByCountryTool = tool({
             ? [...strictCountryResults].sort((a, b) => rankScore(b) - rankScore(a))
             : strictCountryResults;
 
+        const sampleItems = await Promise.all(orderedResults.slice(0, limit).map(async (m) => {
+            let enrichedOriginalTitle = m.originalTitle;
+
+            if (m.ratingKey) {
+                try {
+                    const details = await plex.getItemMetadata(String(m.ratingKey));
+                    const detailOriginalTitle = typeof details?.originalTitle === "string" ? details.originalTitle.trim() : "";
+                    const detailTitleSort = typeof details?.titleSort === "string" ? details.titleSort.trim() : "";
+                    if (detailOriginalTitle) {
+                        enrichedOriginalTitle = detailOriginalTitle;
+                    } else if (detailTitleSort && detailTitleSort.toLowerCase() !== String(m.title || "").toLowerCase()) {
+                        enrichedOriginalTitle = detailTitleSort;
+                    }
+                } catch {
+                    // Best-effort enrichment only.
+                }
+            }
+
+            return {
+                title: m.title,
+                originalTitle: enrichedOriginalTitle,
+                year: m.year,
+                overview: m.summary,
+                posterUrl: plex.getPosterUrl(m.thumb),
+            };
+        }));
+
         return {
             totalFound: strictCountryResults.length,
             ranked,
             requestedLimit: limit,
             listLabel: ranked ? `Top ${Math.min(limit, orderedResults.length)} by rating` : undefined,
-            sampleItems: orderedResults.slice(0, limit).map(m => ({
-                title: m.title,
-                originalTitle: m.originalTitle,
-                year: m.year,
-                overview: m.summary,
-                posterUrl: plex.getPosterUrl(m.thumb),
-            })),
+            sampleItems,
         } as any;
     },
 });
