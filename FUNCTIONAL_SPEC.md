@@ -21,8 +21,15 @@ A conversational Telegram bot that controls a user's home media server stack, ca
    - User commands: "Pause all downloads" or "Resume downloads".
    - Bot applies changes to qBittorrent.
 
-4. **Library Checking (Plex)**
-   - Before downloading requested media, the bot will use Plex search tools to definitively confirm if the user already has the item to prevent duplicates.
+4. **Library Auditing & Browsing (Plex, Radarr, Sonarr)**
+   - User asks: "Do I have any horror movies?"
+   - Bot searches Plex by genre (translating to English if requested in Spanish) and returns results across all libraries.
+   - User asks: "Am I missing any episodes?"
+   - Bot provides high-level summary (e.g., "Maching 2 series") or granular detail (Season, Episode, Air Date) upon request.
 
-5. **LLM Personality**
-   - The bot should be helpful, concise, and confirm destructive/large actions before proceding.
+5. **Advanced Search**
+   - When searching for media, the bot provides original titles, genres, and metadata identifiers (IMDb, TMDB, TVDB) to help the user identify foreign or correctly localized content.
+
+6. **LLM Personality & I18n**
+   - The bot is helpful, concise, and confirm massive actions.
+   - It handles Spanish requests intelligently by mapping localized concepts (like "terror") to technical English keywords required by APIs.
