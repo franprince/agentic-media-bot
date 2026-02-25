@@ -75,7 +75,11 @@ bot.command("status", async (ctx) => {
 
 // Handle /restart command (admin-only)
 bot.command("restart", async (ctx) => {
-    const userId = ctx.from.id;
+    const userId = ctx.from?.id;
+    if (typeof userId !== "number") {
+        await ctx.reply("Cannot determine requesting user for authorization.");
+        return;
+    }
     const allowedUserIds = getAllowedUserIdSet();
 
     if (allowedUserIds.size > 0 && !allowedUserIds.has(userId)) {
@@ -97,6 +101,7 @@ bot.command("restart", async (ctx) => {
 
 // Handle text messages
 bot.on("message:text", async (ctx) => {
+    if (!ctx.from) return;
     const userId = ctx.from.id;
     const user = ctx.from.username || ctx.from.first_name;
     console.log(`📩 Message from @${user} (${userId}): ${ctx.message.text}`);
@@ -199,7 +204,7 @@ bot.api.getMe().then(async (me) => {
 - **Deterministic Foreign Title Alias**: Country/genre list output now appends original title when it differs.
 - **Metadata Title Enrichment**: Country ranked output now enriches aliases from Plex metadata ("originalTitle"/"titleSort") when possible.
 - **Detail-Intent Safety Guard**: Detail/info requests now disable add tools unless explicit add intent is present.
-- **Admin Restart Command**: Added `/restart` command to gracefully restart the bot process for allowed users.
+- **Admin Restart Command**: Added "/restart" command to gracefully restart the bot process for allowed users.
 - **Tool Guardrails**: Add-movie/series calls now gracefully prompt for a search match when IDs are missing.
 - **Radarr Resilience**: Title-based adds now handle Radarr lookup errors without crashing.
 - **Tool Error Containment**: Radarr search/add failures now return safe responses and keep the message flow alive.
