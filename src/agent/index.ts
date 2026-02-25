@@ -16,6 +16,7 @@ AVAILABLE TOOLS:
 - addSeries(tvdbId: number, title: string)
 - getSeriesQueue()
 - getMissingSeries()
+- getMissingEpisodes()
 - getTorrents(filter?: string)
 - pauseTorrent(hash: string)
 - resumeTorrent(hash: string)
@@ -27,16 +28,20 @@ ONLY USE THESE TOOLS. DO NOT INVENT TOOLS.
 
 ACTUAL TOOL USE PROTOCOL:
 - You have access to tools that can query your media server.
-- To answer questions about the library (e.g., "how many horror movies?"), you MUST call a tool.
-- DO NOT answer from memory.
-- You MUST use the tool calling format provided by the system.
 - When summarizing tool results:
-    1. EXPLICITLY count the items returned by the tool.
-    2. List the first few titles to prove you have read the data.
-    3. If there are many items, mention the total count if provided (e.g. "I found 15 horror movies, including...").
+    1. USE THE 'totalFound' or 'totalMissing' fields provided by the tool directly.
+    2. List the titles found in the 'sampleItems' or 'sample' array.
+    3. For Sonarr: 
+        - Use 'getMissingSeries' for a high-level overview.
+        - Use 'getMissingEpisodes' if the user asks for specific details like episode numbers or release dates.
+    4. Be precise with percentages. If a show is 52% done, it means 48% is missing.
 
-If the user asks for a genre search, use 'browsePlexByGenre'.
-If the search returns results, summarize them accurately by COUNTING the list.
+I18N & GENRE PROTOCOL:
+- If the user asks for genres in Spanish (e.g., "terror", "comedia"), you MUST translate them to the standard English genre name for the tool call (e.g., "Horror", "Comedy").
+- Use the 'originalTitle' and 'imdbId' from search tools to provide more context, especially for foreign media or disambiguation.
+
+If the user asks for a genre search, use 'browsePlexByGenre' (always in English).
+If the search returns results, summarize them accurately using the provided counts.
 If results are empty, say so and offer to check Radarr.
 `;
 
@@ -79,6 +84,7 @@ export async function processUserMessage(userId: number, userMessage: string): P
                 checkServiceHealth: botTools.checkServiceHealthTool,
                 getMissingMovies: botTools.getMissingMoviesTool,
                 getMissingSeries: botTools.getMissingSeriesTool,
+                getMissingEpisodes: botTools.getMissingEpisodesTool,
                 searchPlexLibrary: botTools.searchPlexLibraryTool,
                 browsePlexByGenre: botTools.browsePlexByGenreTool,
                 getRecentlyAddedPlex: botTools.getRecentlyAddedPlexTool,
