@@ -315,7 +315,7 @@ bot.api.getMe().then(async (me) => {
 - **External Restart Reliability**: "/restart" now stops polling, starts a detached sibling bot process, and retries via nohup fallback before exiting; custom BOT_RESTART_COMMAND remains supported.
 - **Supervisor Restart Script**: Default "/restart" now launches a detached supervisor script that waits for bot shutdown and then starts a fresh process.
 - **Restart Path Robustness**: Supervisor and fallback now resolve absolute paths from project root so restarts work from any working directory.
-- **Restart Online Confirmation**: After `/restart`, bot now sends a one-time "back online" confirmation to the requester chat on successful startup.
+- **Restart Online Confirmation**: After "/restart", bot now sends a one-time "back online" confirmation to the requester chat on successful startup.
 - **Restart Catch-up Guard**: Admin restart now skips one startup catch-up cycle to avoid unrelated retroactive replies.
 - **Command Leakage Guard**: Slash commands are ignored by generic text-to-LLM middleware.
 - **Tool Guardrails**: Add-movie/series calls now gracefully prompt for a search match when IDs are missing.
@@ -335,7 +335,7 @@ bot.api.getMe().then(async (me) => {
 
             for (const adminId of adminIds) {
                 try {
-                    await bot.api.sendMessage(adminId, `${message}\n${changelog}`, { parse_mode: "Markdown" });
+                    await bot.api.sendMessage(adminId, `${message}\n${changelog}`);
                 } catch (err) {
                     console.error(`Failed to send startup message to ${adminId}:`, err);
                 }
