@@ -17,8 +17,11 @@ export const searchMovieTool = tool({
         // Limit results to avoid massive context payloads
         return results.slice(0, 5).map(m => ({
             title: m.title,
+            originalTitle: m.originalTitle,
             year: m.year,
+            genres: m.genres,
             tmdbId: m.tmdbId,
+            imdbId: m.imdbId,
             hasFile: m.hasFile,
             monitored: m.monitored,
         })) as any;
@@ -86,8 +89,11 @@ export const searchSeriesTool = tool({
         const results = await sonarr.searchSeries(term);
         return results.slice(0, 5).map(s => ({
             title: s.title,
+            originalTitle: s.originalTitle,
             year: s.year,
+            genres: s.genres,
             tvdbId: s.tvdbId,
+            imdbId: s.imdbId,
             network: s.network,
             monitored: s.monitored,
         })) as any;
@@ -304,7 +310,10 @@ export const getMissingMoviesTool = tool({
     execute: async (_args: any) => {
         const missing = await radarr.getMissingMovies();
         if (missing.length === 0) return { message: "No missing movies found in Radarr." };
-        return missing.slice(0, 10).map(m => ({ title: m.title, year: m.year }));
+        return {
+            totalMissing: missing.length,
+            sample: missing.slice(0, 10).map(m => ({ title: m.title, year: m.year }))
+        };
     },
 });
 
@@ -314,6 +323,30 @@ export const getMissingSeriesTool = tool({
     execute: async (_args: any) => {
         const missing = await sonarr.getMissingSeries();
         if (missing.length === 0) return { message: "No series with missing episodes found in Sonarr." };
-        return missing.slice(0, 10).map(s => ({ title: s.title, percentDone: s.statistics?.percentOfEpisodes + "%" }));
+        return {
+            totalMissingSeries: missing.length,
+            sample: missing.slice(0, 10).map(s => ({
+                title: s.title,
+                percentDone: (s.statistics?.percentOfEpisodes ?? 0).toFixed(1) + "%"
+            }))
+        };
+    },
+});
+
+export const getMissingEpisodesTool = tool({
+    description: "Get a detailed list of specific missing TV episodes in Sonarr, including season, episode number, and release date.",
+    parameters: z.object({}),
+    execute: async (_args: any) => {
+        const result = await sonarr.getMissingEpisodes();
+        if (result.totalRecords === 0) return { message: "No missing episodes found in Sonarr." };
+        return {
+            totalMissingEpisodes: result.totalRecords,
+            sample: result.records.slice(0, 15).map((e: any) => ({
+                seriesTitle: e.series?.title,
+                season: e.seasonNumber,
+                episode: e.episodeNumber,
+                airDate: e.airDate,
+            }))
+        };
     },
 });
