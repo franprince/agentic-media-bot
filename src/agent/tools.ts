@@ -304,10 +304,12 @@ export const searchPlexByTitleOnlyTool = tool({
         if (!result.Metadata || result.Metadata.length === 0) {
             return { message: `No results found in Plex library for '${query}'.` };
         }
-        return result.Metadata.slice(0, 5).map(m => {
+        const items = result.Metadata.slice(0, 5);
+        return (await Promise.all(items.map(async (m) => {
             // Extract IDs from GUID if possible (e.g. com.plexapp.agents.imdb://tt12345)
             const imdbMatch = m.guid.match(/imdb:\/\/(tt\d+)/);
             const tmdbMatch = m.guid.match(/tmdb:\/\/(\d+)/);
+            const countries = m.ratingKey ? await plex.getItemCountryTags(String(m.ratingKey)) : [];
 
             return {
                 title: m.title,
@@ -317,9 +319,10 @@ export const searchPlexByTitleOnlyTool = tool({
                 imdbId: imdbMatch ? imdbMatch[1] : undefined,
                 tmdbId: tmdbMatch ? tmdbMatch[1] : undefined,
                 originalTitle: m.originalTitle,
+                countries,
                 posterUrl: plex.getPosterUrl(m.thumb),
             };
-        }) as any;
+        }))) as any;
     },
 });
 
@@ -498,8 +501,10 @@ export const findPlexByCountryTool = tool({
     description: "Find movies or shows in the Plex library that match a specific country of origin (e.g., Japan, France, USA). Use this when the user asks for 'Japanese movies' or 'films from Italy'.",
     parameters: z.object({
         country: z.string().transform((value) => plex.normalizeCountryName(value)).describe("The country to browse for as a noun (e.g., Germany, France, Japan)."),
+        ranked: z.boolean().optional().describe("Set to true when the user asks for top/best/ranked movies."),
+        limit: z.number().int().min(1).max(25).optional().describe("How many items to return in sampleItems (e.g., top 10)."),
     }),
-    execute: async ({ country }: { country: string }) => {
+    execute: async ({ country, ranked = false, limit = 15 }: { country: string, ranked?: boolean, limit?: number }) => {
         let sectionIds = plex.getMovieSectionIds();
 
         if (sectionIds.length === 0) {
@@ -536,9 +541,23 @@ export const findPlexByCountryTool = tool({
             } as any;
         }
 
+        const rankScore = (item: any): number => {
+            if (typeof item?.rating === "number" && Number.isFinite(item.rating)) return item.rating;
+            if (typeof item?.audienceRating === "number" && Number.isFinite(item.audienceRating)) return item.audienceRating;
+            if (typeof item?.userRating === "number" && Number.isFinite(item.userRating)) return item.userRating;
+            return Number.NEGATIVE_INFINITY;
+        };
+
+        const orderedResults = ranked
+            ? [...strictCountryResults].sort((a, b) => rankScore(b) - rankScore(a))
+            : strictCountryResults;
+
         return {
             totalFound: strictCountryResults.length,
-            sampleItems: strictCountryResults.slice(0, 15).map(m => ({
+            ranked,
+            requestedLimit: limit,
+            listLabel: ranked ? `Top ${Math.min(limit, orderedResults.length)} by rating` : undefined,
+            sampleItems: orderedResults.slice(0, limit).map(m => ({
                 title: m.title,
                 originalTitle: m.originalTitle,
                 year: m.year,

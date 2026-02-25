@@ -49,8 +49,14 @@ export function extractToolResultsFromMessages(messages: any[] | undefined): Too
 
 function formatTitle(item: SampleItemLike): string {
     const title = item.title || "Untitled";
-    if (typeof item.year === "number" && Number.isFinite(item.year)) return `${title} (${item.year})`;
-    return title;
+    const originalTitle = item.originalTitle?.trim();
+    const yearSuffix = typeof item.year === "number" && Number.isFinite(item.year) ? ` (${item.year})` : "";
+
+    if (originalTitle && originalTitle.toLowerCase() !== title.toLowerCase()) {
+        return `${title} (${originalTitle})${yearSuffix}`;
+    }
+
+    return `${title}${yearSuffix}`;
 }
 
 export function buildPlexBrowseAuthoritativeText(toolResults: ToolResultLike[], lang: StatusLanguage): string | undefined {
@@ -60,6 +66,7 @@ export function buildPlexBrowseAuthoritativeText(toolResults: ToolResultLike[], 
 
         const totalFound = entry.result?.totalFound;
         const sampleItems = Array.isArray(entry.result?.sampleItems) ? entry.result.sampleItems as SampleItemLike[] : [];
+        const customListLabel = typeof entry.result?.listLabel === "string" ? entry.result.listLabel : undefined;
 
         if (typeof totalFound !== "number" || !Number.isFinite(totalFound)) continue;
 
@@ -74,7 +81,7 @@ export function buildPlexBrowseAuthoritativeText(toolResults: ToolResultLike[], 
             return `${header}\n\n${empty}`;
         }
 
-        const listHeader = lang === "es" ? "Muestra:" : "Sample:";
+        const listHeader = customListLabel || (lang === "es" ? "Muestra:" : "Sample:");
         const list = sampleItems.map(item => `- ${formatTitle(item)}`).join("\n");
         return `${header}\n\n${listHeader}\n${list}`;
     }

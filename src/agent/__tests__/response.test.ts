@@ -57,4 +57,36 @@ describe("response helpers", () => {
         expect(text).toInclude("- Das Boot (1981)");
         expect(text).toInclude("- M (1931)");
     });
+
+    test("uses custom list label when provided by tool result", () => {
+        const text = buildPlexBrowseAuthoritativeText(
+            [{
+                toolName: "findPlexByCountry",
+                result: {
+                    totalFound: 12,
+                    listLabel: "Top 10 by rating",
+                    sampleItems: [{ title: "Movie A", year: 2001 }],
+                },
+            }],
+            "en"
+        );
+
+        expect(text).toInclude("I found exactly 12 titles in Plex.");
+        expect(text).toInclude("Top 10 by rating");
+    });
+
+    test("includes original title when it differs", () => {
+        const text = buildPlexBrowseAuthoritativeText(
+            [{
+                toolName: "findPlexByCountry",
+                result: {
+                    totalFound: 1,
+                    sampleItems: [{ title: "オーディション", originalTitle: "Audition", year: 1999 }],
+                },
+            }],
+            "en"
+        );
+
+        expect(text).toInclude("- オーディション (Audition) (1999)");
+    });
 });

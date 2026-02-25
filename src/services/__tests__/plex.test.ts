@@ -161,4 +161,21 @@ describe("Plex Service", () => {
         expect(filtered.length).toBe(1);
         expect(filtered[0]?.ratingKey).toBe("1");
     });
+
+    test("getItemCountryTags should return normalized country tags", async () => {
+        global.fetch = mock((input: any) => {
+            const url = String(input);
+            if (url.includes("/library/metadata/44")) {
+                return Promise.resolve(new Response(JSON.stringify({
+                    MediaContainer: {
+                        Metadata: [{ Country: [{ tag: "German" }, { tag: "France" }] }],
+                    },
+                }), { status: 200 }));
+            }
+            return Promise.resolve(new Response("not found", { status: 404 }));
+        }) as any;
+
+        const tags = await plex.getItemCountryTags("44");
+        expect(tags).toEqual(["germany", "france"]);
+    });
 });

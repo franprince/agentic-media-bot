@@ -50,7 +50,7 @@ function extractCountryTags(metadata: any): string[] {
         .map((value: string) => normalizeCountryName(value));
 }
 
-async function getItemCountryTags(ratingKey: string): Promise<string[]> {
+export async function getItemCountryTags(ratingKey: string): Promise<string[]> {
     const result = await fetchPlex<{ MediaContainer: PlexContainer }>(`/library/metadata/${ratingKey}`);
     const item = result.MediaContainer?.Metadata?.[0];
     return extractCountryTags(item);
