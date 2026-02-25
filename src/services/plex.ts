@@ -41,6 +41,56 @@ export function normalizeCountryName(input: string): string {
     return COUNTRY_ADJECTIVE_MAP[normalized] || normalized;
 }
 
+function extractCountryTags(metadata: any): string[] {
+    const countries = metadata?.Country;
+    if (!Array.isArray(countries)) return [];
+    return countries
+        .map((c: any) => c?.tag || c?.title)
+        .filter((value: any) => typeof value === "string" && value.trim().length > 0)
+        .map((value: string) => normalizeCountryName(value));
+}
+
+async function getItemCountryTags(ratingKey: string): Promise<string[]> {
+    const result = await fetchPlex<{ MediaContainer: PlexContainer }>(`/library/metadata/${ratingKey}`);
+    const item = result.MediaContainer?.Metadata?.[0];
+    return extractCountryTags(item);
+}
+
+async function mapWithConcurrency<T, R>(
+    items: T[],
+    limit: number,
+    iterator: (item: T) => Promise<R>
+): Promise<R[]> {
+    const results: R[] = new Array(items.length);
+    let index = 0;
+
+    async function worker() {
+        while (index < items.length) {
+            const current = index++;
+            results[current] = await iterator(items[current]);
+        }
+    }
+
+    const workers = Array.from({ length: Math.min(limit, items.length) }, () => worker());
+    await Promise.all(workers);
+    return results;
+}
+
+export async function filterItemsByCountryTag(items: any[], countryName: string): Promise<any[]> {
+    const target = normalizeCountryName(countryName);
+    if (!target) return [];
+    if (items.length === 0) return [];
+
+    const filteredFlags = await mapWithConcurrency(items, 5, async (item) => {
+        const ratingKey = item?.ratingKey;
+        if (!ratingKey) return false;
+        const tags = await getItemCountryTags(String(ratingKey));
+        return tags.includes(target);
+    });
+
+    return items.filter((_item, idx) => filteredFlags[idx]);
+}
+
 export function getMovieSectionIds(): string[] {
     return process.env.PLEX_MOVIE_SECTION_IDS?.split(",").map(s => s.trim()) || [];
 }

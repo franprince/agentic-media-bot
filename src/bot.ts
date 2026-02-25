@@ -161,6 +161,7 @@ bot.api.getMe().then(async (me) => {
 - **Country Param Canonicalization**: findPlexByCountry now canonicalizes demonyms to country nouns at tool boundary.
 - **Plex Filter Precision**: Direct Plex tag paths are now preferred and aggregated results are deduplicated across sections.
 - **Country Canonicalization Unification**: Execution, status, and logs now share one country normalizer (e.g., Danish -> Denmark).
+- **Strict Country Tag Filter**: Country browsing now validates each item’s "Country" tags and ignores language tags.
 - **Tool Guardrails**: Add-movie/series calls now gracefully prompt for a search match when IDs are missing.
 - **Radarr Resilience**: Title-based adds now handle Radarr lookup errors without crashing.
 - **Tool Error Containment**: Radarr search/add failures now return safe responses and keep the message flow alive.

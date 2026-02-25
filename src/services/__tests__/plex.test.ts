@@ -131,4 +131,34 @@ describe("Plex Service", () => {
         expect(plex.normalizeCountryName("Argentine")).toBe("argentina");
         expect(plex.normalizeCountryName("France")).toBe("france");
     });
+
+    test("filterItemsByCountryTag should include only matching country tags", async () => {
+        const items = [
+            { ratingKey: "1", title: "German Film" },
+            { ratingKey: "2", title: "Non German Film" },
+        ];
+
+        global.fetch = mock((input: any) => {
+            const url = String(input);
+            if (url.includes("/library/metadata/1")) {
+                return Promise.resolve(new Response(JSON.stringify({
+                    MediaContainer: {
+                        Metadata: [{ Country: [{ tag: "Germany" }] }],
+                    },
+                }), { status: 200 }));
+            }
+            if (url.includes("/library/metadata/2")) {
+                return Promise.resolve(new Response(JSON.stringify({
+                    MediaContainer: {
+                        Metadata: [{ Country: [{ tag: "France" }] }],
+                    },
+                }), { status: 200 }));
+            }
+            return Promise.resolve(new Response("not found", { status: 404 }));
+        }) as any;
+
+        const filtered = await plex.filterItemsByCountryTag(items, "Germany");
+        expect(filtered.length).toBe(1);
+        expect(filtered[0]?.ratingKey).toBe("1");
+    });
 });

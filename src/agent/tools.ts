@@ -526,8 +526,9 @@ export const findPlexByCountryTool = tool({
         }
 
         const uniqueResults = deduplicatePlexItems(allResults);
+        const strictCountryResults = await plex.filterItemsByCountryTag(uniqueResults, country);
 
-        if (uniqueResults.length === 0) {
+        if (strictCountryResults.length === 0) {
             return {
                 totalFound: 0,
                 sampleItems: [],
@@ -536,8 +537,8 @@ export const findPlexByCountryTool = tool({
         }
 
         return {
-            totalFound: uniqueResults.length,
-            sampleItems: uniqueResults.slice(0, 15).map(m => ({
+            totalFound: strictCountryResults.length,
+            sampleItems: strictCountryResults.slice(0, 15).map(m => ({
                 title: m.title,
                 originalTitle: m.originalTitle,
                 year: m.year,

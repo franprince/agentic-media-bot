@@ -40,6 +40,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
    - **Canonical Country Normalization**: Demonyms (e.g., "Danish") are normalized to country nouns (e.g., "Denmark") consistently across tool execution and status logs.
    - **Country Filter Accuracy**: Country-tag browsing uses normalized Plex tag keys to avoid unfiltered or mixed-country results.
    - **Cross-Section Deduplication**: Country/genre browse results are deduplicated before reporting totals and samples.
+   - **Strict Country Tag Filter**: Country browsing verifies each item’s `Country` tags and excludes items whose country tags do not match the requested country (language tags are ignored).
    - **Title Localization Protocol**: If a title is not in Spanish or English, the bot provides the English/Original title in parentheses.
    - **Exact Count Rule**: For Plex country/genre browsing, replies always include the precise `totalFound` count from the tool output.
    - **Deterministic Plex Browse Reply**: Country/genre replies are rendered directly from tool results (count + sampled titles) to avoid model hallucinations or omissions.

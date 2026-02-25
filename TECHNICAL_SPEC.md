@@ -43,6 +43,7 @@
 - **Single Country Canonicalizer**: Country normalization for tool execution, status rendering, and tool-call logging is centralized in `src/services/plex.ts` to avoid drift.
 - **Accent-Resilient I18N Detection**: Status language detection handles common Spanish forms with and without diacritics.
 - **Plex Result Deduplication**: Country/genre aggregation across multiple sections deduplicates media entries before computing `totalFound`.
+- **Strict Country Tag Filter**: After Plex country browsing, each item is verified by fetching metadata and checking `Country` tags against the requested country; language tags are ignored.
 
 ## Startup Verification & Specification Auditing
 - On every run, the bot MUST execute `src/verify-config.ts` (or equivalent) to audit its environment against `TECHNICAL_SPEC.md` and `FUNCTIONAL_SPEC.md`.
