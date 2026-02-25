@@ -40,8 +40,16 @@ function triggerExternalRestart(): boolean {
             return true;
         } else {
             const scriptPath = process.argv[1] || "src/bot.ts";
+            const restartScriptPath = "scripts/restart-bot.sh";
             const child = Bun.spawn({
-                cmd: [process.execPath, scriptPath],
+                cmd: [
+                    "sh",
+                    restartScriptPath,
+                    String(process.pid),
+                    scriptPath,
+                    process.execPath,
+                    "/tmp/agentic-media-bot-restart.log",
+                ],
                 cwd: process.cwd(),
                 stdin: "ignore",
                 stdout: "ignore",
@@ -52,7 +60,7 @@ function triggerExternalRestart(): boolean {
             return true;
         }
     } catch (error) {
-        console.error("Failed to spawn detached restart process directly:", error);
+        console.error("Failed to spawn external restart supervisor:", error);
     }
 
     try {
@@ -269,6 +277,7 @@ bot.api.getMe().then(async (me) => {
 - **Detail-Intent Safety Guard**: Detail/info requests now disable add tools unless explicit add intent is present.
 - **Admin Restart Command**: Added "/restart" command to gracefully restart the bot process for allowed users.
 - **External Restart Reliability**: "/restart" now stops polling, starts a detached sibling bot process, and retries via nohup fallback before exiting; custom BOT_RESTART_COMMAND remains supported.
+- **Supervisor Restart Script**: Default "/restart" now launches a detached supervisor script that waits for bot shutdown and then starts a fresh process.
 - **Restart Catch-up Guard**: Admin restart now skips one startup catch-up cycle to avoid unrelated retroactive replies.
 - **Command Leakage Guard**: Slash commands are ignored by generic text-to-LLM middleware.
 - **Tool Guardrails**: Add-movie/series calls now gracefully prompt for a search match when IDs are missing.
