@@ -18,6 +18,22 @@ let botRunner: ReturnType<typeof run> | undefined;
 const projectRoot = resolve(import.meta.dir, "..");
 const TELEGRAM_MAX_MESSAGE_LENGTH = 4096;
 
+type ChangelogRelease = {
+    version: string;
+    changes: string[];
+};
+
+const CHANGELOG_RELEASES: ChangelogRelease[] = [
+    {
+        version: "3.0.0",
+        changes: [
+            "Semantic versioned changelog releases are now used instead of one rolling changelog block.",
+            "Bot startup now sends only the latest release changelog to administrators.",
+            "Startup changelog delivery remains chunked to respect Telegram message length limits.",
+        ],
+    },
+];
+
 function getAllowedUserIdSet(): Set<number> {
     const raw = process.env.ALLOWED_USER_IDS?.split(",") || [];
     return new Set(
@@ -142,6 +158,15 @@ function splitTelegramMessage(text: string, maxLength = TELEGRAM_MAX_MESSAGE_LEN
 
     if (current) chunks.push(current);
     return chunks;
+}
+
+function getLatestChangelogRelease(): ChangelogRelease {
+    return CHANGELOG_RELEASES[CHANGELOG_RELEASES.length - 1];
+}
+
+function buildReleaseChangelogText(release: ChangelogRelease): string {
+    const lines = release.changes.map((change) => `- ${change}`);
+    return [`*Changelog v${release.version}*`, ...lines].join("\n");
 }
 
 // Handle incoming /start command
@@ -319,67 +344,22 @@ bot.api.getMe().then(async (me) => {
     const adminIds = process.env.ALLOWED_USER_IDS?.split(",") || [];
 
     if (adminIds.length > 0) {
-        const changelog = `
-*Recent Changes:*
-- **Warmer Status Updates**: More informative, localized status messages with friendly phrasing.
-- **Localized Transition Banner**: Initial "Thinking" and catch-up status messages now match the user language.
-- **Conversation Language Lock**: Final replies now enforce the detected conversation language (Spanish/English) before sending.
-- **Startup Message Chunking**: Admin startup changelog notifications are now split into Telegram-safe chunks to avoid "message is too long" errors.
-- **Exact Count Prefix**: Plex country/genre replies now always include the precise total found count.
-- **Count Prefix Wording**: Plex count prefix no longer says "exactly"; it now uses simpler phrasing.
-- **List Header Wording**: Plex country/genre lists now say "This is the list of {search parameter} movies:" instead of "Muestra/Sample".
-- **Country Header Naturalness**: Country list headers now use "movies from {country}" wording instead of "{country} movies".
-- **Synthesis Count Fix**: Exact count now comes from first-pass tool results, so it is preserved even with capable-model synthesis.
-- **Country Filter Accuracy**: Plex country filtering now normalizes full tag-key query paths to avoid mixed or unfiltered results.
-- **Deterministic Country/Genre Replies**: Plex browse answers now render directly from tool data to prevent mismatched counts/titles.
-- **Country Name Clarity**: Country search status now uses noun country names (e.g., "Germany") instead of demonyms.
-- **Spanish Detection Robustness**: Language detection now handles Spanish inputs without accent marks (e.g., "peliculas").
-- **Country Param Canonicalization**: "findPlexByCountry" now canonicalizes demonyms to country nouns at tool boundary.
-- **Plex Filter Precision**: Direct Plex tag paths are now preferred and aggregated results are deduplicated across sections.
-- **Country Canonicalization Unification**: Execution, status, and logs now share one country normalizer (e.g., Danish -> Denmark).
-- **Strict Primary Country Filter**: Country browsing now validates each item’s primary "Country" tag and ignores language tags.
-- **Title Country Verification**: Country yes/no answers now use Plex "primaryCountry" from title search metadata.
-- **Ranked Country Lists**: "Top N from country" queries now request ranked results with explicit limit.
-- **Deterministic Foreign Title Alias**: Country/genre list output now appends original title when it differs.
-- **Metadata Title Enrichment**: Country ranked output now enriches aliases from Plex metadata ("originalTitle"/"titleSort") when possible.
-- **Cross-Service Alias Recovery**: Country ranked output now uses best-effort Radarr lookup to recover Latin aliases when Plex metadata is missing them.
-- **Missing Alias Transparency**: Non-Latin titles now explicitly show when an English/Spanish alias is unavailable in Plex metadata.
-- **Detail-Intent Safety Guard**: Detail/info requests now disable add tools unless explicit add intent is present.
-- **Admin Restart Command**: Added "/restart" command to gracefully restart the bot process for allowed users.
-- **External Restart Reliability**: "/restart" now stops polling, starts a detached sibling bot process, and retries via nohup fallback before exiting; custom "BOT_RESTART_COMMAND" remains supported.
-- **Supervisor Restart Script**: Default "/restart" now launches a detached supervisor script that waits for bot shutdown and then starts a fresh process.
-- **Restart Path Robustness**: Supervisor and fallback now resolve absolute paths from project root so restarts work from any working directory.
-- **Restart Online Confirmation**: After "/restart", bot now sends a one-time "back online" confirmation to the requester chat on successful startup.
-- **Restart Catch-up Guard**: Admin restart now skips one startup catch-up cycle to avoid unrelated retroactive replies.
-- **Command Leakage Guard**: Slash commands are ignored by generic text-to-LLM middleware.
-- **Tool Guardrails**: Add-movie/series calls now gracefully prompt for a search match when IDs are missing.
-- **Radarr Resilience**: Title-based adds now handle Radarr lookup errors without crashing.
-- **Tool Error Containment**: Radarr search/add failures now return safe responses and keep the message flow alive.
-- **Specification Audit**: Functional and Technical specs updated to match latest implementations.
-`;
-        // Create a simple hash of the changelog to track if we've already sent it
-        const changelogHash = Buffer.from(changelog).toString("base64").slice(0, 32);
-        const lastSentHash = getMetadata("last_sent_changelog_hash");
+        const latestRelease = getLatestChangelogRelease();
+        const startupTitle = "🔄 Bot startup changelog";
+        const startupText = `${startupTitle}\n${buildReleaseChangelogText(latestRelease)}`;
 
-        if (lastSentHash !== changelogHash) {
-            const isFirstStart = !lastSentHash;
-            const message = isFirstStart
-                ? "🚀 Bot has been initialized!"
-                : "🔄 Bot has been updated!";
-
-            for (const adminId of adminIds) {
-                try {
-                    const startupText = `${message}\n${changelog}`;
-                    const chunks = splitTelegramMessage(startupText);
-                    for (const chunk of chunks) {
-                        await bot.api.sendMessage(adminId, chunk);
-                    }
-                } catch (err) {
-                    console.error(`Failed to send startup message to ${adminId}:`, err);
+        for (const adminId of adminIds) {
+            try {
+                const chunks = splitTelegramMessage(startupText);
+                for (const chunk of chunks) {
+                    await bot.api.sendMessage(adminId, chunk);
                 }
+            } catch (err) {
+                console.error(`Failed to send startup message to ${adminId}:`, err);
             }
-            setMetadata("last_sent_changelog_hash", changelogHash);
         }
+
+        setMetadata("last_sent_changelog_version", latestRelease.version);
     }
 
     // Catch-up logic for unreplied messages

@@ -67,8 +67,8 @@ A conversational Telegram bot that controls a user's home media server stack, ca
    - **Final Reply Language Guard**: Final answer text is forced to match the detected user language (Spanish/English) before sending.
 
 9. **Update Notifications & Changelogs**
-   - After a restart, if new features or fixes have been implemented, the bot automatically notifies administrators with a detailed changelog. 
-   - Uses persistent state to ensure each unique update is only notified once.
+   - Changelog entries are organized as semantic-versioned releases (e.g., `1.4.2`, `1.5.0`, `2.0.0`).
+   - On every bot startup, administrators receive the latest release changelog message.
    - Long changelog notifications are split into Telegram-safe chunks to avoid message length errors.
 
 8. **LLM Personality & I18n**
