@@ -3,7 +3,7 @@ import { run } from "@grammyjs/runner";
 import { resolve, isAbsolute } from "node:path";
 import { processUserMessage } from "./agent/index.ts";
 import { detectStatusLanguage } from "./agent/status.ts";
-import { getMetadata, setMetadata, getAllConversations } from "./services/database.ts";
+import { getMetadata, setMetadata, getAllConversations, getUserName, setUserName } from "./services/database.ts";
 import { verifyConfig } from "./verify-config";
 import { checkAllServices } from "./services/health";
 
@@ -17,6 +17,10 @@ const bot = new Bot(token);
 let botRunner: ReturnType<typeof run> | undefined;
 const projectRoot = resolve(import.meta.dir, "..");
 const TELEGRAM_MAX_MESSAGE_LENGTH = 4096;
+
+// Conversation state for name collection
+type WaitingForNameState = { waitingForName: true };
+const waitingForName = new Map<number, WaitingForNameState>();
 
 type ChangelogRelease = {
     version: string;
@@ -161,7 +165,11 @@ function splitTelegramMessage(text: string, maxLength = TELEGRAM_MAX_MESSAGE_LEN
 }
 
 function getLatestChangelogRelease(): ChangelogRelease {
-    return CHANGELOG_RELEASES[CHANGELOG_RELEASES.length - 1];
+    const latest = CHANGELOG_RELEASES[CHANGELOG_RELEASES.length - 1];
+    if (!latest) {
+        throw new Error("No changelog releases defined");
+    }
+    return latest;
 }
 
 function buildReleaseChangelogText(release: ChangelogRelease): string {
@@ -170,8 +178,15 @@ function buildReleaseChangelogText(release: ChangelogRelease): string {
 }
 
 // Handle incoming /start command
-bot.command("start", (ctx) => {
-    ctx.reply(`👋 Hello! I am your *Agentic Media Bot*.
+bot.command("start", async (ctx) => {
+    if (!ctx.from) return;
+    
+    const userId = ctx.from.id;
+    const existingName = getUserName(userId);
+    
+    if (existingName) {
+        // User already has a name, show welcome back message
+        await ctx.reply(`👋 Welcome back, *${existingName}*! I am your *Agentic Media Bot*.
 
 I help you manage your media library across:
 ✅ *Radarr* (Movies)
@@ -181,6 +196,20 @@ I help you manage your media library across:
 
 How can I help you today?
 /status - Check service health`, { parse_mode: "Markdown" });
+        return;
+    }
+    
+    // First time user, ask for their name
+    waitingForName.set(userId, { waitingForName: true });
+    await ctx.reply(`👋 Hello! I am your *Agentic Media Bot*.
+
+I help you manage your media library across:
+✅ *Radarr* (Movies)
+✅ *Sonarr* (TV Shows)
+✅ *Plex* (Streaming)
+✅ *qBittorrent* (Downloads)
+
+What should I call you?`, { parse_mode: "Markdown" });
 });
 
 // Handle /status command
@@ -246,8 +275,30 @@ bot.command("restart", async (ctx) => {
 // Handle text messages
 bot.on("message:text", async (ctx) => {
     if (!ctx.from) return;
-    if (ctx.message.text.startsWith("/")) return;
+    
     const userId = ctx.from.id;
+    
+    // Check if we're waiting for a name
+    if (waitingForName.has(userId)) {
+        const name = ctx.message.text.trim();
+        if (name.length > 0 && !name.startsWith("/")) {
+            setUserName(userId, name);
+            waitingForName.delete(userId);
+            await ctx.reply(`Nice to meet you, *${name}*! 🎉
+
+I help you manage your media library across:
+✅ *Radarr* (Movies)
+✅ *Sonarr* (TV Shows)
+✅ *Plex* (Streaming)
+✅ *qBittorrent* (Downloads)
+
+How can I help you today?
+/status - Check service health`, { parse_mode: "Markdown" });
+            return;
+        }
+    }
+    
+    if (ctx.message.text.startsWith("/")) return;
     const user = ctx.from.username || ctx.from.first_name;
     console.log(`📩 Message from @${user} (${userId}): ${ctx.message.text}`);
 
