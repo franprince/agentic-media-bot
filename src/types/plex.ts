@@ -11,6 +11,7 @@ export interface PlexMetadata {
     originalTitle?: string;
     addedAt?: number;
     updatedAt?: number;
+    duration?: number; // Duration in milliseconds
     Country?: Array<{ tag?: string; title?: string }>;
     // For shows/episodes
     parentTitle?: string;

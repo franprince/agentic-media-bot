@@ -721,6 +721,118 @@ export const saveUserNameTool = tool({
     },
 });
 
+export const searchPlexByDurationTool = tool({
+    description: "Find movies in Plex that match a specific duration. Useful when the user asks for 'short movies under X minutes' or 'long movies over X minutes'.",
+    parameters: z.object({
+        comparison: z.enum(["shorterThan", "longerThan", "between"]).describe("How to compare the duration."),
+        minutes: z.number().int().min(1).describe("The duration in minutes for comparison (max value for 'shorterThan', min value for 'longerThan')."),
+        minutesMax: z.number().int().min(1).optional().describe("Maximum duration for 'between' comparison."),
+    }),
+    execute: async ({ comparison, minutes, minutesMax }: { comparison: string, minutes: number, minutesMax?: number }) => {
+        let sectionIds = plex.getMovieSectionIds();
+
+        if (sectionIds.length === 0) {
+            const sections = await plex.getLibrarySections();
+            sectionIds = (sections.Directory as any[])
+                ?.filter(d => d.type === "movie")
+                .map(d => d.key) || [];
+        }
+
+        if (sectionIds.length === 0) {
+            return { message: "Could not find any 'movie' sections in your Plex library." };
+        }
+
+        const allResults: any[] = [];
+        for (const sectionId of sectionIds) {
+            try {
+                // Get all movies from the section - Plex returns duration in milliseconds
+                const result = await plex.getLibrarySections();
+                const movieSection = (result.Directory as any[])?.find(d => d.key === sectionId);
+                
+                if (movieSection) {
+                    // Get items from the section
+                    const itemsResult = await plex.getLibrarySections();
+                    if (itemsResult.Metadata) {
+                        for (const item of itemsResult.Metadata) {
+                            if (item.duration) {
+                                const durationMinutes = Math.round(item.duration / 60000);
+                                let matches = false;
+                                
+                                if (comparison === "shorterThan" && durationMinutes <= minutes) {
+                                    matches = true;
+                                } else if (comparison === "longerThan" && durationMinutes >= minutes) {
+                                    matches = true;
+                                } else if (comparison === "between" && minutesMax && durationMinutes >= minutes && durationMinutes <= minutesMax) {
+                                    matches = true;
+                                }
+                                
+                                if (matches) {
+                                    allResults.push({
+                                        ...item,
+                                        durationMinutes
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error(`Error searching section ${sectionId} by duration:`, error);
+            }
+        }
+
+        const uniqueResults = deduplicatePlexItems(allResults);
+
+        if (uniqueResults.length === 0) {
+            let queryDesc = "";
+            if (comparison === "shorterThan") {
+                queryDesc = `shorter than ${minutes} minutes`;
+            } else if (comparison === "longerThan") {
+                queryDesc = `longer than ${minutes} minutes`;
+            } else if (comparison === "between" && minutesMax) {
+                queryDesc = `between ${minutes} and ${minutesMax} minutes`;
+            }
+            return {
+                totalFound: 0,
+                sampleItems: [],
+                message: `No movies found in your Plex library ${queryDesc}.`
+            } as any;
+        }
+
+        // Sort by duration
+        const sortedResults = [...uniqueResults].sort((a, b) => 
+            comparison === "shorterThan" 
+                ? a.durationMinutes - b.durationMinutes 
+                : b.durationMinutes - a.durationMinutes
+        );
+
+        const sampleItems = sortedResults.slice(0, 10).map(m => ({
+            title: m.title,
+            originalTitle: m.originalTitle,
+            year: m.year,
+            duration: m.durationMinutes,
+            overview: m.summary,
+            posterUrl: plex.getPosterUrl(m.thumb),
+        }));
+
+        let queryDesc = "";
+        if (comparison === "shorterThan") {
+            queryDesc = `shorter than ${minutes} minutes`;
+        } else if (comparison === "longerThan") {
+            queryDesc = `longer than ${minutes} minutes`;
+        } else if (comparison === "between" && minutesMax) {
+            queryDesc = `between ${minutes} and ${minutesMax} minutes`;
+        }
+
+        return {
+            totalFound: uniqueResults.length,
+            queryType: "duration",
+            searchParam: queryDesc,
+            sampleItems,
+        } as any;
+    },
+});
+
 export const getPlexLibraryStatsTool = tool({
     description: "Get statistics about the Plex library, specifically the total number of movies and TV shows.",
     parameters: z.object({}),
