@@ -29,11 +29,12 @@ type ChangelogRelease = {
 
 const CHANGELOG_RELEASES: ChangelogRelease[] = [
     {
-        version: "3.0.0",
+        version: "4.0.0",
         changes: [
-            "Semantic versioned changelog releases are now used instead of one rolling changelog block.",
-            "Bot startup now sends only the latest release changelog to administrators.",
-            "Startup changelog delivery remains chunked to respect Telegram message length limits.",
+            "feat: Added Plex search by duration - find movies shorter than, longer than, or between specific durations.",
+            "feat: Added multilingual Plex search fallback via Radarr/Sonarr for better international title matching.",
+            "fix: Fixed Plex country search limit parameter to be nullable.",
+            "chore: Updated agent system prompt to include new duration-based search capabilities.",
         ],
     },
 ];

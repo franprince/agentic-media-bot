@@ -14,7 +14,9 @@ function getLastUserTextFromHistory(history: CoreMessage[]): string | undefined 
         if (msg?.role !== "user") continue;
         if (typeof msg.content === "string") return msg.content;
         if (Array.isArray(msg.content)) {
-            const textPart = msg.content.find((p: any) => p?.type === "text" && typeof p?.text === "string");
+            const textPart = msg.content.find((p): p is { type: "text"; text: string } => 
+                p?.type === "text" && typeof (p as any).text === "string"
+            );
             if (textPart?.text) return textPart.text;
         }
     }
@@ -132,6 +134,7 @@ AVAILABLE TOOLS:
 - searchPlexByTitleOnly(query: string)
 - browsePlexByGenre(genre: string)
 - findPlexByCountry(country: string)
+- searchPlexByDuration(shorterThan?: number, longerThan?: number, between?: [number, number])
 - getRecentlyAddedPlex()
 - getPlexLibraryStats()
 - discoverMedia(query: string)
@@ -167,7 +170,12 @@ I18N, GENRE & DISCOVERY PROTOCOL:
 - **COUNTRY VERIFICATION PROTOCOL**: If the user asks whether a specific movie is from a country (e.g., "Is X a French movie?"), you MUST call 'searchPlexByTitleOnly' for that title and decide using the returned 'primaryCountry' (or first item in 'countries' if 'primaryCountry' is missing). Do NOT answer from prior knowledge.
 - **RANKED COUNTRY QUERIES**: If the user asks for "top/best/ranked" movies from a country, call 'findPlexByCountry' with \`ranked: true\` and set \`limit\` to the requested count (e.g., 10).
 - **ZERO RESULTS PROTOCOL (Plex country/genre)**: If 'findPlexByCountry' or 'browsePlexByGenre' returns \`totalFound: 0\`, do NOT ask "¿Quieres que busque de nuevo?". Instead, clearly state you found 0 items and ask whether they want recommendations to add (use 'discoverMedia' only if they say yes or if they asked for recommendations).
-- **DURATION LIMITATION**: You CANNOT currently filter library items by duration (e.g., "shorter than 1.5 hours"). If asked, politely explain that you can search by genre, country, or title, but filtering by length is not yet supported.
+- **DURATION QUERIES**: You CAN filter library movies by duration using 'searchPlexByDuration':
+    - Use 'shorterThan' for maximum duration in minutes (e.g., 90 = 1.5 hours)
+    - Use 'longerThan' for minimum duration in minutes
+    - Use 'between' for a range [min, max] in minutes
+    - Results are sorted by duration (shortest or longest first)
+    - For "shortest/shortest movie", use 'shorterThan' with a very high number and sort results
 - **TITLE LOCALIZATION PROTOCOL**: If a media title is not in Spanish or English (the languages used by the user), you MUST include the English title (originalTitle from tools) between parentheses after the local title. E.g., "オーディション (Audition)".
 - **THINKING & STATUS PROTOCOL**: Before calling any tool, you MUST write a VERY brief (one sentence max) thought in the SAME language as the user message (e.g., Spanish or English) explaining what you are about to do. This will be shown to the user as a real-time status update. E.g. "Buscando películas de terror en Plex..." or "Checking your Radarr queue...".
 - **THINKING & STATUS PROTOCOL**: Before calling any tool, you MUST write a VERY brief (one sentence max) thought in the SAME language as the user message (e.g., Spanish or English) explaining what you are about to do. This will be shown to the user as a real-time status update. E.g. "Buscando películas de terror en Plex..." or "Checking your Radarr queue...". Keep it warm and specific; avoid generic phrases like "Working on...".
@@ -286,6 +294,7 @@ export async function processUserMessage(
             searchPlexByTitleOnly: botTools.searchPlexByTitleOnlyTool,
             browsePlexByGenre: botTools.browsePlexByGenreTool,
             findPlexByCountry: botTools.findPlexByCountryTool,
+            searchPlexByDuration: botTools.searchPlexByDurationTool,
             getRecentlyAddedPlex: botTools.getRecentlyAddedPlexTool,
             getPlexLibraryStats: botTools.getPlexLibraryStatsTool,
             discoverMedia: botTools.discoverMediaTool,
@@ -378,7 +387,7 @@ export async function processUserMessage(
         }
 
         if (response.toolResults.length > 0) {
-            console.log(`🛠️ Tool Results:`, JSON.stringify(response.toolResults.map(r => ({
+            console.log(`🛠️ Tool Results:`, JSON.stringify(response.toolResults.map((r: any) => ({
                 tool: r.toolName,
                 result: r.result
             })), null, 2));
