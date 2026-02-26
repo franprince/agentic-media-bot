@@ -16,6 +16,7 @@ if (!token) {
 const bot = new Bot(token);
 let botRunner: ReturnType<typeof run> | undefined;
 const projectRoot = resolve(import.meta.dir, "..");
+const TELEGRAM_MAX_MESSAGE_LENGTH = 4096;
 
 function getAllowedUserIdSet(): Set<number> {
     const raw = process.env.ALLOWED_USER_IDS?.split(",") || [];
@@ -110,6 +111,37 @@ function extractUserTextFromHistoryMessage(message: any): string | undefined {
         return textPart?.text;
     }
     return undefined;
+}
+
+function splitTelegramMessage(text: string, maxLength = TELEGRAM_MAX_MESSAGE_LENGTH): string[] {
+    if (text.length <= maxLength) return [text];
+
+    const chunks: string[] = [];
+    let current = "";
+    const lines = text.split("\n");
+
+    for (const line of lines) {
+        const candidate = current ? `${current}\n${line}` : line;
+        if (candidate.length <= maxLength) {
+            current = candidate;
+            continue;
+        }
+
+        if (current) chunks.push(current);
+        current = "";
+
+        if (line.length <= maxLength) {
+            current = line;
+            continue;
+        }
+
+        for (let index = 0; index < line.length; index += maxLength) {
+            chunks.push(line.slice(index, index + maxLength));
+        }
+    }
+
+    if (current) chunks.push(current);
+    return chunks;
 }
 
 // Handle incoming /start command
@@ -292,6 +324,7 @@ bot.api.getMe().then(async (me) => {
 - **Warmer Status Updates**: More informative, localized status messages with friendly phrasing.
 - **Localized Transition Banner**: Initial "Thinking" and catch-up status messages now match the user language.
 - **Conversation Language Lock**: Final replies now enforce the detected conversation language (Spanish/English) before sending.
+- **Startup Message Chunking**: Admin startup changelog notifications are now split into Telegram-safe chunks to avoid "message is too long" errors.
 - **Exact Count Prefix**: Plex country/genre replies now always include the precise total found count.
 - **Count Prefix Wording**: Plex count prefix no longer says "exactly"; it now uses simpler phrasing.
 - **List Header Wording**: Plex country/genre lists now say "This is the list of {search parameter} movies:" instead of "Muestra/Sample".
@@ -336,7 +369,11 @@ bot.api.getMe().then(async (me) => {
 
             for (const adminId of adminIds) {
                 try {
-                    await bot.api.sendMessage(adminId, `${message}\n${changelog}`);
+                    const startupText = `${message}\n${changelog}`;
+                    const chunks = splitTelegramMessage(startupText);
+                    for (const chunk of chunks) {
+                        await bot.api.sendMessage(adminId, chunk);
+                    }
                 } catch (err) {
                     console.error(`Failed to send startup message to ${adminId}:`, err);
                 }
