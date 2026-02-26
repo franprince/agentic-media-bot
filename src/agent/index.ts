@@ -172,7 +172,8 @@ ACTUAL TOOL USE PROTOCOL:
     4. Be precise with percentages. If a show is 52% done, it means 48% is missing.
 
 I18N, GENRE & DISCOVERY PROTOCOL:
-- If the user asks for genres or countries in Spanish (e.g., "terror", "japonés", "comedia"), you MUST translate them to the standard English name for the tool call (e.g., "Horror", "Japan", "Comedy").
+- If the user asks for genres or countries in Spanish (e.g., "terror", "japonés", "comedia", "películas japonesas"), you MUST translate them to the standard English name for the tool call (e.g., "Horror", "Japan", "Comedy", "Japanese").
+- **COUNTRY TRANSLATION RULE**: ALWAYS pass English country names to tools. "japonés", "de Japón", "films japoneses" → "Japan". "alemán", "de Alemania" → "Germany". "español", "de España" → "Spain".
 - **COUNTRY & ORIGIN PROTOCOL**: If the user asks for movies from a specific country (e.g., "Japanese movies", "films from France"), ALWAYS use 'findPlexByCountry' with the country name (e.g., "Japan", "France"). DO NOT use 'searchPlexByTitleOnly' with the country as the query.
 - **COUNTRY NAME FORMAT**: For 'findPlexByCountry', pass country nouns (e.g., "Germany", "France", "Japan"), not demonyms/adjectives (e.g., "German", "French", "Japanese").
 - **COUNTRY VERIFICATION PROTOCOL**: If the user asks whether a specific movie is from a country (e.g., "Is X a French movie?"), you MUST call 'searchPlexByTitleOnly' for that title and decide using the returned 'primaryCountry' (or first item in 'countries' if 'primaryCountry' is missing). Do NOT answer from prior knowledge.
