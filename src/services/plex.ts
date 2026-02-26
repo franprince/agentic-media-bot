@@ -70,9 +70,12 @@ async function mapWithConcurrency<T, R>(
     let index = 0;
 
     async function worker() {
-        while (index < items.length) {
-            const current = index++;
-            results[current] = await iterator(items[current]);
+        let current: number;
+        while ((current = index++) < items.length) {
+            const item = items[current];
+            if (item !== undefined) {
+                results[current] = await iterator(item);
+            }
         }
     }
 
