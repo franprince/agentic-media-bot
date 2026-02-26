@@ -36,8 +36,8 @@ function isInvalidToolArgumentsError(error: any): boolean {
 function buildToolArgsRepairPrompt(toolName: string | undefined, toolArgs: string | undefined, lang: StatusLanguage): string {
     const es = lang === "es";
     const header = es
-        ? "La llamada a una herramienta falló por argumentos inválidos."
-        : "A tool call failed due to invalid arguments.";
+        ? "La llamada a una herramienta falló por argumentos inválidos. Los tipos de datos son incorrectos."
+        : "A tool call failed due to invalid arguments. Data types are incorrect.";
 
     const details = [
         toolName ? `toolName: ${toolName}` : undefined,
@@ -46,23 +46,29 @@ function buildToolArgsRepairPrompt(toolName: string | undefined, toolArgs: strin
 
     const rules = es
         ? [
-            "REGLAS:",
+            "🔴 REGLAS CRÍTICAS DE TIPOS:",
+            "- Los números deben ser NÚMEROS (sin comillas), NO strings. Ejemplo: { minutes: 90 } NO { minutes: \"90\" }",
+            "- NO uses \"null\" como string. Omite campos opcionales que no necesitas.",
             "- NUNCA llames una herramienta con valores null/undefined para campos requeridos.",
-            "- Si necesitas un ID/año y no lo tienes, primero llama la herramienta de búsqueda correspondiente para obtenerlo.",
+            "- Los IDs, años y duraciones SIEMPRE son números, nunca strings.",
+            "- Si necesitas un ID/año y no lo tienes, primero llama la herramienta de búsqueda correspondiente.",
             "- Para agregar una película: usa searchMovie(term) -> elige el mejor resultado -> usa addMovie(tmdbId, title, year) con números válidos.",
             "- Si hay ambigüedad, pregunta al usuario cuál opción quiere.",
         ].join("\n")
         : [
-            "RULES:",
+            "🔴 CRITICAL TYPE RULES:",
+            "- Numbers must be NUMBERS (no quotes), NOT strings. Example: { minutes: 90 } NOT { minutes: \"90\" }",
+            "- DO NOT use \"null\" as a string. Omit optional fields you don't need.",
             "- NEVER call a tool with null/undefined for required fields.",
-            "- If you need an ID/year and don't have it, first call the appropriate search tool to obtain it.",
+            "- IDs, years, and durations are ALWAYS numbers, never strings.",
+            "- If you need an ID/year and don't have it, first call the appropriate search tool.",
             "- To add a movie: use searchMovie(term) -> pick best match -> call addMovie(tmdbId, title, year) with valid numbers.",
             "- If ambiguous, ask the user to choose.",
         ].join("\n");
 
     const instruction = es
-        ? "Vuelve a intentar desde el último paso, corrigiendo las llamadas a herramientas."
-        : "Retry from the last step, correcting the tool calls.";
+        ? "Vuelve a intentar, corrigiendo los tipos de datos Y los valores de las herramientas."
+        : "Retry, fixing both data types AND tool argument values.";
 
     return [header, details && `\n${details}`, `\n${rules}`, `\n${instruction}`].filter(Boolean).join("\n");
 }
