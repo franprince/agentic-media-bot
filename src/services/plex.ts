@@ -128,6 +128,25 @@ export function getPosterUrl(thumb: string | undefined): string | undefined {
     return `${PLEX_URL}${thumb}?X-Plex-Token=${PLEX_TOKEN}`;
 }
 
+/**
+ * Helper to get a poster image as base64 data URL.
+ * Returns a data URL that can be used directly in <img> tags or sent as a file.
+ */
+export async function getPosterData(thumb: string | undefined): Promise<string | undefined> {
+    const url = getPosterUrl(thumb);
+    if (!url) return undefined;
+
+    const response = await fetch(url);
+    
+    if (!response.ok) return undefined;
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString("base64");
+    const contentType = response.headers.get("content-type") || "image/jpeg";
+    
+    return `data:${contentType};base64,${base64}`;
+}
+
 async function fetchPlex<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const PLEX_URL = process.env.PLEX_URL?.trim();
     const PLEX_TOKEN = process.env.PLEX_TOKEN?.trim();
