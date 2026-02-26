@@ -108,6 +108,21 @@ describe("response helpers", () => {
         expect(text).toInclude("- 紅の豚 (Porco Rosso) (1992)");
     });
 
+    test("prefers latin alias over non-latin original alias", () => {
+        const text = buildPlexBrowseAuthoritativeText(
+            [{
+                toolName: "findPlexByCountry",
+                result: {
+                    totalFound: 1,
+                    sampleItems: [{ title: "紅の豚", originalTitle: "紅の豚", aliasTitle: "Porco Rosso", year: 1992 }],
+                },
+            }],
+            "en"
+        );
+
+        expect(text).toInclude("- 紅の豚 (Porco Rosso) (1992)");
+    });
+
     test("explicitly marks missing english/spanish alias for non-latin titles", () => {
         const text = buildPlexBrowseAuthoritativeText(
             [{

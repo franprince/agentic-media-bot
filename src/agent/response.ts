@@ -56,7 +56,13 @@ function formatTitle(item: SampleItemLike, lang: StatusLanguage): string {
     const title = item.title || "Untitled";
     const originalTitle = item.originalTitle?.trim();
     const aliasTitle = item.aliasTitle?.trim();
-    const displayAlias = originalTitle || aliasTitle;
+    const normalizedTitle = title.toLowerCase();
+    const candidates = [originalTitle, aliasTitle].filter((value): value is string => Boolean(value));
+    const latinAlias = candidates.find((value) =>
+        value.toLowerCase() !== normalizedTitle && !hasNonLatinCharacters(value)
+    );
+    const fallbackAlias = candidates.find((value) => value.toLowerCase() !== normalizedTitle);
+    const displayAlias = latinAlias || fallbackAlias;
     const yearSuffix = typeof item.year === "number" && Number.isFinite(item.year) ? ` (${item.year})` : "";
 
     if (displayAlias && displayAlias.toLowerCase() !== title.toLowerCase()) {

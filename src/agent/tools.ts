@@ -29,6 +29,22 @@ function deduplicatePlexItems(items: any[]): any[] {
     return [...unique.values()];
 }
 
+function hasNonLatinCharacters(value: string): boolean {
+    return /[^\u0000-\u024f\s"'`~!@#$%^&*()\-_=+\[\]{}\\|;:,./<>?0-9]/.test(value);
+}
+
+function pickLatinAliasCandidate(candidates: Array<string | undefined>, title: string): string | undefined {
+    const normalizedTitle = title.trim().toLowerCase();
+    for (const raw of candidates) {
+        const candidate = raw?.trim();
+        if (!candidate) continue;
+        if (candidate.toLowerCase() === normalizedTitle) continue;
+        if (hasNonLatinCharacters(candidate)) continue;
+        return candidate;
+    }
+    return undefined;
+}
+
 // --- Radarr Tools --- //
 
 export const searchMovieTool = tool({
@@ -570,6 +586,26 @@ export const findPlexByCountryTool = tool({
                     if (detailTitleSort) aliasTitle = detailTitleSort;
                 } catch {
                     // Best-effort enrichment only.
+                }
+            }
+
+            const currentTitle = String(m.title || "").trim();
+            const currentAlias = pickLatinAliasCandidate([enrichedOriginalTitle, aliasTitle], currentTitle);
+            if (currentTitle && hasNonLatinCharacters(currentTitle) && !currentAlias) {
+                try {
+                    const lookup = await radarr.searchMovie(currentTitle);
+                    const yearMatch = lookup.find((item) => item.year === m.year) || lookup[0];
+                    if (yearMatch) {
+                        const radarrAlias = pickLatinAliasCandidate(
+                            [yearMatch.originalTitle, yearMatch.title],
+                            currentTitle
+                        );
+                        if (radarrAlias) {
+                            aliasTitle = radarrAlias;
+                        }
+                    }
+                } catch {
+                    // Best-effort alias enrichment only.
                 }
             }
 
