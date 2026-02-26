@@ -65,8 +65,8 @@ async function mapWithConcurrency<T, R>(
     items: T[],
     limit: number,
     iterator: (item: T) => Promise<R>
-): Promise<(R | undefined)[]> {
-    const results: (R | undefined)[] = new Array(items.length);
+): Promise<R[]> {
+    const results: R[] = new Array(items.length);
     let index = 0;
 
     async function worker() {
@@ -101,7 +101,8 @@ export async function filterItemsByCountryTag(
         return tags[0] === target;
     });
 
-    return items.filter((_item, idx) => filteredFlags[idx]);
+    // Filter out undefined values (truthy check: false, 0, "", null, undefined are falsy)
+    return items.filter((_item, idx) => filteredFlags[idx] ?? false);
 }
 
 export function getMovieSectionIds(): string[] {
