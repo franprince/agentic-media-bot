@@ -48,8 +48,9 @@ function buildToolArgsRepairPrompt(toolName: string | undefined, toolArgs: strin
         ? [
             "🔴 REGLAS CRÍTICAS DE TIPOS:",
             "- Los números deben ser NÚMEROS (sin comillas), NO strings. Ejemplo: { minutes: 90 } NO { minutes: \"90\" }",
-            "- NO uses \"null\" como string. Omite campos opcionales que no necesitas.",
-            "- NUNCA llames una herramienta con valores null/undefined para campos requeridos.",
+            "- NO uses \"null\" como valor. Omite campos opcionales que no necesitas (NO incluyas el campo en absoluto).",
+            "- Para 'searchPlexByDuration' con 'shorterThan' o 'longerThan': OMITE 'minutesMax' completamente, solo incluye 'comparison' y 'minutes'.",
+            "- Para 'between': incluye tanto 'minutes' como 'minutesMax'.",
             "- Los IDs, años y duraciones SIEMPRE son números, nunca strings.",
             "- Si necesitas un ID/año y no lo tienes, primero llama la herramienta de búsqueda correspondiente.",
             "- Para agregar una película: usa searchMovie(term) -> elige el mejor resultado -> usa addMovie(tmdbId, title, year) con números válidos.",
@@ -58,8 +59,9 @@ function buildToolArgsRepairPrompt(toolName: string | undefined, toolArgs: strin
         : [
             "🔴 CRITICAL TYPE RULES:",
             "- Numbers must be NUMBERS (no quotes), NOT strings. Example: { minutes: 90 } NOT { minutes: \"90\" }",
-            "- DO NOT use \"null\" as a string. Omit optional fields you don't need.",
-            "- NEVER call a tool with null/undefined for required fields.",
+            "- DO NOT use \"null\" as a value. Omit optional fields you don't need (do NOT include the field at all).",
+            "- For 'searchPlexByDuration' with 'shorterThan' or 'longerThan': OMIT 'minutesMax' entirely, only include 'comparison' and 'minutes'.",
+            "- For 'between': include both 'minutes' and 'minutesMax'.",
             "- IDs, years, and durations are ALWAYS numbers, never strings.",
             "- If you need an ID/year and don't have it, first call the appropriate search tool.",
             "- To add a movie: use searchMovie(term) -> pick best match -> call addMovie(tmdbId, title, year) with valid numbers.",
@@ -177,11 +179,11 @@ I18N, GENRE & DISCOVERY PROTOCOL:
 - **RANKED COUNTRY QUERIES**: If the user asks for "top/best/ranked" movies from a country, call 'findPlexByCountry' with \`ranked: true\` and set \`limit\` to the requested count (e.g., 10).
 - **ZERO RESULTS PROTOCOL (Plex country/genre)**: If 'findPlexByCountry' or 'browsePlexByGenre' returns \`totalFound: 0\`, do NOT ask "¿Quieres que busque de nuevo?". Instead, clearly state you found 0 items and ask whether they want recommendations to add (use 'discoverMedia' only if they say yes or if they asked for recommendations).
 - **DURATION QUERIES**: You CAN filter library movies by duration using 'searchPlexByDuration':
-    - Use 'shorterThan' as comparison with 'minutes' as max duration (e.g., comparison: "shorterThan", minutes: 90)
-    - Use 'longerThan' as comparison with 'minutes' as min duration
-    - Use 'between' as comparison with 'minutes' as min and 'minutesMax' as max
+    - Use 'shorterThan' as comparison with 'minutes' as max duration - OMIT 'minutesMax' entirely (e.g., { comparison: "shorterThan", minutes: 90 })
+    - Use 'longerThan' as comparison with 'minutes' as min duration - OMIT 'minutesMax' entirely
+    - Use 'between' as comparison with 'minutes' as min and 'minutesMax' as max - BOTH required
     - Results are sorted by duration (shortest or longest first)
-    - For "shortest/shortest movie", use comparison: "shorterThan" with a high minutes value and sort results
+    - For "shortest movie", use comparison: "shorterThan" with a high minutes value (e.g., 300 for 5 hours)
 - **TITLE LOCALIZATION PROTOCOL**: If a media title is not in Spanish or English (the languages used by the user), you MUST include the English title (originalTitle from tools) between parentheses after the local title. E.g., "オーディション (Audition)".
 - **THINKING & STATUS PROTOCOL**: Before calling any tool, you MUST write a VERY brief (one sentence max) thought in the SAME language as the user message (e.g., Spanish or English) explaining what you are about to do. This will be shown to the user as a real-time status update. E.g. "Buscando películas de terror en Plex..." or "Checking your Radarr queue...".
 - **THINKING & STATUS PROTOCOL**: Before calling any tool, you MUST write a VERY brief (one sentence max) thought in the SAME language as the user message (e.g., Spanish or English) explaining what you are about to do. This will be shown to the user as a real-time status update. E.g. "Buscando películas de terror en Plex..." or "Checking your Radarr queue...". Keep it warm and specific; avoid generic phrases like "Working on...".

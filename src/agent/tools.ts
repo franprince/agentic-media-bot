@@ -746,32 +746,28 @@ export const searchPlexByDurationTool = tool({
         for (const sectionId of sectionIds) {
             try {
                 // Get all movies from the section - Plex returns duration in milliseconds
-                const result = await plex.getLibrarySections();
-                const movieSection = (result.Directory as any[])?.find(d => d.key === sectionId);
+                // Use the correct endpoint to fetch items from a section
+                const itemsResult = await plex.getItemsByDuration(sectionId);
                 
-                if (movieSection) {
-                    // Get items from the section
-                    const itemsResult = await plex.getLibrarySections();
-                    if (itemsResult.Metadata) {
-                        for (const item of itemsResult.Metadata) {
-                            if (item.duration) {
-                                const durationMinutes = Math.round(item.duration / 60000);
-                                let matches = false;
-                                
-                                if (comparison === "shorterThan" && durationMinutes <= minutes) {
-                                    matches = true;
-                                } else if (comparison === "longerThan" && durationMinutes >= minutes) {
-                                    matches = true;
-                                } else if (comparison === "between" && minutesMax && durationMinutes >= minutes && durationMinutes <= minutesMax) {
-                                    matches = true;
-                                }
-                                
-                                if (matches) {
-                                    allResults.push({
-                                        ...item,
-                                        durationMinutes
-                                    });
-                                }
+                if (itemsResult && itemsResult.Metadata) {
+                    for (const item of itemsResult.Metadata) {
+                        if (item.duration) {
+                            const durationMinutes = Math.round(item.duration / 60000);
+                            let matches = false;
+                            
+                            if (comparison === "shorterThan" && durationMinutes < minutes) {
+                                matches = true;
+                            } else if (comparison === "longerThan" && durationMinutes > minutes) {
+                                matches = true;
+                            } else if (comparison === "between" && minutesMax && durationMinutes >= minutes && durationMinutes <= minutesMax) {
+                                matches = true;
+                            }
+                            
+                            if (matches) {
+                                allResults.push({
+                                    ...item,
+                                    durationMinutes
+                                });
                             }
                         }
                     }

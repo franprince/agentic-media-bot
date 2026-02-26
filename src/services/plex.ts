@@ -65,8 +65,8 @@ async function mapWithConcurrency<T, R>(
     items: T[],
     limit: number,
     iterator: (item: T) => Promise<R>
-): Promise<R[]> {
-    const results: R[] = new Array(items.length);
+): Promise<(R | undefined)[]> {
+    const results: (R | undefined)[] = new Array(items.length);
     let index = 0;
 
     async function worker() {
@@ -303,4 +303,49 @@ export async function getLibraryCountries(sectionId: string): Promise<any> {
 export async function getLibrarySize(sectionId: string): Promise<number> {
     const result = await fetchPlex<{ MediaContainer: PlexContainer }>(`/library/sections/${sectionId}/all?X-Plex-Container-Start=0&X-Plex-Container-Size=0`);
     return result.MediaContainer.totalSize || result.MediaContainer.size || 0;
+}
+
+/**
+ * Get all items from a specific section.
+ * Plex paginates results, so we need to fetch in batches.
+ */
+export async function getItemsByDuration(sectionId: string): Promise<PlexContainer> {
+    // First, get the total count to know how many to fetch
+    const initialResult = await fetchPlex<{ MediaContainer: PlexContainer }>(
+        `/library/sections/${sectionId}/all?X-Plex-Container-Start=0&X-Plex-Container-Size=0`
+    );
+    
+    const totalSize = initialResult.MediaContainer.totalSize || initialResult.MediaContainer.size || 0;
+    
+    if (totalSize === 0) {
+        return { size: 0, identifier: "plex", mediaTagPrefix: "", mediaTagVersion: "", Metadata: [] };
+    }
+    
+    // Plex typically returns up to 100 items per request
+    const batchSize = 100;
+    const allMetadata: any[] = [];
+    
+    // If we have initial metadata (when totalSize is 0 but size > 0), include it
+    if (initialResult.MediaContainer.Metadata) {
+        allMetadata.push(...initialResult.MediaContainer.Metadata);
+    }
+    
+    // Fetch remaining items in batches
+    for (let start = allMetadata.length; start < totalSize; start += batchSize) {
+        const result = await fetchPlex<{ MediaContainer: PlexContainer }>(
+            `/library/sections/${sectionId}/all?X-Plex-Container-Start=${start}&X-Plex-Container-Size=${batchSize}`
+        );
+        if (result.MediaContainer.Metadata) {
+            allMetadata.push(...result.MediaContainer.Metadata);
+        }
+    }
+    
+    return {
+        size: allMetadata.length,
+        totalSize: totalSize,
+        identifier: "plex",
+        mediaTagPrefix: initialResult.MediaContainer.mediaTagPrefix || "",
+        mediaTagVersion: initialResult.MediaContainer.mediaTagVersion || "",
+        Metadata: allMetadata,
+    };
 }
