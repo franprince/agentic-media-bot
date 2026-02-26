@@ -45,6 +45,24 @@ function pickLatinAliasCandidate(candidates: Array<string | undefined>, title: s
     return undefined;
 }
 
+function stripDiacritics(value: string): string {
+    try {
+        return value.normalize("NFD").replace(/\p{Diacritic}/gu, "");
+    } catch {
+        return value;
+    }
+}
+
+function uniqueNonEmptyStrings(values: Array<string | undefined | null>): string[] {
+    const unique = new Set<string>();
+    for (const value of values) {
+        const trimmed = typeof value === "string" ? value.trim() : "";
+        if (!trimmed) continue;
+        unique.add(trimmed);
+    }
+    return [...unique.values()];
+}
+
 // --- Radarr Tools --- //
 
 export const searchMovieTool = tool({
@@ -316,11 +334,70 @@ export const searchPlexByTitleOnlyTool = tool({
         query: z.string().describe("The name of the movie or show to search for in Plex."),
     }),
     execute: async ({ query }: { query: string }) => {
-        const result = await plex.searchPlex(query);
-        if (!result.Metadata || result.Metadata.length === 0) {
-            return { message: `No results found in Plex library for '${query}'.` };
+        const normalizedQuery = String(query ?? "").trim();
+        if (!normalizedQuery) {
+            return { message: "Please provide a title to search for in Plex." } as any;
         }
-        const items = result.Metadata.slice(0, 5);
+
+        const attemptQueries = uniqueNonEmptyStrings([
+            normalizedQuery,
+            stripDiacritics(normalizedQuery),
+        ]);
+
+        const allResults: any[] = [];
+
+        const runPlexSearch = async (q: string) => {
+            const result = await plex.searchPlex(q);
+            if (result.Metadata && result.Metadata.length > 0) {
+                allResults.push(...result.Metadata);
+            }
+        };
+
+        for (const q of attemptQueries) {
+            await runPlexSearch(q);
+        }
+
+        // Multilingual fallback: resolve candidate canonical titles via Radarr/Sonarr (TMDB/TVDB),
+        // then retry Plex searches with English + original titles.
+        if (allResults.length === 0) {
+            const fallbackQueries: string[] = [];
+
+            try {
+                const radarrMatches = await radarr.searchMovie(normalizedQuery);
+                for (const match of radarrMatches.slice(0, 3)) {
+                    fallbackQueries.push(match.title);
+                    if (match.originalTitle) fallbackQueries.push(match.originalTitle);
+                }
+            } catch {
+                // Best-effort only.
+            }
+
+            try {
+                const sonarrMatches = await sonarr.searchSeries(normalizedQuery);
+                for (const match of sonarrMatches.slice(0, 3)) {
+                    fallbackQueries.push(match.title);
+                    if (match.originalTitle) fallbackQueries.push(match.originalTitle);
+                }
+            } catch {
+                // Best-effort only.
+            }
+
+            const uniqueFallbackQueries = uniqueNonEmptyStrings([
+                ...fallbackQueries,
+                ...fallbackQueries.map((q) => stripDiacritics(q)),
+            ]);
+
+            for (const q of uniqueFallbackQueries) {
+                await runPlexSearch(q);
+            }
+        }
+
+        const uniqueResults = deduplicatePlexItems(allResults);
+        if (uniqueResults.length === 0) {
+            return { message: `No results found in Plex library for '${normalizedQuery}'.` } as any;
+        }
+
+        const items = uniqueResults.slice(0, 5);
         return (await Promise.all(items.map(async (m) => {
             // Extract IDs from GUID if possible (e.g. com.plexapp.agents.imdb://tt12345)
             const imdbMatch = m.guid.match(/imdb:\/\/(tt\d+)/);
@@ -521,9 +598,10 @@ export const findPlexByCountryTool = tool({
     parameters: z.object({
         country: z.string().transform((value) => plex.normalizeCountryName(value)).describe("The country to browse for as a noun (e.g., Germany, France, Japan)."),
         ranked: z.boolean().optional().describe("Set to true when the user asks for top/best/ranked movies."),
-        limit: z.number().int().min(1).max(25).optional().describe("How many items to return in sampleItems (e.g., top 10)."),
+        limit: z.number().int().min(1).max(25).nullable().optional().describe("How many items to return in sampleItems (e.g., top 10)."),
     }),
-    execute: async ({ country, ranked = false, limit = 15 }: { country: string, ranked?: boolean, limit?: number }) => {
+    execute: async ({ country, ranked = false, limit }: { country: string, ranked?: boolean, limit?: number | null }) => {
+        const effectiveLimit = limit ?? 15;
         let sectionIds = plex.getMovieSectionIds();
 
         if (sectionIds.length === 0) {
@@ -571,7 +649,7 @@ export const findPlexByCountryTool = tool({
             ? [...strictCountryResults].sort((a, b) => rankScore(b) - rankScore(a))
             : strictCountryResults;
 
-        const sampleItems = await Promise.all(orderedResults.slice(0, limit).map(async (m) => {
+        const sampleItems = await Promise.all(orderedResults.slice(0, effectiveLimit).map(async (m) => {
             let enrichedOriginalTitle = m.originalTitle;
             let aliasTitle = typeof m.titleSort === "string" ? m.titleSort.trim() : undefined;
 
