@@ -1,8 +1,7 @@
 import type { PlexSearchResult, PlexContainer } from "../types/plex";
 
-const COUNTRY_ADJECTIVE_MAP: Record<string, string> = {
-    // Common demonyms/adjectives -> country names as used by Plex metadata.
-    // This helps when the model provides adjectives like "Argentine" instead of "Argentina".
+const COUNTRY_NAME_MAP: Record<string, string> = {
+    // English demonyms/adjectives -> country names as used by Plex metadata
     "japanese": "japan",
     "french": "france",
     "spanish": "spain",
@@ -29,16 +28,50 @@ const COUNTRY_ADJECTIVE_MAP: Record<string, string> = {
     "indian": "india",
     "argentine": "argentina",
     "argentinian": "argentina",
-    // Spanish forms (occasionally produced by the model)
+    // Spanish demonyms/adjectives -> country names
+    "japonés": "japan",
+    "japonesa": "japan",
+    "japones": "japan",
+    "francés": "france",
+    "francesa": "france",
+    "frances": "france",
+    "español": "spain",
+    "española": "spain",
+    "alemán": "germany",
+    "alemana": "germany",
+    "aleman": "germany",
+    "italiano": "italy",
+    "italiana": "italy",
+    "coreano": "south korea",
+    "coreana": "south korea",
+    "corea": "south korea",
+    "chino": "china",
+    "china": "china",
+    "británico": "united kingdom",
+    "británica": "united kingdom",
+    "britanico": "united kingdom",
+    "britanica": "united kingdom",
+    "americano": "united states",
+    "americana": "united states",
     "argentino": "argentina",
-    "argentina": "argentina",
-    "argentinas": "argentina",
-    "argentinos": "argentina",
+    // Spanish country nouns -> country names
+    "japón": "japan",
+    "francia": "france",
+    "españa": "spain",
+    "alemania": "germany",
+    "italia": "italy",
+    "reino unido": "united kingdom",
+    "estados unidos": "united states",
+    "brasil": "brazil",
+    "méxico": "mexico",
+    "rusia": "russia",
+    "india": "india",
+    "canadá": "canada",
 };
 
 export function normalizeCountryName(input: string): string {
     const normalized = input.toLowerCase().trim();
-    return COUNTRY_ADJECTIVE_MAP[normalized] || normalized;
+    return COUNTRY_NAME_MAP[normalized] || normalized;
 }
 
 function extractCountryTags(metadata: any): string[] {
