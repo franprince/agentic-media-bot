@@ -183,6 +183,14 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "feat: Added notification for 'media.resume' only when not preceded by a pause (significant resume).",
             "fix: Reduced notification noise by ignoring 'media.pause' events while maintaining session state.",
         ],
+    {
+        version: "4.11.0",
+        changes: [
+            "feat: Improved search intelligence by guiding LLM to use specialized country-of-origin tools.",
+            "fix: Enhanced Spanish language detection signals with word-boundary checks to prevent false positives.",
+            "fix: Removed ambiguous 'series' and 'serie' keywords from language signals to improve accuracy.",
+            "test: Added E2E regression test suite for origin search and language consistency.",
+        ],
     },
 ];
 

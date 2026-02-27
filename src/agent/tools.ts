@@ -90,22 +90,22 @@ class LRUCache<T> {
         // Update access tracking
         entry.accessCount++;
         entry.lastAccessed = now;
-        
+
         // Move to end (most recently used)
         this.cache.delete(key);
         this.cache.set(key, entry);
-        
+
         return entry.data;
     }
 
     set(key: string, data: T): void {
         const now = Date.now();
-        
+
         // Remove existing entry if present
         if (this.cache.has(key)) {
             this.cache.delete(key);
         }
-        
+
         // Ensure size limit
         if (this.cache.size >= this.maxSize) {
             // Remove least recently used (first entry)
@@ -114,7 +114,7 @@ class LRUCache<T> {
                 this.cache.delete(firstKey);
             }
         }
-        
+
         this.cache.set(key, {
             data,
             timestamp: now,
@@ -126,15 +126,15 @@ class LRUCache<T> {
     cleanup(): void {
         const now = Date.now();
         const toDelete: string[] = [];
-        
+
         for (const [key, entry] of this.cache.entries()) {
             if (now - entry.timestamp > CACHE_TTL) {
                 toDelete.push(key);
             }
         }
-        
+
         toDelete.forEach(key => this.cache.delete(key));
-        
+
         if (toDelete.length > 0) {
             console.log(`🧹 Cache cleanup: removed ${toDelete.length} expired entries`);
         }
@@ -218,9 +218,9 @@ function uniqueNonEmptyStrings(values: Array<string | undefined | null>): string
 // --- Radarr Tools --- //
 
 export const searchMovieTool = tool({
-    description: "Search for a movie in Radarr to get its details, like TMDB ID, year, and if it's already downloaded.",
+    description: "Search for a movie in Radarr to get its details, like TMDB ID, year, and if it's already downloaded. USE THIS ONLY ONLY when searching for a SPECIFIC MOVIE TITLE. Do NOT use this for 'Japanese movies', genres like 'Horror', or country-based queries.",
     parameters: z.object({
-        term: z.string().describe("The name of the movie to search for."),
+        term: z.string().describe("The name of the movie to search for (e.g., 'Deadpool'). Do NOT include country names or genres here."),
     }),
     execute: async ({ term }: { term: string }) => {
         const normalizedTerm = term?.trim();
@@ -335,9 +335,9 @@ export const getMovieQueueTool = tool({
 // --- Sonarr Tools --- //
 
 export const searchSeriesTool = tool({
-    description: "Search for a TV series in Sonarr to get its TVDB ID.",
+    description: "Search for a TV series in Sonarr to get its TVDB ID. USE THIS ONLY ONLY when searching for a SPECIFIC SERIES TITLE. Do NOT use this for queries like 'Japanese series', 'Spanish shows', or genre-based queries.",
     parameters: z.object({
-        term: z.string().describe("The name of the TV show to search for."),
+        term: z.string().describe("The name of the TV show to search for (e.g., 'The Boys'). Do NOT include country names or genres here."),
     }),
     execute: async ({ term }: any) => {
         const results = await sonarr.searchSeries(term);
@@ -724,9 +724,9 @@ export const discoverMediaTool = tool({
 });
 
 export const findPlexByCountryTool = tool({
-    description: "Find movies or shows in the Plex library that match a specific country of origin (e.g., Japan, France, USA). Use this when the user asks for 'Japanese movies' or 'films from Italy'.",
+    description: "Find movies or shows in the Plex library that match a specific country of origin (e.g., Japan, France, USA). Use this for ANY query involving a country or nationality, such as 'Japanese series', 'French movies', 'films from Italy', or 'Japanese schoolgirls'.",
     parameters: z.object({
-        country: z.string().transform((value) => plex.normalizeCountryName(value)).describe("The country to browse for as a noun (e.g., Germany, France, Japan)."),
+        country: z.string().transform((value) => plex.normalizeCountryName(value)).describe("The country to browse for as a noun or adjective (e.g., Germany, French, Japan, Japanese)."),
         ranked: z.boolean().optional().describe("Set to true when the user asks for top/best/ranked movies."),
         limit: z.number().int().min(1).max(25).nullable().optional().describe("How many items to return in sampleItems (e.g., top 10)."),
     }),

@@ -13,13 +13,31 @@ function countSpanishSignals(text: string): number {
     const signals = [
         "hola", "por favor", "gracias", "tengo", "quiero", "puedes", "busca", "buscar",
         "pelicula", "peliculas", "película", "películas",
-        "serie", "series", "biblioteca", "agrega", "agregar", "podrias", "podes",
-        "recomend", "ultimo", "último", "reciente", "faltan", "faltante", "cola", "descarga",
+        "biblioteca", "agrega", "agregar", "podrias", "podes",
+        "recomendar", "ultimo", "último", "reciente", "faltan", "faltante", "cola", "descarga",
         "que", "lo", "la", "el", "los", "las", "un", "una", "esto", "esta", "eso", "esa", "aquel", "aquella",
-        "por", "para", "de", "con", "si", "no", "pero", "porque", "cuando", "donde", "como"
+        "sí", "si", "pero", "porque", "cuando", "donde", "como", "esta", "esto", "este", "estos", "estas",
+        "tienes", "tengo", "hay", "lista", "está", "están", "algunas", "aquí"
     ];
+
+    const matchedWords = new Set<string>();
+
     for (const s of signals) {
-        if (t.includes(s)) score += 1;
+        if (s.length <= 3) {
+            // Use word boundary for short or shared words to avoid matching substrings in English words
+            const regex = new RegExp(`\\b${s}\\b`, "i");
+            if (regex.test(text)) {
+                score += 1;
+                matchedWords.add(s);
+            }
+        } else {
+            if (t.includes(s)) {
+                // Avoid double counting if a shorter version of the word already matched
+                // e.g. "pelicula" and "peliculas"
+                score += 1;
+                matchedWords.add(s);
+            }
+        }
     }
 
     return score;
