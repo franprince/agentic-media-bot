@@ -15,6 +15,8 @@ function countSpanishSignals(text: string): number {
         "pelicula", "peliculas", "película", "películas",
         "serie", "series", "biblioteca", "agrega", "agregar", "podrias", "podes",
         "recomend", "ultimo", "último", "reciente", "faltan", "faltante", "cola", "descarga",
+        "que", "lo", "la", "el", "los", "las", "un", "una", "esto", "esta", "eso", "esa", "aquel", "aquella",
+        "por", "para", "de", "con", "si", "no", "pero", "porque", "cuando", "donde", "como"
     ];
     for (const s of signals) {
         if (t.includes(s)) score += 1;
@@ -177,7 +179,7 @@ export function formatToolCallsStatus(toolCalls: ToolCallLike[], lang: StatusLan
     if (!toolCalls || toolCalls.length === 0) {
         return es ? "Pensando cómo ayudarte..." : "Thinking through how to help...";
     }
-    if (toolCalls.length === 1) return formatSingleToolCall(toolCalls[0], lang);
+    if (toolCalls.length === 1 && toolCalls[0]) return formatSingleToolCall(toolCalls[0], lang);
 
     const services = inferServices(toolCalls);
     if (services.length > 0) {
