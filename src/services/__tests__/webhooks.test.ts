@@ -1,5 +1,5 @@
 import { expect, test, describe, spyOn, beforeEach, mock } from "bun:test";
-import { handlePlexWebhook } from "../webhooks";
+import { handlePlexWebhook, isNonLatinTitle, withEnglishTitle } from "../webhooks";
 import * as database from "../database";
 import { Bot, InputFile } from "grammy";
 
@@ -138,5 +138,225 @@ describe("Plex Webhooks", () => {
         expect(text).toBe("Notifications disabled");
         expect(sendPhotoSpy).not.toHaveBeenCalled();
         expect(sendMessageSpy).not.toHaveBeenCalled();
+    });
+
+    test("should include originalTitle in parentheses for non-Latin movie title (library.new)", async () => {
+        const payload = {
+            event: "library.new",
+            Metadata: {
+                title: "千と千尋の神隠し",
+                originalTitle: "Spirited Away",
+                type: "movie",
+                librarySectionType: "movie",
+            }
+        };
+
+        const formData = new FormData();
+        formData.append("payload", JSON.stringify(payload));
+
+        const request = new Request("http://localhost/plex-webhook", {
+            method: "POST",
+            body: formData,
+        });
+
+        const sendMessageSpy = spyOn(mockBot.api, "sendMessage");
+
+        const response = await handlePlexWebhook(request, mockBot as any);
+
+        expect(response.status).toBe(200);
+        expect(sendMessageSpy).toHaveBeenCalled();
+        const args = sendMessageSpy.mock.calls[0];
+        if (!args) throw new Error("sendMessage was not called");
+        expect(args[1]).toContain("千と千尋の神隠し");
+        expect(args[1]).toContain("Spirited Away");
+        expect(args[1]).toContain("(Spirited Away)");
+    });
+
+    test("should include originalTitle in parentheses for non-Latin movie title (media.play)", async () => {
+        const payload = {
+            event: "media.play",
+            Account: { title: "Fran" },
+            Metadata: {
+                title: "기생충",
+                originalTitle: "Parasite",
+                type: "movie",
+            }
+        };
+
+        const formData = new FormData();
+        formData.append("payload", JSON.stringify(payload));
+
+        const request = new Request("http://localhost/plex-webhook", {
+            method: "POST",
+            body: formData,
+        });
+
+        const sendMessageSpy = spyOn(mockBot.api, "sendMessage");
+
+        const response = await handlePlexWebhook(request, mockBot as any);
+
+        expect(response.status).toBe(200);
+        expect(sendMessageSpy).toHaveBeenCalled();
+        const args = sendMessageSpy.mock.calls[0];
+        if (!args) throw new Error("sendMessage was not called");
+        expect(args[1]).toContain("기생충");
+        expect(args[1]).toContain("(Parasite)");
+    });
+
+    test("should include originalTitle in parentheses for non-Latin movie title (media.scrobble)", async () => {
+        const payload = {
+            event: "media.scrobble",
+            Account: { title: "Fran" },
+            Metadata: {
+                title: "七武士",
+                originalTitle: "Seven Samurai",
+                type: "movie",
+            }
+        };
+
+        const formData = new FormData();
+        formData.append("payload", JSON.stringify(payload));
+
+        const request = new Request("http://localhost/plex-webhook", {
+            method: "POST",
+            body: formData,
+        });
+
+        const sendMessageSpy = spyOn(mockBot.api, "sendMessage");
+
+        const response = await handlePlexWebhook(request, mockBot as any);
+
+        expect(response.status).toBe(200);
+        expect(sendMessageSpy).toHaveBeenCalled();
+        const args = sendMessageSpy.mock.calls[0];
+        if (!args) throw new Error("sendMessage was not called");
+        expect(args[1]).toContain("七武士");
+        expect(args[1]).toContain("(Seven Samurai)");
+    });
+
+    test("should not append originalTitle when title is already Latin", async () => {
+        const payload = {
+            event: "library.new",
+            Metadata: {
+                title: "Inception",
+                originalTitle: "Inception",
+                type: "movie",
+                librarySectionType: "movie",
+            }
+        };
+
+        const formData = new FormData();
+        formData.append("payload", JSON.stringify(payload));
+
+        const request = new Request("http://localhost/plex-webhook", {
+            method: "POST",
+            body: formData,
+        });
+
+        const sendMessageSpy = spyOn(mockBot.api, "sendMessage");
+
+        const response = await handlePlexWebhook(request, mockBot as any);
+
+        expect(response.status).toBe(200);
+        const args = sendMessageSpy.mock.calls[0];
+        if (!args) throw new Error("sendMessage was not called");
+        // Should not have duplicate title in parentheses
+        expect(args[1]).not.toContain("(Inception)");
+        expect(args[1]).toContain("Inception");
+    });
+
+    test("should not append originalTitle when it is absent", async () => {
+        const payload = {
+            event: "media.play",
+            Account: { title: "Fran" },
+            Metadata: {
+                title: "Amélie",
+                type: "movie",
+            }
+        };
+
+        const formData = new FormData();
+        formData.append("payload", JSON.stringify(payload));
+
+        const request = new Request("http://localhost/plex-webhook", {
+            method: "POST",
+            body: formData,
+        });
+
+        const sendMessageSpy = spyOn(mockBot.api, "sendMessage");
+
+        const response = await handlePlexWebhook(request, mockBot as any);
+
+        expect(response.status).toBe(200);
+        const args = sendMessageSpy.mock.calls[0];
+        if (!args) throw new Error("sendMessage was not called");
+        expect(args[1]).toContain("Amélie");
+        expect(args[1]).not.toContain("(");
+    });
+});
+
+describe("isNonLatinTitle", () => {
+    test("returns false for plain ASCII titles", () => {
+        expect(isNonLatinTitle("Inception")).toBe(false);
+        expect(isNonLatinTitle("The Dark Knight")).toBe(false);
+    });
+
+    test("returns false for Latin-extended characters (accents, diacritics)", () => {
+        expect(isNonLatinTitle("Amélie")).toBe(false);
+        expect(isNonLatinTitle("El laberinto del fauno")).toBe(false);
+        expect(isNonLatinTitle("Über den Wolken")).toBe(false);
+    });
+
+    test("returns true for Japanese titles", () => {
+        expect(isNonLatinTitle("千と千尋の神隠し")).toBe(true);
+        expect(isNonLatinTitle("七武士")).toBe(true);
+    });
+
+    test("returns true for Korean titles", () => {
+        expect(isNonLatinTitle("기생충")).toBe(true);
+    });
+
+    test("returns true for Chinese titles", () => {
+        expect(isNonLatinTitle("卧虎藏龙")).toBe(true);
+    });
+
+    test("returns true for Arabic titles", () => {
+        expect(isNonLatinTitle("الرسالة")).toBe(true);
+    });
+
+    test("returns false for empty string", () => {
+        expect(isNonLatinTitle("")).toBe(false);
+    });
+});
+
+describe("withEnglishTitle", () => {
+    test("returns displayedTitle unchanged when originalTitle is undefined", () => {
+        expect(withEnglishTitle("Inception", undefined)).toBe("Inception");
+    });
+
+    test("returns displayedTitle unchanged when originalTitle equals displayedTitle", () => {
+        expect(withEnglishTitle("Inception", "Inception")).toBe("Inception");
+    });
+
+    test("returns displayedTitle unchanged when both titles are Latin and differ", () => {
+        // Two different Latin titles (e.g. translated title vs original) — no parenthetical needed
+        expect(withEnglishTitle("El Laberinto del Fauno", "Pan's Labyrinth")).toBe("El Laberinto del Fauno");
+    });
+
+    test("appends originalTitle in parentheses when displayedTitle is non-Latin", () => {
+        expect(withEnglishTitle("千と千尋の神隠し", "Spirited Away")).toBe("千と千尋の神隠し (Spirited Away)");
+    });
+
+    test("appends originalTitle in parentheses when originalTitle is non-Latin", () => {
+        // Edge case: displayed title is Latin but originalTitle is non-Latin
+        expect(withEnglishTitle("Spirited Away", "千と千尋の神隠し")).toBe("Spirited Away (千と千尋の神隠し)");
+    });
+
+    test("appends Korean originalTitle correctly", () => {
+        expect(withEnglishTitle("기생충", "Parasite")).toBe("기생충 (Parasite)");
+    });
+
+    test("appends Chinese originalTitle correctly", () => {
+        expect(withEnglishTitle("卧虎藏龙", "Crouching Tiger, Hidden Dragon")).toBe("卧虎藏龙 (Crouching Tiger, Hidden Dragon)");
     });
 });
