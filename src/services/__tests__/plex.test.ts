@@ -1,127 +1,43 @@
-import { describe, expect, test, mock, beforeEach, beforeAll } from "bun:test";
+import { describe, expect, test, beforeEach, beforeAll, afterAll, afterEach } from "bun:test";
+import { server } from "../../mocks/server";
+import * as plex from "../plex";
 
 beforeAll(() => {
     process.env.PLEX_URL = "http://localhost:32400";
     process.env.PLEX_TOKEN = "test_token";
+    server.listen();
 });
 
-import * as plex from "../plex";
+afterEach(() => {
+    server.resetHandlers();
+});
+
+afterAll(() => {
+    server.close();
+});
 
 describe("Plex Service", () => {
-    beforeEach(() => {
-        mock.restore();
-    });
-
     test("searchPlex should return search results from MediaContainer", async () => {
-        const mockResponse = {
-            MediaContainer: {
-                size: 1,
-                Metadata: [
-                    { title: "Avatar", type: "movie" }
-                ]
-            }
-        };
-
-        global.fetch = mock(() =>
-            Promise.resolve(new Response(JSON.stringify(mockResponse), { status: 200 }))
-        ) as any;
-
         const result = await plex.searchPlex("avatar");
 
-        expect(global.fetch).toHaveBeenCalledTimes(1);
         expect(result.Metadata?.[0]?.title).toBe("Avatar");
     });
 
     test("getItemsByCountry should match demonyms like 'Argentine' to 'Argentina'", async () => {
-        const sectionId = "1";
-        const countriesResponse = {
-            MediaContainer: {
-                Directory: [{ title: "Argentina", key: "42" }],
-            },
-        };
-        const itemsResponse = {
-            MediaContainer: {
-                size: 1,
-                Metadata: [{ title: "Nueve Reinas", type: "movie" }],
-            },
-        };
+        const result = await plex.getItemsByCountry("1", "Argentine");
 
-        global.fetch = mock((input: any) => {
-            const url = String(input);
-            if (url.includes(`/library/sections/${sectionId}/country`)) {
-                return Promise.resolve(new Response(JSON.stringify(countriesResponse), { status: 200 }));
-            }
-            if (url.includes(`/library/sections/${sectionId}/all`) && url.includes("country=42")) {
-                return Promise.resolve(new Response(JSON.stringify(itemsResponse), { status: 200 }));
-            }
-            return Promise.resolve(new Response("not found", { status: 404 }));
-        }) as any;
-
-        const result = await plex.getItemsByCountry(sectionId, "Argentine");
-
-        expect(global.fetch).toHaveBeenCalledTimes(2);
         expect(result.Metadata?.[0]?.title).toBe("Nueve Reinas");
     });
 
     test("getItemsByCountry should handle Spanish variants like 'argentinas'", async () => {
-        const sectionId = "2";
-        const countriesResponse = {
-            MediaContainer: {
-                Directory: [{ title: "Argentina", key: "7" }],
-            },
-        };
-        const itemsResponse = {
-            MediaContainer: {
-                size: 1,
-                Metadata: [{ title: "Relatos salvajes", type: "movie" }],
-            },
-        };
+        const result = await plex.getItemsByCountry("2", "argentinas");
 
-        global.fetch = mock((input: any) => {
-            const url = String(input);
-            if (url.includes(`/library/sections/${sectionId}/country`)) {
-                return Promise.resolve(new Response(JSON.stringify(countriesResponse), { status: 200 }));
-            }
-            if (url.includes(`/library/sections/${sectionId}/all`) && url.includes("country=7")) {
-                return Promise.resolve(new Response(JSON.stringify(itemsResponse), { status: 200 }));
-            }
-            return Promise.resolve(new Response("not found", { status: 404 }));
-        }) as any;
-
-        const result = await plex.getItemsByCountry(sectionId, "argentinas");
-
-        expect(global.fetch).toHaveBeenCalledTimes(2);
         expect(result.Metadata?.[0]?.title).toBe("Relatos salvajes");
     });
 
     test("getItemsByCountry should parse country key when Plex returns a full filter path", async () => {
-        const sectionId = "3";
-        const countriesResponse = {
-            MediaContainer: {
-                Directory: [{ title: "Germany", key: `/library/sections/${sectionId}/all?type=1&country=99` }],
-            },
-        };
-        const itemsResponse = {
-            MediaContainer: {
-                size: 1,
-                Metadata: [{ title: "Das Boot", type: "movie" }],
-            },
-        };
+        const result = await plex.getItemsByCountry("3", "German");
 
-        global.fetch = mock((input: any) => {
-            const url = String(input);
-            if (url.includes(`/library/sections/${sectionId}/country`)) {
-                return Promise.resolve(new Response(JSON.stringify(countriesResponse), { status: 200 }));
-            }
-            if (url.includes(`/library/sections/${sectionId}/all`) && url.includes("country=99") && url.includes("type=1")) {
-                return Promise.resolve(new Response(JSON.stringify(itemsResponse), { status: 200 }));
-            }
-            return Promise.resolve(new Response("not found", { status: 404 }));
-        }) as any;
-
-        const result = await plex.getItemsByCountry(sectionId, "German");
-
-        expect(global.fetch).toHaveBeenCalledTimes(2);
         expect(result.Metadata?.[0]?.title).toBe("Das Boot");
     });
 
@@ -138,25 +54,6 @@ describe("Plex Service", () => {
             { ratingKey: "2", title: "Non German Film" },
         ];
 
-        global.fetch = mock((input: any) => {
-            const url = String(input);
-            if (url.includes("/library/metadata/1")) {
-                return Promise.resolve(new Response(JSON.stringify({
-                    MediaContainer: {
-                        Metadata: [{ Country: [{ tag: "Germany" }] }],
-                    },
-                }), { status: 200 }));
-            }
-            if (url.includes("/library/metadata/2")) {
-                return Promise.resolve(new Response(JSON.stringify({
-                    MediaContainer: {
-                        Metadata: [{ Country: [{ tag: "France" }] }],
-                    },
-                }), { status: 200 }));
-            }
-            return Promise.resolve(new Response("not found", { status: 404 }));
-        }) as any;
-
         const filtered = await plex.filterItemsByCountryTag(items, "Germany");
         expect(filtered.length).toBe(1);
         expect(filtered[0]?.ratingKey).toBe("1");
@@ -167,18 +64,6 @@ describe("Plex Service", () => {
             { ratingKey: "11", title: "Co-production" },
         ];
 
-        global.fetch = mock((input: any) => {
-            const url = String(input);
-            if (url.includes("/library/metadata/11")) {
-                return Promise.resolve(new Response(JSON.stringify({
-                    MediaContainer: {
-                        Metadata: [{ Country: [{ tag: "United States" }, { tag: "France" }] }],
-                    },
-                }), { status: 200 }));
-            }
-            return Promise.resolve(new Response("not found", { status: 404 }));
-        }) as any;
-
         const defaultFiltered = await plex.filterItemsByCountryTag(items, "France");
         const nonPrimaryFiltered = await plex.filterItemsByCountryTag(items, "France", { primaryOnly: false });
 
@@ -187,18 +72,6 @@ describe("Plex Service", () => {
     });
 
     test("getItemCountryTags should return normalized country tags", async () => {
-        global.fetch = mock((input: any) => {
-            const url = String(input);
-            if (url.includes("/library/metadata/44")) {
-                return Promise.resolve(new Response(JSON.stringify({
-                    MediaContainer: {
-                        Metadata: [{ Country: [{ tag: "German" }, { tag: "France" }] }],
-                    },
-                }), { status: 200 }));
-            }
-            return Promise.resolve(new Response("not found", { status: 404 }));
-        }) as any;
-
         const tags = await plex.getItemCountryTags("44");
         expect(tags).toEqual(["germany", "france"]);
     });
