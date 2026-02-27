@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.5.0] - 2026-02-27
+
+### Fixed
+- **Plex Browsing**: Improved library detection to search across both movie and show sections concurrently, resolving issues where series like "The Bear" were missed during genre/country discovery.
+- **Recommendations**: Replaced hardcoded title lists in `discoverMediaTool` with dynamic discovery logic.
+
+### Changed
+- **Tool Documentation**: Clarified that `searchPlexByDuration` is specifically for movies.
+
+## [4.4.0] - 2026-02-27
+
+### Changed
+- **Tool Standardization**: Renamed Plex search tools to `searchPlexByCountry`, `searchPlexByGenre`, and `searchPlexByDuration`.
+- **History Migration**: Added automatic normalization of legacy tool names in user history.
+
+### Added
+- **Legacy Aliases**: Kept old tool names as aliases for backward compatibility.
+
 ## [4.3.1] - 2026-02-27
 
 ### Fixed

@@ -104,6 +104,15 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "chore: Kept legacy tool names as aliases for backward compatibility.",
         ],
     },
+    {
+        version: "4.5.0",
+        changes: [
+            "fix: Improved Plex browsing to search across both movie and show libraries concurrently.",
+            "fix: Resolved issue where TV shows like 'The Bear' were not found during genre/country discovery.",
+            "refactor: Replaced hardcoded recommendations in discoverMediaTool with dynamic discovery logic.",
+            "docs: Clarified that duration searches are movie-specific.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {

@@ -29,7 +29,7 @@
 - The agent utilizes an LLM capable of function calling.
 - State is stateless per-request but keeps a bounded history within the Telegram session.
 - System prompt strongly guides the agent to use tools rather than answering based on local knowledge.
-- Recursive execution loop (`maxSteps: 5`) allows the agent to audit libraries across multiple sections.
+- Recursive execution loop (`maxSteps: 5`) allows the agent to audit libraries across multiple sections (movies and shows).
 - **Auditing Intelligence**: Includes specialized tools for finding genre-specific content across multiple internal Plex IDs and identifying missing episodes with granular metadata.
 - **Local Adaptation**: System prompt contains strict technical protocols to ensure reliable tool adherence on local LLMs.
 - **Tool-Argument Guardrails**: Tool schemas tolerate missing IDs, but execution returns a "search first" response with suggestions to avoid invalid tool calls and crashes.
@@ -44,12 +44,12 @@
 - **Plex Tag-Key Normalization**: Country/genre filters parse Plex tag keys that may arrive as full query paths (not only numeric IDs), ensuring accurate filter requests.
 - **Plex Direct Tag-Path Preference**: When Plex provides a full filter path in tag keys, the service uses that path directly to preserve server-side filter semantics.
 - **Deterministic Plex Browse Rendering**: Final text for Plex country/genre browse requests (`searchPlexByCountry` / `searchPlexByGenre`) is generated from tool payload (`totalFound` + `sampleItems`) rather than relying only on LLM prose.
-- **Deterministic List Label**: Plex country/genre search tools return `queryType` + `searchParam` + `listLabel` so output uses "This is the list of {genre} movies:" for genres and "This is the list of movies from {country}:" for countries instead of locale-default sample headers.
+- **Deterministic List Label**: Plex country/genre search tools return `queryType` + `searchParam` + `listLabel` so output uses "This is the list of {genre} media:" for genres and "This is the list of media from {country}:" for countries.
 - **Country Noun Normalization**: Status rendering and prompt rules normalize country demonyms to country nouns to keep tool intent explicit and logs consistent.
 - **Tool-Boundary Country Canonicalization**: `searchPlexByCountry` normalizes demonyms to country nouns in the tool schema before execution.
 - **Single Country Canonicalizer**: Country normalization for tool execution, status rendering, and tool-call logging is centralized in `src/services/plex.ts` to avoid drift.
 - **Accent-Resilient I18N Detection**: Status language detection handles common Spanish forms with and without diacritics.
-- **Plex Result Deduplication**: Country/genre aggregation across multiple sections deduplicates media entries before computing `totalFound`.
+- **Plex Result Deduplication**: Country/genre aggregation across multiple movie and show sections deduplicates media entries before computing `totalFound`.
 - **Strict Country Tag Filter**: After Plex country browsing, each item is verified by fetching metadata and checking `Country` tags against the requested country; language tags are ignored and primary-country matching is used by default.
 - **Title-Level Country Verification**: `searchPlexByTitleOnly` includes normalized `countries` and `primaryCountry` so country yes/no answers are grounded in Plex metadata.
 - **Ranked Country Query Support**: `searchPlexByCountry` supports `ranked` and `limit` arguments and orders results by available Plex rating fields for top-N responses.
