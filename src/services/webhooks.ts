@@ -1,5 +1,5 @@
 import { Bot, InputFile } from "grammy";
-import { getPosterUrl } from "./plex";
+import { getPosterUrl, getItemMetadata } from "./plex";
 import { areNotificationsEnabled, getPlaybackState, updatePlaybackState } from "./database";
 import { clearCache } from "../agent/tools";
 
@@ -60,6 +60,18 @@ export async function handlePlexWebhook(request: Request, bot: Bot) {
         }
 
         const payload: PlexWebhookPayload = JSON.parse(payloadStr);
+
+        // Enrich metadata if originalTitle is missing
+        if (payload.Metadata && !payload.Metadata.originalTitle && payload.Metadata.ratingKey) {
+            try {
+                const fullMetadata = await getItemMetadata(payload.Metadata.ratingKey);
+                if (fullMetadata?.originalTitle) {
+                    payload.Metadata.originalTitle = fullMetadata.originalTitle;
+                }
+            } catch (err) {
+                console.warn(`⚠️ Failed to enrich metadata from Plex API for ${payload.Metadata.ratingKey}:`, (err as Error).message);
+            }
+        }
 
         // Invalidate cache when library content changes
         if (payload.event === "library.new") {

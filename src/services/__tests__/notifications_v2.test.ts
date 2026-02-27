@@ -1,6 +1,7 @@
 import { expect, test, describe, spyOn, beforeEach, mock } from "bun:test";
 import { handlePlexWebhook } from "../webhooks";
 import * as database from "../database";
+import * as plex from "../plex";
 import { Bot } from "grammy";
 
 describe("Plex Webhook Notifications V2", () => {
@@ -185,5 +186,44 @@ describe("Plex Webhook Notifications V2", () => {
         const args = sendMessageSpy.mock.calls[0];
         if (!args) throw new Error("sendMessage was not called");
         expect(args[1]).toBe("✅ *Fran* finished watching the movie:\n*Inception*");
+    });
+
+    test("should enrich metadata from Plex API if originalTitle is missing in payload", async () => {
+        const payload = {
+            event: "media.play",
+            Account: { title: "Fran" },
+            Metadata: {
+                title: "장화, 홍련",
+                type: "movie",
+                librarySectionType: "movie",
+                ratingKey: "36"
+            }
+        };
+
+        // Mock Plex API to return the English title
+        const getItemMetadataSpy = spyOn(plex, "getItemMetadata").mockImplementation(async (ratingKey) => {
+            if (ratingKey === "36") {
+                return { originalTitle: "A Tale of Two Sisters" };
+            }
+            return undefined;
+        });
+
+        const formData = new FormData();
+        formData.append("payload", JSON.stringify(payload));
+
+        const request = new Request("http://localhost/plex-webhook", {
+            method: "POST",
+            body: formData,
+        });
+
+        const sendMessageSpy = spyOn(mockBot.api, "sendMessage");
+        await handlePlexWebhook(request, mockBot as any);
+
+        const args = sendMessageSpy.mock.calls[0];
+        if (!args) throw new Error("sendMessage was not called");
+
+        // Should have "A Tale of Two Sisters" in parentheses because it was enriched
+        expect(args[1]).toBe("🎬 *Fran* started watching the movie:\n*장화, 홍련 (A Tale of Two Sisters)*");
+        expect(getItemMetadataSpy).toHaveBeenCalledWith("36");
     });
 });
