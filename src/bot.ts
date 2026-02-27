@@ -37,6 +37,21 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "chore: Updated agent system prompt to include new duration-based search capabilities.",
         ],
     },
+    {
+        version: "4.0.1",
+        changes: [
+            "fix: Add limit parameter extraction to searchPlexByDuration tool",
+            "fix(plex): Fix getPlexLibraryStats to return all items for filtering",
+            "docs: Clarify that country names must always be in English for tool calls",
+            "docs: Add movie details format and remove copyright disclaimer from system prompt",
+            "feat: Add getPosterData for fetching poster as base64 data URL",
+            "fix: Add undefined check in mapWithConcurrency worker",
+            "fix: Revert mapWithConcurrency return type to Promise<R[]>",
+            "fix: Correct Plex duration search to fetch all movies with pagination",
+            "fix: Improve repair prompt with explicit type rules for number parameters",
+            "fix: Correct searchPlexByDuration tool signature in system prompt",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {
