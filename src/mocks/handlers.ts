@@ -78,6 +78,17 @@ export const handlers = [
     }),
 
     // Plex Handlers
+    http.get("*/library/sections", () => {
+        return HttpResponse.json({
+            MediaContainer: {
+                Directory: [
+                    { key: "1", type: "movie", title: "Movies" },
+                    { key: "2", type: "show", title: "TV Shows" }
+                ]
+            }
+        });
+    }),
+
     http.get("*/search", () => {
         return HttpResponse.json({
             MediaContainer: {
@@ -85,6 +96,17 @@ export const handlers = [
                 Metadata: [{ title: "Avatar", type: "movie" }]
             }
         });
+    }),
+
+    http.get("*/library/sections/:sectionId/genre", ({ params }) => {
+        const { sectionId } = params;
+        if (sectionId === "1") {
+            return HttpResponse.json({ MediaContainer: { Directory: [{ title: "Comedy", key: "10" }] } });
+        }
+        if (sectionId === "2") {
+            return HttpResponse.json({ MediaContainer: { Directory: [{ title: "Comedy", key: "20" }] } });
+        }
+        return HttpResponse.json({ MediaContainer: { Directory: [] } });
     }),
 
     http.get("*/library/sections/:sectionId/country", ({ params }) => {
@@ -109,15 +131,24 @@ export const handlers = [
     http.get("*/library/sections/:sectionId/all", ({ request, params }) => {
         const url = new URL(request.url);
         const country = url.searchParams.get("country");
+        const genre = url.searchParams.get("genre");
         const { sectionId } = params;
 
         let metadata: any[] = [];
-        if (sectionId === "1" && country === "42") {
-            metadata = [{ title: "Nueve Reinas", type: "movie" }];
-        } else if (sectionId === "2" && country === "7") {
-            metadata = [{ title: "Relatos salvajes", type: "movie" }];
+        if (sectionId === "1") {
+            if (country === "42") {
+                metadata = [{ title: "Nueve Reinas", type: "movie", ratingKey: "901" }];
+            } else if (genre === "10") {
+                metadata = [{ title: "The Big Lebowski", type: "movie", ratingKey: "902" }];
+            }
+        } else if (sectionId === "2") {
+            if (country === "7") {
+                metadata = [{ title: "Relatos salvajes", type: "show", ratingKey: "903" }];
+            } else if (genre === "20") {
+                metadata = [{ title: "The Bear", type: "show", ratingKey: "904" }];
+            }
         } else if (sectionId === "3" && country === "99") {
-            metadata = [{ title: "Das Boot", type: "movie" }];
+            metadata = [{ title: "Das Boot", type: "movie", ratingKey: "905" }];
         }
 
         return HttpResponse.json({

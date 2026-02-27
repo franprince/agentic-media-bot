@@ -84,11 +84,13 @@ function formatSingleToolCall(toolCall: ToolCallLike, lang: StatusLanguage): str
     const wrap = (s: string) => (s.endsWith("...") ? s : `${s}...`);
 
     switch (toolName) {
+        case "searchPlexByCountry":
         case "findPlexByCountry": {
             const raw = pickString(args.country) || "ese país";
             const country = normalizeCountryForStatus(raw, lang);
             return wrap(es ? `Buscando películas de ${country} en Plex` : `Searching Plex for movies from ${country}`);
         }
+        case "searchPlexByGenre":
         case "browsePlexByGenre": {
             const genre = pickString(args.genre) || (es ? "ese género" : "that genre");
             return wrap(es ? `Buscando películas de ${genre} en Plex` : `Browsing Plex for ${genre} movies`);

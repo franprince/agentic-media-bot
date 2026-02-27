@@ -150,6 +150,20 @@ export function getShowSectionIds(): string[] {
     return process.env.PLEX_SHOW_SECTION_IDS?.split(",").map(s => s.trim()) || [];
 }
 
+export async function getAllSectionIds(): Promise<string[]> {
+    const movieSectionIds = getMovieSectionIds();
+    const showSectionIds = getShowSectionIds();
+
+    if (movieSectionIds.length > 0 || showSectionIds.length > 0) {
+        return [...movieSectionIds, ...showSectionIds];
+    }
+
+    const sections = await getLibrarySections();
+    return (sections.Directory as any[])
+        ?.filter(d => d.type === "movie" || d.type === "show")
+        .map(d => d.key) || [];
+}
+
 /**
  * Helper to construct a full Plex URL for a thumbnail or art.
  */
@@ -347,7 +361,7 @@ export async function getLibraryCountries(sectionId: string): Promise<any> {
  */
 export async function getLibrarySize(sectionId: string): Promise<number> {
     const result = await fetchPlex<{ MediaContainer: PlexContainer }>(`/library/sections/${sectionId}/all?X-Plex-Container-Start=0&X-Plex-Container-Size=0`);
-    return result.MediaContainer.totalSize || result.MediaContainer.size || 0;
+    return result.MediaContainer?.totalSize ?? result.MediaContainer?.size ?? 0;
 }
 
 /**

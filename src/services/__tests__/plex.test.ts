@@ -75,4 +75,24 @@ describe("Plex Service", () => {
         const tags = await plex.getItemCountryTags("44");
         expect(tags).toEqual(["germany", "france"]);
     });
+
+    test("getAllSectionIds should return both movie and show sections", async () => {
+        const sections = await plex.getAllSectionIds();
+        expect(sections).toContain("1");
+        expect(sections).toContain("2");
+    });
+
+    test("getItemsByGenre should find items in multiple sections when called sequentially", async () => {
+        // This simulates the behavior in browsePlexByGenreTool
+        const sections = await plex.getAllSectionIds();
+        const results = [];
+        for (const sectionId of sections) {
+            const res = await plex.getItemsByGenre(sectionId, "Comedy");
+            if (res.Metadata) results.push(...res.Metadata);
+        }
+
+        const titles = results.map(m => m.title);
+        expect(titles).toContain("The Big Lebowski");
+        expect(titles).toContain("The Bear");
+    });
 });

@@ -426,18 +426,10 @@ export const browsePlexByGenreTool = tool({
         genre: z.string().describe("The genre to browse for."),
     }),
     execute: async ({ genre }: { genre: string }) => {
-        let sectionIds = plex.getMovieSectionIds();
-
-        // If no sections are explicitly mapped, find all 'movie' sections automatically
-        if (sectionIds.length === 0) {
-            const sections = await plex.getLibrarySections();
-            sectionIds = (sections.Directory as any[])
-                ?.filter(d => d.type === "movie")
-                .map(d => d.key) || [];
-        }
+        const sectionIds = await plex.getAllSectionIds();
 
         if (sectionIds.length === 0) {
-            return { message: "Could not find any 'movie' sections in your Plex library." };
+            return { message: "Could not find any 'movie' or 'show' sections in your Plex library." };
         }
 
         const allResults: any[] = [];
@@ -571,24 +563,10 @@ export const discoverMediaTool = tool({
         query: z.string().describe("The search query for discovery (e.g., 'critically acclaimed comedy movies 2024')."),
     }),
     execute: async ({ query }: { query: string }) => {
-        // Use a descriptive search query to get high-quality lists
-        const searchQuery = `${query} site:imdb.com OR site:rottentomatoes.com OR site:metacritic.com`;
-
-        // We'll use a simple approach: search and extract titles from the top result or summaries.
-        // For simplicity in this implementation, we'll use duckduckgo/google search results if possible.
-        // Actually, let's use the provided search_web tool conceptually or just return a mock-like structure 
-        // that the agent can then use to call searchMovie/searchSeries on.
-
         return {
             message: `Searching for '${query}'...`,
-            suggestions: [
-                "The Bear",
-                "Succession",
-                "Abbott Elementary",
-                "Hacks",
-                "The Banshees of Inisherin"
-            ],
-            note: "These are suggested titles. Please use 'searchMovie' or 'searchSeries' to get more specific details or to add them to your library."
+            suggestions: [],
+            note: "Use 'searchMovie' or 'searchSeries' with specific titles to see if they are available or can be added. I recommend you try searching for some recent award winners in that genre!"
         } as any;
     },
 });
@@ -602,17 +580,10 @@ export const findPlexByCountryTool = tool({
     }),
     execute: async ({ country, ranked = false, limit }: { country: string, ranked?: boolean, limit?: number | null }) => {
         const effectiveLimit = limit ?? 15;
-        let sectionIds = plex.getMovieSectionIds();
+        const sectionIds = await plex.getAllSectionIds();
 
         if (sectionIds.length === 0) {
-            const sections = await plex.getLibrarySections();
-            sectionIds = (sections.Directory as any[])
-                ?.filter(d => d.type === "movie")
-                .map(d => d.key) || [];
-        }
-
-        if (sectionIds.length === 0) {
-            return { message: "Could not find any 'movie' sections in your Plex library." };
+            return { message: "Could not find any 'movie' or 'show' sections in your Plex library." };
         }
 
         const allResults: any[] = [];
@@ -710,7 +681,7 @@ export const findPlexByCountryTool = tool({
 
 
 export const searchPlexByDurationTool = tool({
-    description: "Find movies in Plex that match a specific duration. Useful when the user asks for 'short movies under X minutes' or 'long movies over X minutes'. You can optionally specify a limit to control how many results to return.",
+    description: "Find MOVIES in Plex that match a specific duration. Useful when the user asks for 'short movies under X minutes'. This tool only searches movie libraries.",
     parameters: z.object({
         comparison: z.enum(["shorterThan", "longerThan", "between"]).describe("How to compare the duration."),
         minutes: z.number().int().min(1).describe("The duration in minutes for comparison (max value for 'shorterThan', min value for 'longerThan')."),
