@@ -712,7 +712,7 @@ export const saveUserNameTool = tool({
     description: "Save or update the user's preferred name in the database. Use this when the user introduces themselves or asks to be called by a specific name.",
     parameters: z.object({
         name: z.string().describe("The name to save for the user."),
-        userId: z.number().describe("The numeric ID of the user (provided in your system prompt)."),
+        userId: z.union([z.number(), z.string().transform(Number)]).describe("The numeric ID of the user (provided in your system prompt)."),
     }),
     execute: async ({ name, userId }: { name: string, userId: number }) => {
         const { setUserName } = await import("../services/database");
