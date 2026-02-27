@@ -1,18 +1,30 @@
-import { describe, expect, test, mock, beforeEach, beforeAll } from "bun:test";
+import { describe, expect, test, beforeAll, afterAll, afterEach } from "bun:test";
+import { http, HttpResponse } from "msw";
+import { server } from "../../mocks/server";
 import { fetchService } from "../api";
 
-describe("API Service", () => {
-    beforeEach(() => {
-        mock.restore();
-    });
+beforeAll(() => {
+    server.listen();
+});
 
+afterEach(() => {
+    server.resetHandlers();
+});
+
+afterAll(() => {
+    server.close();
+});
+
+describe("API Service", () => {
     test("fetchService should handle Radarr/Sonarr style apikey parameter", async () => {
-        const mockResponse = { status: "ok" };
-        global.fetch = mock((input: any) => {
-            const url = new URL(input);
-            expect(url.searchParams.get("apikey")).toBe("test_key");
-            return Promise.resolve(new Response(JSON.stringify(mockResponse), { status: 200 }));
-        }) as any;
+        let capturedUrl: URL | undefined;
+
+        server.use(
+            http.get("http://localhost:7878/api/v3/test", ({ request }) => {
+                capturedUrl = new URL(request.url);
+                return HttpResponse.json({ status: "ok" });
+            })
+        );
 
         const result = await fetchService(
             "http://localhost:7878",
@@ -21,16 +33,19 @@ describe("API Service", () => {
             "test_key"
         );
 
-        expect(result).toEqual(mockResponse);
-        expect(global.fetch).toHaveBeenCalledTimes(1);
+        expect(result).toEqual({ status: "ok" });
+        expect(capturedUrl?.searchParams.get("apikey")).toBe("test_key");
     });
 
     test("fetchService should handle Plex style X-Plex-Token header", async () => {
-        const mockResponse = { status: "ok" };
-        global.fetch = mock((input: any, init?: any) => {
-            expect(init.headers["X-Plex-Token"]).toBe("test_token");
-            return Promise.resolve(new Response(JSON.stringify(mockResponse), { status: 200 }));
-        }) as any;
+        let capturedHeader: string | null | undefined;
+
+        server.use(
+            http.get("http://localhost:32400/test", ({ request }) => {
+                capturedHeader = request.headers.get("X-Plex-Token");
+                return HttpResponse.json({ status: "ok" });
+            })
+        );
 
         const result = await fetchService(
             "http://localhost:32400",
@@ -39,16 +54,19 @@ describe("API Service", () => {
             "test_token"
         );
 
-        expect(result).toEqual(mockResponse);
+        expect(result).toEqual({ status: "ok" });
+        expect(capturedHeader).toBe("test_token");
     });
 
     test("fetchService should combine custom params", async () => {
-        global.fetch = mock((input: any) => {
-            const url = new URL(input);
-            expect(url.searchParams.get("foo")).toBe("bar");
-            expect(url.searchParams.get("apikey")).toBe("key");
-            return Promise.resolve(new Response(JSON.stringify({}), { status: 200 }));
-        }) as any;
+        let capturedUrl: URL | undefined;
+
+        server.use(
+            http.get("http://localhost/api", ({ request }) => {
+                capturedUrl = new URL(request.url);
+                return HttpResponse.json({});
+            })
+        );
 
         await fetchService(
             "http://localhost",
@@ -57,14 +75,19 @@ describe("API Service", () => {
             "key",
             { params: { foo: "bar" } }
         );
+
+        expect(capturedUrl?.searchParams.get("foo")).toBe("bar");
+        expect(capturedUrl?.searchParams.get("apikey")).toBe("key");
     });
 
     test("fetchService should throw on non-ok response", async () => {
-        global.fetch = mock(() =>
-            Promise.resolve(new Response(null, { status: 404, statusText: "Not Found" }))
-        ) as any;
+        server.use(
+            http.get("http://h/e", () => {
+                return new HttpResponse(null, { status: 404, statusText: "Not Found" });
+            })
+        );
 
-        expect(fetchService("http://h", "/e", "k", "v"))
+        await expect(fetchService("http://h", "/e", "k", "v"))
             .rejects.toThrow("API Error (/e): 404 Not Found");
     });
 });
