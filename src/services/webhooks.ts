@@ -1,7 +1,9 @@
-import { Bot, InputFile } from "grammy";
-import { getPosterUrl, getItemMetadata } from "./plex";
 import { areNotificationsEnabled, getPlaybackState, updatePlaybackState } from "./database";
+import { getItemMetadata, getPosterUrl } from "./plex";
+import { searchMovie } from "./radarr";
+import { searchSeries } from "./sonarr";
 import { clearCache } from "../agent/tools";
+import { Bot, InputFile } from "grammy";
 
 export interface PlexWebhookPayload {
     event: string;
@@ -48,6 +50,7 @@ export interface PlexWebhookPayload {
         grandparentArt?: string;
         addedAt: number;
         updatedAt: number;
+        year?: number;
     };
 }
 
@@ -61,7 +64,6 @@ export async function handlePlexWebhook(request: Request, bot: Bot) {
 
         const payload: PlexWebhookPayload = JSON.parse(payloadStr);
 
-        // Enrich metadata if originalTitle is missing
         if (payload.Metadata && !payload.Metadata.originalTitle && payload.Metadata.ratingKey) {
             try {
                 const fullMetadata = await getItemMetadata(payload.Metadata.ratingKey);
@@ -70,6 +72,32 @@ export async function handlePlexWebhook(request: Request, bot: Bot) {
                 }
             } catch (err) {
                 console.warn(`⚠️ Failed to enrich metadata from Plex API for ${payload.Metadata.ratingKey}:`, (err as Error).message);
+            }
+        }
+
+        // Cross-Service Alias Recovery (Radarr/Sonarr fallback for non-Latin titles)
+        if (payload.Metadata && !payload.Metadata.originalTitle && isNonLatinTitle(payload.Metadata.title)) {
+            try {
+                const metadata = payload.Metadata;
+                if (metadata.librarySectionType === "movie") {
+                    const results = await searchMovie(metadata.title);
+                    // Try to match by year if available
+                    const match = metadata.year
+                        ? results.find((r: any) => r.year === metadata.year)
+                        : results[0];
+
+                    if (match && match.title !== metadata.title) {
+                        payload.Metadata.originalTitle = match.title;
+                    }
+                } else if (metadata.librarySectionType === "show") {
+                    const searchTerm = metadata.grandparentTitle || metadata.title;
+                    const results = await searchSeries(searchTerm);
+                    if (results.length > 0 && results[0].title !== metadata.title) {
+                        payload.Metadata.originalTitle = results[0].title;
+                    }
+                }
+            } catch (err) {
+                console.warn(`⚠️ Cross-service enrichment failed for "${payload.Metadata?.title}":`, (err as Error).message);
             }
         }
 
@@ -107,15 +135,13 @@ export async function handlePlexWebhook(request: Request, bot: Bot) {
 
             try {
                 if (thumbUrl) {
-                    // Fetch image locally to avoid sending 'localhost' URLs to Telegram
-                    // Add timeout and retry logic for robustness
                     let response: Response | null = null;
                     let lastError: Error | null = null;
 
                     for (let attempt = 1; attempt <= 3; attempt++) {
                         try {
                             const controller = new AbortController();
-                            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+                            const timeoutId = setTimeout(() => controller.abort(), 10000);
 
                             response = await fetch(thumbUrl, {
                                 signal: controller.signal,
@@ -125,7 +151,7 @@ export async function handlePlexWebhook(request: Request, bot: Bot) {
                             clearTimeout(timeoutId);
 
                             if (response.ok) {
-                                break; // Success, exit retry loop
+                                break;
                             } else {
                                 lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
                             }
@@ -135,7 +161,6 @@ export async function handlePlexWebhook(request: Request, bot: Bot) {
                         }
 
                         if (attempt < 3) {
-                            // Exponential backoff: 1s, 2s
                             await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt - 1) * 1000));
                         }
                     }
@@ -170,17 +195,12 @@ export async function handlePlexWebhook(request: Request, bot: Bot) {
                     notifyChatId
                 });
 
-                // Fallback to plain text if markdown fails
                 try {
                     const plainTextMessage = message.replace(/[_*`]/g, "");
                     await bot.api.sendMessage(notifyChatId, plainTextMessage);
                     console.info("Successfully sent fallback plain text message");
                 } catch (fallbackErr) {
-                    const fallbackError = fallbackErr as Error;
-                    console.error("Failed to send fallback message:", {
-                        error: fallbackError.message,
-                        stack: fallbackError.stack
-                    });
+                    console.error("Failed to send fallback message:", (fallbackErr as Error).message);
                 }
             }
         }
@@ -188,13 +208,7 @@ export async function handlePlexWebhook(request: Request, bot: Bot) {
         return new Response("OK", { status: 200 });
     } catch (error) {
         const err = error as Error;
-        console.error("Error processing Plex webhook:", {
-            error: err.message,
-            stack: err.stack,
-            timestamp: new Date().toISOString(),
-            url: request.url,
-            method: request.method
-        });
+        console.error("Error processing Plex webhook:", err.message);
         return new Response("Internal Server Error", { status: 500 });
     }
 }
@@ -237,7 +251,7 @@ function formatWebhookMessage(payload: PlexWebhookPayload, previousState: string
         }
 
         case "media.play":
-            return `🎬 *${user}* started watching ${typeLabel}:\n*${getFullTitle(Metadata)}*`;
+            return `🎬 *${user}* started watching ${typeLabel} *${getFullTitle(Metadata)}*`;
 
         case "media.resume":
             // Only notify if the previous action was NOT a pause (Title: "Continue" logic)
@@ -245,7 +259,7 @@ function formatWebhookMessage(payload: PlexWebhookPayload, previousState: string
                 console.log(`Plex Webhook: Skipping redundant resume for ${Metadata?.title}`);
                 return undefined;
             }
-            return `▶️ *${user}* resumed watching ${typeLabel}:\n*${getFullTitle(Metadata)}*`;
+            return `▶️ *${user}* resumed watching ${typeLabel} *${getFullTitle(Metadata)}*`;
 
         case "media.pause":
             // We update state in handlePlexWebhook but never notify on pause to reduce noise
@@ -253,7 +267,7 @@ function formatWebhookMessage(payload: PlexWebhookPayload, previousState: string
             return undefined;
 
         case "media.scrobble":
-            return `✅ *${user}* finished watching ${typeLabel}:\n*${getFullTitle(Metadata)}*`;
+            return `✅ *${user}* finished watching ${typeLabel} *${getFullTitle(Metadata)}*`;
 
         default:
             console.log(`Plex Webhook: Ignored event ${event}`);

@@ -57,7 +57,7 @@
 - **Ranked Country Query Support**: `searchPlexByCountry` supports `ranked` and `limit` arguments and orders results by available Plex rating fields for top-N responses.
 - ** deterministic Original-Title Rendering**: `buildPlexBrowseAuthoritativeText` and webhook notifications append `originalTitle` when different from displayed title.
 - **Browse Title Enrichment**: Ranked country sample items fetch Plex item metadata and fallback to `titleSort` when `originalTitle` is unavailable.
-- **Cross-Service Alias Recovery**: When sampled foreign-script titles still lack Latin aliases after Plex metadata enrichment, `searchPlexByCountry` performs best-effort Radarr lookup (title/year) to recover English aliases.
+- **Cross-Service Alias Recovery**: When foreign-script titles still lack Latin aliases after Plex metadata enrichment (in browse results or webhook notifications), the bot performs best-effort Radarr/Sonarr lookup (title/year) to recover English aliases.
 - **Alias Fallback Rendering**: If `originalTitle` is missing, deterministic rendering can use enriched `aliasTitle`; if a non-Latin title still has no alias, output explicitly marks the English/Spanish alias as unavailable.
 - **Intent-Based Tool Gating**: For detail/info/synopsis user intent, add tools (`addMovie`, `addSeries`) are removed from the tool set unless explicit add intent is detected.
 - **Error Diagnostics**: The `/audit` command provides a deep-dive into `/tmp/agentic-media-bot-restart.log` to identify root causes of crashes.

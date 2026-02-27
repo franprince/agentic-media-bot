@@ -202,6 +202,15 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "test: Added comprehensive test suite for new notification formats and localization logic.",
         ],
     },
+    {
+        version: "4.13.0",
+        changes: [
+            "feat: Implemented Cross-Service Alias Recovery for webhook notifications.",
+            "feat: Enhanced metadata enrichment to fallback to Radarr/Sonarr for foreign titles.",
+            "fix: Cleaned up notification format by removing colons and newlines for better readability.",
+            "fix: Improved metadata enrichment reliability for movies missing original titles in Plex.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {

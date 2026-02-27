@@ -2,6 +2,7 @@ import { expect, test, describe, spyOn, beforeEach, mock } from "bun:test";
 import { handlePlexWebhook } from "../webhooks";
 import * as database from "../database";
 import * as plex from "../plex";
+import * as radarr from "../radarr";
 import { Bot } from "grammy";
 
 describe("Plex Webhook Notifications V2", () => {
@@ -45,7 +46,7 @@ describe("Plex Webhook Notifications V2", () => {
 
         const args = sendMessageSpy.mock.calls[0];
         if (!args) throw new Error("sendMessage was not called");
-        expect(args[1]).toBe("🎬 *Fran* started watching the movie:\n*Inception*");
+        expect(args[1]).toBe("🎬 *Fran* started watching the movie *Inception*");
     });
 
     test("should use the new series format: The user {user} started watching an episode of {Series - SxxExx - Title}", async () => {
@@ -75,7 +76,7 @@ describe("Plex Webhook Notifications V2", () => {
 
         const args = sendMessageSpy.mock.calls[0];
         if (!args) throw new Error("sendMessage was not called");
-        expect(args[1]).toBe("🎬 *Fran* started watching an episode of:\n*The Bear - S01E05 - The Bear*");
+        expect(args[1]).toBe("🎬 *Fran* started watching an episode of *The Bear - S01E05 - The Bear*");
     });
 
     test("should include originalTitle in parentheses if it differs from title (Latin cases)", async () => {
@@ -103,7 +104,7 @@ describe("Plex Webhook Notifications V2", () => {
 
         const args = sendMessageSpy.mock.calls[0];
         if (!args) throw new Error("sendMessage was not called");
-        expect(args[1]).toBe("🎬 *Fran* started watching the movie:\n*Princess Mononoke (Mononoke-hime)*");
+        expect(args[1]).toBe("🎬 *Fran* started watching the movie *Princess Mononoke (Mononoke-hime)*");
     });
 
     test("should include originalTitle in parentheses if it differs from title (Non-Latin cases)", async () => {
@@ -131,7 +132,7 @@ describe("Plex Webhook Notifications V2", () => {
 
         const args = sendMessageSpy.mock.calls[0];
         if (!args) throw new Error("sendMessage was not called");
-        expect(args[1]).toBe("🎬 *franp21* started watching the movie:\n*もののけ姫 (Princess Mononoke)*");
+        expect(args[1]).toBe("🎬 *franp21* started watching the movie *もののけ姫 (Princess Mononoke)*");
     });
 
     test("should work for resumed events with the same template", async () => {
@@ -158,7 +159,7 @@ describe("Plex Webhook Notifications V2", () => {
 
         const args = sendMessageSpy.mock.calls[0];
         if (!args) throw new Error("sendMessage was not called");
-        expect(args[1]).toBe("▶️ *Fran* resumed watching the movie:\n*Inception*");
+        expect(args[1]).toBe("▶️ *Fran* resumed watching the movie *Inception*");
     });
 
     test("should work for scrobble (finished) events with the same template", async () => {
@@ -185,7 +186,7 @@ describe("Plex Webhook Notifications V2", () => {
 
         const args = sendMessageSpy.mock.calls[0];
         if (!args) throw new Error("sendMessage was not called");
-        expect(args[1]).toBe("✅ *Fran* finished watching the movie:\n*Inception*");
+        expect(args[1]).toBe("✅ *Fran* finished watching the movie *Inception*");
     });
 
     test("should enrich metadata from Plex API if originalTitle is missing in payload", async () => {
@@ -223,7 +224,50 @@ describe("Plex Webhook Notifications V2", () => {
         if (!args) throw new Error("sendMessage was not called");
 
         // Should have "A Tale of Two Sisters" in parentheses because it was enriched
-        expect(args[1]).toBe("🎬 *Fran* started watching the movie:\n*장화, 홍련 (A Tale of Two Sisters)*");
+        expect(args[1]).toBe("🎬 *Fran* started watching the movie *장화, 홍련 (A Tale of Two Sisters)*");
         expect(getItemMetadataSpy).toHaveBeenCalledWith("36");
+    });
+
+    test("should enrich metadata from Radarr if Plex enrichment fails for non-Latin titles", async () => {
+        const payload = {
+            event: "media.play",
+            Account: { title: "franp21" },
+            Metadata: {
+                title: "ハウルの動く城",
+                type: "movie",
+                librarySectionType: "movie",
+                ratingKey: "4644",
+                year: 2004
+            }
+        };
+
+        // Mock Plex API to return NO originalTitle
+        spyOn(plex, "getItemMetadata").mockImplementation(async () => ({}));
+
+        // Mock Radarr API to return the English title
+        const searchMovieSpy = spyOn(radarr, "searchMovie").mockImplementation(async (term) => {
+            if (term === "ハウルの動く城") {
+                return [{ title: "Howl's Moving Castle", originalTitle: "ハウルの動く城", year: 2004 }] as any;
+            }
+            return [];
+        });
+
+        const formData = new FormData();
+        formData.append("payload", JSON.stringify(payload));
+
+        const request = new Request("http://localhost/plex-webhook", {
+            method: "POST",
+            body: formData,
+        });
+
+        const sendMessageSpy = spyOn(mockBot.api, "sendMessage");
+        await handlePlexWebhook(request, mockBot as any);
+
+        const args = sendMessageSpy.mock.calls[0];
+        if (!args) throw new Error("sendMessage was not called");
+
+        // Should have "Howl's Moving Castle" in parentheses because it was enriched via Radarr
+        expect(args[1]).toBe("🎬 *franp21* started watching the movie *ハウルの動く城 (Howl's Moving Castle)*");
+        expect(searchMovieSpy).toHaveBeenCalledWith("ハウルの動く城");
     });
 });
