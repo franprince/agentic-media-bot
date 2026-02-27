@@ -117,14 +117,31 @@ export async function verifyConfig() {
                 const logFile = Bun.file(logPath);
                 const logExists = await logFile.exists();
 
-                // Check for multiple instances matching this script
+                // Check for multiple instances matching this script with more specific pattern
                 let instances = 1;
                 try {
                     const proc = Bun.spawnSync({
-                        cmd: ["pgrep", "-f", "src/bot.ts"],
+                        cmd: ["pgrep", "-f", "bun run src/bot.ts"],
                     });
                     const pids = proc.stdout.toString().split("\n").filter(Boolean);
                     instances = pids.length;
+                    
+                    // Additional validation: check if PIDs are actually running our bot
+                    const validPids = [];
+                    for (const pid of pids) {
+                        try {
+                            const cmdProc = Bun.spawnSync({
+                                cmd: ["ps", "-p", pid, "-o", "command="],
+                            });
+                            const cmd = cmdProc.stdout.toString().trim();
+                            if (cmd.includes("bun run") && cmd.includes("src/bot.ts")) {
+                                validPids.push(pid);
+                            }
+                        } catch (err) {
+                            // PID might have died
+                        }
+                    }
+                    instances = validPids.length;
                 } catch (err) {
                     // Ignore pgrep failures
                 }
