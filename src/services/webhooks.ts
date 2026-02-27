@@ -1,4 +1,4 @@
-import { Bot } from "grammy";
+import { Bot, InputFile } from "grammy";
 import { getPosterUrl } from "./plex";
 import { areNotificationsEnabled } from "./database";
 
@@ -80,7 +80,20 @@ export async function handlePlexWebhook(request: Request, bot: Bot) {
 
             try {
                 if (thumbUrl) {
-                    await bot.api.sendPhoto(notifyChatId, thumbUrl, { caption: message, parse_mode: "Markdown" });
+                    // Fetch image locally to avoid sending 'localhost' URLs to Telegram
+                    const response = await fetch(thumbUrl);
+                    if (response.ok) {
+                        const buffer = await response.arrayBuffer();
+                        const urlPart = thumbUrl!.split("?")[0];
+                        const extension = urlPart!.split(".").pop() || "jpg";
+                        const filename = `thumb.${extension}`;
+                        await bot.api.sendPhoto(notifyChatId, new InputFile(Buffer.from(buffer), filename), {
+                            caption: message,
+                            parse_mode: "Markdown"
+                        });
+                    } else {
+                        throw new Error(`Failed to fetch thumb: ${response.statusText}`);
+                    }
                 } else {
                     await bot.api.sendMessage(notifyChatId, message, { parse_mode: "Markdown" });
                 }

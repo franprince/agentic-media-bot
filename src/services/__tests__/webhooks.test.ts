@@ -1,7 +1,7 @@
-import { expect, test, describe, spyOn, beforeEach } from "bun:test";
+import { expect, test, describe, spyOn, beforeEach, mock } from "bun:test";
 import { handlePlexWebhook } from "../webhooks";
 import * as database from "../database";
-import { Bot } from "grammy";
+import { Bot, InputFile } from "grammy";
 
 describe("Plex Webhooks", () => {
     let mockBot: any;
@@ -19,6 +19,18 @@ describe("Plex Webhooks", () => {
         process.env.PLEX_TOKEN = "token123";
         // Reset notification state
         spyOn(database, "areNotificationsEnabled").mockImplementation(() => true);
+
+        // Mock global fetch for image download
+        global.fetch = mock((url: string) => {
+            if (url.includes("/thumb.jpg")) {
+                return Promise.resolve(new Response(new ArrayBuffer(8), {
+                    status: 200,
+                    statusText: "OK",
+                    headers: { "Content-Type": "image/jpeg" }
+                }));
+            }
+            return Promise.resolve(new Response(null, { status: 404 }));
+        }) as any;
     });
 
     test("should parse library.new movie event", async () => {
@@ -48,7 +60,7 @@ describe("Plex Webhooks", () => {
         expect(sendPhotoSpy).toHaveBeenCalled();
         const args = sendPhotoSpy.mock.calls[0];
         if (!args) throw new Error("sendPhoto was not called");
-        expect(args[1]).toBe("http://plex.local/thumb.jpg?X-Plex-Token=token123");
+        expect(args[1]).toBeInstanceOf(InputFile);
         expect((args[2] as any).caption).toContain("Inception");
         expect((args[2] as any).caption).toContain("New Movie added");
     });
