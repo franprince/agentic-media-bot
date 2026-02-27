@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.9.1] - 2026-02-27
+
+### Added
+- **originalTitle in Webhook Payload**: Added `originalTitle` field to `PlexWebhookPayload.Metadata` interface to capture the English/original title from Plex webhook events.
+- **Non-Latin Title Detection**: New `isNonLatinTitle` helper detects titles containing characters outside the Latin/Latin-Extended Unicode range (e.g. Japanese, Korean, Chinese, Arabic scripts).
+- **Title Localization Protocol**: New `withEnglishTitle` helper appends the English/original title in parentheses when the primary title is non-Latin, implementing the Title Localization Protocol from the functional spec.
+
+### Fixed
+- **Webhook Notifications**: `library.new`, `media.play`, and `media.scrobble` events now display the English/original title alongside non-Latin titles (e.g. `七武士 (Seven Samurai)`).
+
+### Tests
+- Added 19 new tests covering `isNonLatinTitle`, `withEnglishTitle`, and webhook integration for foreign-language titles across all three event types.
+
 ## [4.5.0] - 2026-02-27
 
 ### Fixed
