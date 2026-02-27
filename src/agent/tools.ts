@@ -5,23 +5,175 @@ import * as sonarr from "../services/sonarr";
 import * as qbittorrent from "../services/qbittorrent";
 import * as plex from "../services/plex";
 
+// --- Type Definitions --- //
+interface PlexMediaItem {
+    ratingKey?: string;
+    guid?: string;
+    title?: string;
+    year?: number;
+    summary?: string;
+    thumb?: string;
+    originalTitle?: string;
+    type?: string;
+    librarySectionType?: string;
+    rating?: number;
+    audienceRating?: number;
+    userRating?: number;
+    durationMinutes?: number;
+    images?: Array<{
+        coverType: string;
+        remoteUrl?: string;
+        url?: string;
+    }>;
+}
+
+interface MovieSearchResult {
+    title: string;
+    originalTitle?: string;
+    year: number;
+    genres: string[];
+    tmdbId: number;
+    imdbId?: string;
+    overview: string;
+    posterUrl?: string;
+}
+
+interface PlexSearchResult {
+    totalFound: number;
+    queryType?: string;
+    searchParam?: string;
+    sampleItems: Array<{
+        title: string;
+        originalTitle?: string;
+        year?: number;
+        overview?: string;
+        posterUrl?: string;
+    }>;
+}
+
+interface ToolError {
+    message: string;
+    suggestions?: MovieSearchResult[];
+}
+
 // --- Caching for Profiles & Folders --- //
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-const configCache: Record<string, { data: any, timestamp: number }> = {};
+const MAX_CACHE_ENTRIES = 100; // LRU cache limit
+
+interface CacheEntry<T> {
+    data: T;
+    timestamp: number;
+    accessCount: number;
+    lastAccessed: number;
+}
+
+class LRUCache<T> {
+    private cache = new Map<string, CacheEntry<T>>();
+    private maxSize: number;
+
+    constructor(maxSize: number = MAX_CACHE_ENTRIES) {
+        this.maxSize = maxSize;
+        // Set up periodic cleanup every 10 minutes
+        setInterval(() => this.cleanup(), 10 * 60 * 1000);
+    }
+
+    get(key: string): T | undefined {
+        const entry = this.cache.get(key);
+        if (!entry) return undefined;
+
+        const now = Date.now();
+        if (now - entry.timestamp > CACHE_TTL) {
+            this.cache.delete(key);
+            return undefined;
+        }
+
+        // Update access tracking
+        entry.accessCount++;
+        entry.lastAccessed = now;
+        
+        // Move to end (most recently used)
+        this.cache.delete(key);
+        this.cache.set(key, entry);
+        
+        return entry.data;
+    }
+
+    set(key: string, data: T): void {
+        const now = Date.now();
+        
+        // Remove existing entry if present
+        if (this.cache.has(key)) {
+            this.cache.delete(key);
+        }
+        
+        // Ensure size limit
+        if (this.cache.size >= this.maxSize) {
+            // Remove least recently used (first entry)
+            const firstKey = this.cache.keys().next().value;
+            if (firstKey) {
+                this.cache.delete(firstKey);
+            }
+        }
+        
+        this.cache.set(key, {
+            data,
+            timestamp: now,
+            accessCount: 1,
+            lastAccessed: now
+        });
+    }
+
+    cleanup(): void {
+        const now = Date.now();
+        const toDelete: string[] = [];
+        
+        for (const [key, entry] of this.cache.entries()) {
+            if (now - entry.timestamp > CACHE_TTL) {
+                toDelete.push(key);
+            }
+        }
+        
+        toDelete.forEach(key => this.cache.delete(key));
+        
+        if (toDelete.length > 0) {
+            console.log(`🧹 Cache cleanup: removed ${toDelete.length} expired entries`);
+        }
+    }
+
+    clear(): void {
+        this.cache.clear();
+    }
+
+    size(): number {
+        return this.cache.size;
+    }
+}
+
+const configCache = new LRUCache<any>();
+
+// Export cache management functions for external invalidation
+export function clearCache(): void {
+    configCache.clear();
+}
+
+export function invalidateCachePattern(pattern: string): void {
+    // This would require extending LRUCache to support pattern matching
+    // For now, we'll clear the entire cache when pattern-based invalidation is needed
+    configCache.clear();
+}
 
 async function withCache<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
-    const cached = configCache[key];
-    const now = Date.now();
-    if (cached && (now - cached.timestamp < CACHE_TTL)) {
-        return cached.data;
+    const cached = configCache.get(key);
+    if (cached) {
+        return cached;
     }
     const data = await fetcher();
-    configCache[key] = { data, timestamp: now };
+    configCache.set(key, data);
     return data;
 }
 
-function deduplicatePlexItems(items: any[]): any[] {
-    const unique = new Map<string, any>();
+function deduplicatePlexItems(items: PlexMediaItem[]): PlexMediaItem[] {
+    const unique = new Map<string, PlexMediaItem>();
     for (const item of items) {
         const dedupeKey = item?.ratingKey || item?.guid || `${item?.title ?? "untitled"}::${item?.year ?? ""}`;
         if (!unique.has(dedupeKey)) unique.set(dedupeKey, item);
@@ -400,8 +552,8 @@ export const searchPlexByTitleOnlyTool = tool({
         const items = uniqueResults.slice(0, 5);
         return (await Promise.all(items.map(async (m) => {
             // Extract IDs from GUID if possible (e.g. com.plexapp.agents.imdb://tt12345)
-            const imdbMatch = m.guid.match(/imdb:\/\/(tt\d+)/);
-            const tmdbMatch = m.guid.match(/tmdb:\/\/(\d+)/);
+            const imdbMatch = m.guid?.match(/imdb:\/\/(tt\d+)/);
+            const tmdbMatch = m.guid?.match(/tmdb:\/\/(\d+)/);
             const countries = m.ratingKey ? await plex.getItemCountryTags(String(m.ratingKey)) : [];
 
             return {
@@ -756,11 +908,13 @@ export const searchPlexByDurationTool = tool({
         }
 
         // Sort by duration
-        const sortedResults = [...uniqueResults].sort((a, b) =>
-            comparison === "shorterThan"
-                ? a.durationMinutes - b.durationMinutes
-                : b.durationMinutes - a.durationMinutes
-        );
+        const sortedResults = [...uniqueResults].sort((a, b) => {
+            const aDuration = a.durationMinutes ?? 0;
+            const bDuration = b.durationMinutes ?? 0;
+            return comparison === "shorterThan"
+                ? aDuration - bDuration
+                : bDuration - aDuration;
+        });
 
         const effectiveLimit = limit ?? 10;
         const sampleItems = sortedResults.slice(0, effectiveLimit).map(m => ({

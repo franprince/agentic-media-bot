@@ -19,8 +19,10 @@ describe("Tool Integrity", () => {
             getMissingSeries: botTools.getMissingSeriesTool,
             getMissingEpisodes: botTools.getMissingEpisodesTool,
             searchPlexByTitleOnly: botTools.searchPlexByTitleOnlyTool,
-            browsePlexByGenre: botTools.browsePlexByGenreTool,
-            findPlexByCountry: botTools.findPlexByCountryTool,
+            searchPlexByGenre: botTools.browsePlexByGenreTool,
+            browsePlexByGenre: botTools.browsePlexByGenreTool, // Legacy Alias
+            searchPlexByCountry: botTools.findPlexByCountryTool,
+            findPlexByCountry: botTools.findPlexByCountryTool, // Legacy Alias
             searchPlexByDuration: botTools.searchPlexByDurationTool,
             getRecentlyAddedPlex: botTools.getRecentlyAddedPlexTool,
             getPlexLibraryStats: botTools.getPlexLibraryStatsTool,
