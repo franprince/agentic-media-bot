@@ -55,25 +55,11 @@ function hasNonLatinCharacters(value: string): boolean {
 function formatTitle(item: SampleItemLike, lang: StatusLanguage): string {
     const title = item.title || "Untitled";
     const originalTitle = item.originalTitle?.trim();
-    const aliasTitle = item.aliasTitle?.trim();
-    const normalizedTitle = title.toLowerCase();
-    const candidates = [originalTitle, aliasTitle].filter((value): value is string => Boolean(value));
-    const latinAlias = candidates.find((value) =>
-        value.toLowerCase() !== normalizedTitle && !hasNonLatinCharacters(value)
-    );
-    const fallbackAlias = candidates.find((value) => value.toLowerCase() !== normalizedTitle);
-    const displayAlias = latinAlias || fallbackAlias;
     const yearSuffix = typeof item.year === "number" && Number.isFinite(item.year) ? ` (${item.year})` : "";
 
-    if (displayAlias && displayAlias.toLowerCase() !== title.toLowerCase()) {
-        return `${title} (${displayAlias})${yearSuffix}`;
-    }
-
-    if (hasNonLatinCharacters(title)) {
-        const missingAliasLabel = lang === "es"
-            ? "título en inglés/español no disponible"
-            : "English/Spanish title unavailable";
-        return `${title} (${missingAliasLabel})${yearSuffix}`;
+    // If original title exists and differs from the main title, show it in parentheses
+    if (originalTitle && originalTitle !== title) {
+        return `${title} (${originalTitle})${yearSuffix}`;
     }
 
     return `${title}${yearSuffix}`;
