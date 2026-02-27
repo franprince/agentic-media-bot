@@ -67,7 +67,7 @@
     3. Verify that the agent's current tool set matches the functionalities described in the FUNCTIONAL_SPEC.
     4. If significant spec changes are detected since the last run, notify administrators.
 - Startup catch-up can be skipped once after admin-triggered restart via metadata flag.
-- Changelog data in `src/bot.ts` is maintained as semantic-versioned release entries, and startup notifications always send the latest release.
+- Changelog data in `src/bot.ts` is maintained as semantic-versioned release entries, and startup notifications send the latest release once per version upgrade.
 - Admin startup changelog notifications are chunked below Telegram's 4096-character message limit before sending.
 - **Verification Logic:**
     - On every run, the bot executing `src/verify-config.ts` (or equivalent) to audit its environment against `TECHNICAL_SPEC.md` and `FUNCTIONAL_SPEC.md`.

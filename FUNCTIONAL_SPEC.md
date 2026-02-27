@@ -68,7 +68,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
 
 9. **Update Notifications & Changelogs**
    - Changelog entries are organized as semantic-versioned releases (e.g., `1.4.2`, `1.5.0`, `2.0.0`).
-   - On every bot startup, administrators receive the latest release changelog message.
+    - On bot startup, administrators receive the latest release changelog message once per version upgrade.
    - Long changelog notifications are split into Telegram-safe chunks to avoid message length errors.
 
 8. **LLM Personality & I18n**
