@@ -6,7 +6,7 @@ import { getHistory, saveHistory, getUserName } from "../services/database.ts";
 import { detectStatusLanguage, formatToolCallsStatus, type StatusLanguage } from "./status";
 import { buildExactCountPrefix, buildPlexBrowseAuthoritativeText, extractToolResultsFromMessages } from "./response";
 import { normalizeCountryName } from "../services/plex";
-import { shouldDisableAddActions } from "./intent";
+import { shouldDisableAddActions, hasNameIntent, extractNameFromText } from "./intent";
 
 function getLastUserTextFromHistory(history: CoreMessage[]): string | undefined {
     for (let i = history.length - 1; i >= 0; i--) {
@@ -151,6 +151,7 @@ AVAILABLE TOOLS:
 ONLY USE THESE TOOLS. DO NOT INVENT TOOLS.
 
 ### CRITICAL RULES - DO NOT IGNORE ###
+- **NAME HANDLING**: When the user introduces themselves (e.g., "My name is X", "Me llamo X", "Soy X"), you should warmly greet them using their name. The system will automatically save their name for future conversations.
 - **If the user asks "how many movies/shows/etc do I have" or similar (e.g., "count", "totals"), ALWAYS use 'getPlexLibraryStats' IMMEDIATELY to provide the count from Plex. DO NOT use 'searchMovie' with "movies" as a search term.**
 - **TOOL ARGUMENTS RULE**: NEVER call tools with null/undefined for required fields. In particular, NEVER call 'addMovie' unless you already have valid 'tmdbId' and 'year' from 'searchMovie'. NEVER call 'addSeries' unless you already have a valid 'tvdbId' from 'searchSeries'. If you don't have the required IDs yet, call the search tool first.
 - **NEVER use placeholders like "[Insert poster image]", "Poster: ...", "[Poster URL]", or similar text patterns. NEVER list "Poster" as a text property in your lists.** 
@@ -267,6 +268,17 @@ export async function processUserMessage(
         }
         return msg;
     }) as CoreMessage[];
+
+    // Check for name intent and save user name if provided
+    if (userMessage && hasNameIntent(userMessage)) {
+        const name = extractNameFromText(userMessage);
+        if (name) {
+            // Save the name first
+            botTools.saveUserNameTool.execute({ name, userId: Number(userId) });
+            // Update the userName variable for this session
+            // The name will be persisted in the database
+        }
+    }
 
     // Add the user's message to the history ONLY if it's a new message
     if (userMessage) {
