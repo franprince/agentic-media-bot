@@ -39,6 +39,6 @@ describe("Sonarr Service", () => {
             })
         );
 
-        await expect(sonarr.searchSeries("breaking bad")).rejects.toThrow("API Error (/api/v3/series/lookup): 401 Unauthorized");
+        await expect(sonarr.searchSeries("breaking bad")).rejects.toThrow("HTTP 401: Unauthorized");
     });
 });

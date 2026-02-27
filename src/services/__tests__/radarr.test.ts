@@ -39,6 +39,6 @@ describe("Radarr Service", () => {
             })
         );
 
-        await expect(radarr.searchMovie("matrix")).rejects.toThrow("API Error (/api/v3/movie/lookup): 401 Unauthorized");
+        await expect(radarr.searchMovie("matrix")).rejects.toThrow("HTTP 401: Unauthorized");
     });
 });
