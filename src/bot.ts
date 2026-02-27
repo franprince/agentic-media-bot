@@ -78,6 +78,16 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "feat: Added strict rules to prevent mixing movies and series in recommendations.",
         ],
     },
+    {
+        version: "4.3.0",
+        changes: [
+            "feat: Added interactive CLI setup tool (src/setup.ts) for easy onboarding.",
+            "feat: Added automated dependency installation in the setup tool.",
+            "feat: Added automated Plex section discovery during setup.",
+            "docs: Updated README and created .env.example template.",
+            "refactor: Improved configuration verification logic to guide new users.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {
@@ -244,12 +254,14 @@ How can I help you today?
     // First time user, ask for their name
     waitingForName.set(userId, { waitingForName: true });
     await ctx.reply(`👋 Hello! I am your *Agentic Media Bot*.
-
+    
 I help you manage your media library across:
 ✅ *Radarr* (Movies)
 ✅ *Sonarr* (TV Shows)
 ✅ *Plex* (Streaming)
 ✅ *qBittorrent* (Downloads)
+
+_If you haven't configured the bot yet, please run \`bun src/setup.ts\` on your server._
 
 What should I call you?`, { parse_mode: "Markdown" });
 });

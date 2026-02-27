@@ -10,7 +10,7 @@
 
 ## Project Structure
 - `src/bot.ts`: Entry point. Initializes Telegram bot, logs incoming traffic, and handles direct commands like `/start` and `/status`.
-, and handles direct commands like `/start` and `/status`.
+- `src/setup.ts`: Standalone interactive CLI tool for initial configuration and dependency installation.
 - `src/agent/index.ts`: LLM abstraction. Handles message history, conditional model loading, and iterative tool execution.
 - `src/services/`: Modular wrappers for Radarr, Sonarr, qBittorrent, and Plex APIs.
 - `src/agent/tools.ts`: Unified tool repository for AI integration.
@@ -72,3 +72,9 @@
 - **Verification Logic:**
     - On every run, the bot executing `src/verify-config.ts` (or equivalent) to audit its environment against `TECHNICAL_SPEC.md` and `FUNCTIONAL_SPEC.md`.
     - **Deployment:** The bot MUST be restarted after any functional or technical update to apply changes and trigger the startup audit/changelog notification.
+
+## Onboarding & Configuration
+- **Interactive Setup**: `src/setup.ts` utilizes the native `prompt` and `fetch` APIs to provide a guided configuration experience without external heavy CLI frameworks.
+- **Dependency Check**: Uses `existsSync` to detect `node_modules` and `Bun.spawnSync` for automated `bun install` execution.
+- **Plex API Integration**: Performs a real-time probe of the user's Plex server during setup to fetch and display library section IDs, reducing manual configuration errors.
+- **Environment Persistence**: Atomically writes gathered configuration to `.env.local`.

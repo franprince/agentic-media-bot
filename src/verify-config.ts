@@ -97,6 +97,8 @@ export async function verifyConfig() {
             console.log("✅ " + result);
         } catch (error: any) {
             console.log("❌ Failed: " + (error.message || error));
+            console.log("\n💡 Tip: Run 'bun src/setup.ts' to configure your environment interactively.\n");
+            process.exit(1); // Exit if critical config is missing
         }
     }
 

@@ -78,3 +78,9 @@ A conversational Telegram bot that controls a user's home media server stack, ca
     - If Radarr is unavailable during a title-based add, the bot should surface a friendly error and offer to try again or check Plex.
     - If Radarr returns a bad add/search request, the bot should respond gracefully and avoid crashing the conversation flow.
     - Detail/info/synopsis requests must not trigger add/download actions unless the user explicitly asks to add.
+
+10. **Onboarding and Setup**
+    - **Interactive CLI Setup**: A standalone tool (`bun src/setup.ts`) guides new users through the initial configuration.
+    - **Dependency Management**: The setup tool automatically checks for and offers to install missing dependencies (`bun install`).
+    - **Guided Configuration**: Provides step-by-step instructions for obtaining Telegram Bot Tokens, User IDs, and the complex Plex Authentication Token.
+    - **Automated Service Discovery**: Automatically identifies Plex library sections to simplify environment variable configuration (`PLEX_MOVIE_SECTION_IDS`, `PLEX_SHOW_SECTION_IDS`).
