@@ -68,6 +68,7 @@
 - **Image Support**: If a thumbnail is specified, the service fetches it via local `fetch` and uploads it to Telegram as an `InputFile` to resolve `localhost` reachability issues.
 - **Notification Target**: Uses `WEBHOOK_NOTIFY_CHAT_ID` or defaults to the first ID in `ALLOWED_USER_IDS`.
 - **Toggle Persistence**: Notification preference is stored in the `metadata` table as `notifications_enabled` (string "true" or "false").
+- **Conditional Activation**: The server only starts if `USE_PLEX_WEBHOOK` is set to `true` in environment variables.
 
 ## Startup Verification & Specification Auditing
 - On every run, the bot MUST execute `src/verify-config.ts` (or equivalent) to audit its environment against `TECHNICAL_SPEC.md` and `FUNCTIONAL_SPEC.md`.

@@ -120,6 +120,18 @@ async function getPlexSections() {
 
 await getPlexSections();
 
+console.log("\n--- 🔔 Webhook Setup ---");
+const useWebhook = prompt("Would you like to use Plex webhooks for real-time notifications? (Y/n):", "y");
+
+if (useWebhook?.toLowerCase() !== "n") {
+    config.USE_PLEX_WEBHOOK = "true";
+    config.WEBHOOK_PORT = prompt("Webhook Server Port [3000]:", "3000") || "3000";
+    console.log(`\n💡 Note: You will need to configure your Plex server to send webhooks to: http://your-ip:${config.WEBHOOK_PORT}/plex-webhook`);
+} else {
+    config.USE_PLEX_WEBHOOK = "false";
+    console.log("Webhook server will be disabled.");
+}
+
 console.log("\n--- 💾 Saving Configuration ---");
 
 let envContent = "";

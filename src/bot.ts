@@ -133,6 +133,14 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "test: Added test case for skipped notifications in webhook service.",
         ],
     },
+    {
+        version: "4.8.0",
+        changes: [
+            "feat: Added optional Plex webhook setup in the CLI tool.",
+            "feat: Webhook server now only starts if explicitly enabled via USE_PLEX_WEBHOOK.",
+            "refactor: Updated configuration verification to handle disabled webhook status correctly.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {
@@ -556,19 +564,22 @@ bot.api.getMe().then(async (me) => {
     // Use grammyjs/runner to handle graceful restarts and long-polling concurrently
     botRunner = run(bot);
 
-    // Initialize Webhook Server
-    Bun.serve({
-        port: WEBHOOK_PORT,
-        async fetch(req) {
-            const url = new URL(req.url);
-            if (req.method === "POST" && url.pathname === "/plex-webhook") {
-                return handlePlexWebhook(req, bot);
-            }
-            return new Response("Not Found", { status: 404 });
-        },
-    });
-
-    console.log(`🚀 Bot is ready for messages on Telegram. Webhook server listening on port ${WEBHOOK_PORT}.`);
+    // Initialize Webhook Server if enabled
+    if (process.env.USE_PLEX_WEBHOOK === "true") {
+        Bun.serve({
+            port: WEBHOOK_PORT,
+            async fetch(req) {
+                const url = new URL(req.url);
+                if (req.method === "POST" && url.pathname === "/plex-webhook") {
+                    return handlePlexWebhook(req, bot);
+                }
+                return new Response("Not Found", { status: 404 });
+            },
+        });
+        console.log(`🚀 Bot is ready for messages on Telegram. Webhook server listening on port ${WEBHOOK_PORT}.`);
+    } else {
+        console.log("🚀 Bot is ready for messages on Telegram. Webhook server is disabled.");
+    }
 });
 
 async function syncUnrepliedMessages() {

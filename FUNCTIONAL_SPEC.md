@@ -90,3 +90,6 @@ A conversational Telegram bot that controls a user's home media server stack, ca
     - **Rich Notifications**: Fetches posters/thumbnails locally from Plex and uploads them as `InputFile` to ensure delivery even from internal/localhost addresses.
     - **Configurable Target**: Notifications can be sent to a specific chat ID via `WEBHOOK_NOTIFY_CHAT_ID`.
     - **Notification Toggle**: Admin users can use the `/notifications <on/off>` command to enable or disable Plex alerts globally.
+12. **Conditional Features**
+    - **Optional Webhooks**: Users can choose to skip Plex webhook setup during onboarding.
+    - **Server-less Mode**: If webhooks are disabled, the bot does not start its internal web server, reducing its resource footprint.
