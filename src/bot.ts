@@ -6,6 +6,7 @@ import { detectStatusLanguage } from "./agent/status.ts";
 import { getMetadata, setMetadata, getAllConversations, getUserName, setUserName } from "./services/database.ts";
 import { verifyConfig } from "./verify-config";
 import { checkAllServices } from "./services/health";
+import { handlePlexWebhook } from "./services/webhooks.ts";
 
 // Setup telegram bot using the token from environment variables
 const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -17,6 +18,7 @@ const bot = new Bot(token);
 let botRunner: ReturnType<typeof run> | undefined;
 const projectRoot = resolve(import.meta.dir, "..");
 const TELEGRAM_MAX_MESSAGE_LENGTH = 4096;
+const WEBHOOK_PORT = Number(process.env.WEBHOOK_PORT) || 3000;
 
 // Conversation state for name collection
 type WaitingForNameState = { waitingForName: true };
@@ -111,6 +113,15 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "fix: Resolved issue where TV shows like 'The Bear' were not found during genre/country discovery.",
             "refactor: Replaced hardcoded recommendations in discoverMediaTool with dynamic discovery logic.",
             "docs: Clarified that duration searches are movie-specific.",
+        ],
+    },
+    {
+        version: "4.6.0",
+        changes: [
+            "feat: Integrated Plex webhooks for real-time notifications.",
+            "feat: Added automated notifications for new media and playback activity.",
+            "feat: Embedded lightweight web server using Bun.serve to handle webhook callbacks.",
+            "test: Added unit test suite for webhook payload parsing and notification formatting.",
         ],
     },
 ];
@@ -509,7 +520,19 @@ bot.api.getMe().then(async (me) => {
     // Use grammyjs/runner to handle graceful restarts and long-polling concurrently
     botRunner = run(bot);
 
-    console.log("🚀 Bot is ready for messages on Telegram.");
+    // Initialize Webhook Server
+    Bun.serve({
+        port: WEBHOOK_PORT,
+        async fetch(req) {
+            const url = new URL(req.url);
+            if (req.method === "POST" && url.pathname === "/plex-webhook") {
+                return handlePlexWebhook(req, bot);
+            }
+            return new Response("Not Found", { status: 404 });
+        },
+    });
+
+    console.log(`🚀 Bot is ready for messages on Telegram. Webhook server listening on port ${WEBHOOK_PORT}.`);
 });
 
 async function syncUnrepliedMessages() {

@@ -94,6 +94,17 @@ export async function verifyConfig() {
                 }
                 return `Success: Whitelist configured with ${allowed.split(",").length} users.`;
             }
+        },
+        {
+            name: "Webhook Configuration",
+            fn: async () => {
+                const port = process.env.WEBHOOK_PORT || "3000";
+                const notifyId = process.env.WEBHOOK_NOTIFY_CHAT_ID;
+                if (!notifyId) {
+                    return `Note: Webhooks will use the first ID from ALLOWED_USER_IDS (Port: ${port})`;
+                }
+                return `Success: Webhooks will notify ${notifyId} (Port: ${port})`;
+            }
         }
     ];
 

@@ -84,3 +84,8 @@ A conversational Telegram bot that controls a user's home media server stack, ca
     - **Dependency Management**: The setup tool automatically checks for and offers to install missing dependencies (`bun install`).
     - **Guided Configuration**: Provides step-by-step instructions for obtaining Telegram Bot Tokens, User IDs, and the complex Plex Authentication Token.
     - **Automated Service Discovery**: Automatically identifies Plex library sections to simplify environment variable configuration (`PLEX_MOVIE_SECTION_IDS`, `PLEX_SHOW_SECTION_IDS`).
+11. **Real-time Notifications (Plex Webhooks)**
+    - **Library Activity**: Automatically notifies the user when new media is added to Plex (`library.new`).
+    - **Playback Activity**: Notifies when a user starts watching (`media.play`) or finishes watching (`media.scrobble`) media.
+    - **Rich Notifications**: Includes media posters/thumbnails in Telegram messages when available.
+    - **Configurable Target**: Notifications can be sent to a specific chat ID via `WEBHOOK_NOTIFY_CHAT_ID`.

@@ -15,6 +15,7 @@
 - `src/services/`: Modular wrappers for Radarr, Sonarr, qBittorrent, and Plex APIs.
 - `src/agent/tools.ts`: Unified tool repository for AI integration.
 - `src/services/database.ts`: Persistence layer using `bun:sqlite` for conversation history and user personalization (names).
+- `src/services/webhooks.ts`: Webhook handler for external service integration (e.g., Plex).
 - `src/types/`: TypeScript interfaces representing external payloads.
 
 ## Security & Authentication
@@ -58,6 +59,13 @@
 - **Cross-Service Alias Recovery**: When sampled foreign-script titles still lack Latin aliases after Plex metadata enrichment, `searchPlexByCountry` performs best-effort Radarr lookup (title/year) to recover English aliases.
 - **Alias Fallback Rendering**: If `originalTitle` is missing, deterministic rendering can use enriched `aliasTitle`; if a non-Latin title still has no alias, output explicitly marks the English/Spanish alias as unavailable.
 - **Intent-Based Tool Gating**: For detail/info/synopsis user intent, add tools (`addMovie`, `addSeries`) are removed from the tool set unless explicit add intent is detected.
+
+## Webhook Server
+- The bot includes an embedded web server powered by `Bun.serve`.
+- **Default Port**: `3000` (configurable via `WEBHOOK_PORT`).
+- **Endpoint**: `POST /plex-webhook`.
+- **Payload Handling**: Parses `multipart/form-data` from Plex, extracts JSON `payload`, and sends formatted notifications to Telegram.
+- **Notification Target**: Uses `WEBHOOK_NOTIFY_CHAT_ID` or defaults to the first ID in `ALLOWED_USER_IDS`.
 
 ## Startup Verification & Specification Auditing
 - On every run, the bot MUST execute `src/verify-config.ts` (or equivalent) to audit its environment against `TECHNICAL_SPEC.md` and `FUNCTIONAL_SPEC.md`.
