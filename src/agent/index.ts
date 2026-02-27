@@ -273,8 +273,9 @@ export async function processUserMessage(
     if (userMessage && hasNameIntent(userMessage)) {
         const name = extractNameFromText(userMessage);
         if (name) {
-            // Save the name first
-            botTools.saveUserNameTool.execute({ name, userId: Number(userId) });
+            // Save the name using the tool's execute function directly with proper arguments
+            const { setUserName } = await import("../services/database");
+            setUserName(userId, name);
             // Update the userName variable for this session
             // The name will be persisted in the database
         }
