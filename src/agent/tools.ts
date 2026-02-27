@@ -722,13 +722,14 @@ export const saveUserNameTool = tool({
 });
 
 export const searchPlexByDurationTool = tool({
-    description: "Find movies in Plex that match a specific duration. Useful when the user asks for 'short movies under X minutes' or 'long movies over X minutes'.",
+    description: "Find movies in Plex that match a specific duration. Useful when the user asks for 'short movies under X minutes' or 'long movies over X minutes'. You can optionally specify a limit to control how many results to return.",
     parameters: z.object({
         comparison: z.enum(["shorterThan", "longerThan", "between"]).describe("How to compare the duration."),
         minutes: z.number().int().min(1).describe("The duration in minutes for comparison (max value for 'shorterThan', min value for 'longerThan')."),
         minutesMax: z.number().int().min(1).optional().describe("Maximum duration for 'between' comparison."),
+        limit: z.number().int().min(1).max(50).nullable().optional().describe("How many items to return in sampleItems (e.g., top 10)."),
     }),
-    execute: async ({ comparison, minutes, minutesMax }: { comparison: string, minutes: number, minutesMax?: number }) => {
+    execute: async ({ comparison, minutes, minutesMax, limit }: { comparison: string, minutes: number, minutesMax?: number, limit?: number | null }) => {
         let sectionIds = plex.getMovieSectionIds();
 
         if (sectionIds.length === 0) {
@@ -802,7 +803,8 @@ export const searchPlexByDurationTool = tool({
                 : b.durationMinutes - a.durationMinutes
         );
 
-        const sampleItems = sortedResults.slice(0, 10).map(m => ({
+        const effectiveLimit = limit ?? 10;
+        const sampleItems = sortedResults.slice(0, effectiveLimit).map(m => ({
             title: m.title,
             originalTitle: m.originalTitle,
             year: m.year,
