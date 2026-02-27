@@ -1,6 +1,6 @@
 import { Bot, InputFile } from "grammy";
 import { getPosterUrl } from "./plex";
-import { areNotificationsEnabled } from "./database";
+import { areNotificationsEnabled, getPlaybackState, updatePlaybackState } from "./database";
 import { clearCache } from "../agent/tools";
 
 export interface PlexWebhookPayload {
@@ -60,12 +60,18 @@ export async function handlePlexWebhook(request: Request, bot: Bot) {
         }
 
         const payload: PlexWebhookPayload = JSON.parse(payloadStr);
-        
+
         // Invalidate cache when library content changes
         if (payload.event === "library.new") {
             console.log("🗂️ Plex library updated, invalidating cache...");
             clearCache();
         }
+
+        const sessionId = getSessionId(payload);
+        const prevState = getPlaybackState(sessionId);
+
+        // Update persistent state
+        updatePlaybackState(sessionId, payload.event);
 
         const notifyChatId = process.env.WEBHOOK_NOTIFY_CHAT_ID || process.env.ALLOWED_USER_IDS?.split(",")[0];
 
@@ -74,7 +80,7 @@ export async function handlePlexWebhook(request: Request, bot: Bot) {
             return new Response("No notification target", { status: 200 });
         }
 
-        const message = formatWebhookMessage(payload);
+        const message = formatWebhookMessage(payload, prevState);
         if (message) {
             if (!areNotificationsEnabled()) {
                 console.log(`Plex Webhook: Notifications are disabled, skipping ${payload.event}`);
@@ -93,19 +99,19 @@ export async function handlePlexWebhook(request: Request, bot: Bot) {
                     // Add timeout and retry logic for robustness
                     let response: Response | null = null;
                     let lastError: Error | null = null;
-                    
+
                     for (let attempt = 1; attempt <= 3; attempt++) {
                         try {
                             const controller = new AbortController();
                             const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-                            
-                            response = await fetch(thumbUrl, { 
+
+                            response = await fetch(thumbUrl, {
                                 signal: controller.signal,
                                 headers: { 'User-Agent': 'agentic-media-bot/1.0' }
                             });
-                            
+
                             clearTimeout(timeoutId);
-                            
+
                             if (response.ok) {
                                 break; // Success, exit retry loop
                             } else {
@@ -115,13 +121,13 @@ export async function handlePlexWebhook(request: Request, bot: Bot) {
                             lastError = err as Error;
                             console.warn(`Webhook image fetch attempt ${attempt} failed:`, lastError.message);
                         }
-                        
+
                         if (attempt < 3) {
                             // Exponential backoff: 1s, 2s
                             await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt - 1) * 1000));
                         }
                     }
-                    
+
                     if (response && response.ok) {
                         const buffer = await response.arrayBuffer();
                         const urlPart = thumbUrl!.split("?")[0];
@@ -151,7 +157,7 @@ export async function handlePlexWebhook(request: Request, bot: Bot) {
                     thumbUrl,
                     notifyChatId
                 });
-                
+
                 // Fallback to plain text if markdown fails
                 try {
                     const plainTextMessage = message.replace(/[_*`]/g, "");
@@ -205,7 +211,17 @@ export function withEnglishTitle(displayedTitle: string, originalTitle: string |
     return displayedTitle;
 }
 
-function formatWebhookMessage(payload: PlexWebhookPayload): string | undefined {
+/**
+ * Generates a unique session ID for tracking playback state.
+ */
+function getSessionId(payload: PlexWebhookPayload): string {
+    const accountId = payload.Account?.id || "anon";
+    const playerUuid = payload.Player?.uuid || "unknown_player";
+    const ratingKey = payload.Metadata?.ratingKey || "unknown_item";
+    return `plex_${accountId}_${playerUuid}_${ratingKey}`;
+}
+
+function formatWebhookMessage(payload: PlexWebhookPayload, previousState: string | null): string | undefined {
     const { event, Metadata, Account } = payload;
     const title = Metadata?.title || "Unknown Title";
     const user = Account?.title || "Someone";
@@ -223,6 +239,19 @@ function formatWebhookMessage(payload: PlexWebhookPayload): string | undefined {
 
         case "media.play":
             return `🎬 *${user}* started watching:\n*${getFullTitle(Metadata)}*`;
+
+        case "media.resume":
+            // Only notify if the previous action was NOT a pause (Title: "Continue" logic)
+            if (previousState === "media.pause") {
+                console.log(`Plex Webhook: Skipping redundant resume for ${title}`);
+                return undefined;
+            }
+            return `▶️ *${user}* resumed watching:\n*${getFullTitle(Metadata)}*`;
+
+        case "media.pause":
+            // We update state in handlePlexWebhook but never notify on pause to reduce noise
+            console.log(`Plex Webhook: Ignored event ${event} (state updated)`);
+            return undefined;
 
         case "media.scrobble":
             return `✅ *${user}* finished watching:\n*${getFullTitle(Metadata)}*`;

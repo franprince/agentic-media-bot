@@ -175,6 +175,15 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "test: Updated test expectations to match new standardized error message format.",
         ],
     },
+    {
+        version: "4.10.0",
+        changes: [
+            "feat: Implemented smart playback notifications for Plex webhooks.",
+            "feat: Added session state tracking in the database to filter out routine unpauses.",
+            "feat: Added notification for 'media.resume' only when not preceded by a pause (significant resume).",
+            "fix: Reduced notification noise by ignoring 'media.pause' events while maintaining session state.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {
