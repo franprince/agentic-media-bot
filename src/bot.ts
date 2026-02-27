@@ -52,6 +52,15 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "fix: Correct searchPlexByDuration tool signature in system prompt",
         ],
     },
+    {
+        version: "4.1.0",
+        changes: [
+            "refactor: Centralized API fetch logic in src/services/api.ts for Radarr, Sonarr, and Plex.",
+            "refactor: Modularized agent core logic into separate src/agent/prompts.ts and src/agent/utils.ts files.",
+            "fix: Standardized error reporting for service API calls with detailed error messages.",
+            "test: Added comprehensive unit tests for the architectural refactor.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {
@@ -196,10 +205,10 @@ function buildReleaseChangelogText(release: ChangelogRelease): string {
 // Handle incoming /start command
 bot.command("start", async (ctx) => {
     if (!ctx.from) return;
-    
+
     const userId = ctx.from.id;
     const existingName = getUserName(userId);
-    
+
     if (existingName) {
         // User already has a name, show welcome back message
         await ctx.reply(`👋 Welcome back, *${existingName}*! I am your *Agentic Media Bot*.
@@ -214,7 +223,7 @@ How can I help you today?
 /status - Check service health`, { parse_mode: "Markdown" });
         return;
     }
-    
+
     // First time user, ask for their name
     waitingForName.set(userId, { waitingForName: true });
     await ctx.reply(`👋 Hello! I am your *Agentic Media Bot*.
@@ -291,9 +300,9 @@ bot.command("restart", async (ctx) => {
 // Handle text messages
 bot.on("message:text", async (ctx) => {
     if (!ctx.from) return;
-    
+
     const userId = ctx.from.id;
-    
+
     // Check if we're waiting for a name
     if (waitingForName.has(userId)) {
         const name = ctx.message.text.trim();
@@ -313,7 +322,7 @@ How can I help you today?
             return;
         }
     }
-    
+
     if (ctx.message.text.startsWith("/")) return;
     const user = ctx.from.username || ctx.from.first_name;
     console.log(`📩 Message from @${user} (${userId}): ${ctx.message.text}`);

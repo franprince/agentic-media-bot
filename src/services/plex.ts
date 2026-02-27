@@ -1,4 +1,5 @@
 import type { PlexSearchResult, PlexContainer } from "../types/plex";
+import { fetchService } from "./api";
 
 const COUNTRY_NAME_MAP: Record<string, string> = {
     // English demonyms/adjectives -> country names as used by Plex metadata
@@ -170,48 +171,36 @@ export async function getPosterData(thumb: string | undefined): Promise<string |
     if (!url) return undefined;
 
     const response = await fetch(url);
-    
+
     if (!response.ok) return undefined;
-    
+
     const arrayBuffer = await response.arrayBuffer();
     const base64 = Buffer.from(arrayBuffer).toString("base64");
     const contentType = response.headers.get("content-type") || "image/jpeg";
-    
+
     return `data:${contentType};base64,${base64}`;
 }
 
-async function fetchPlex<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const PLEX_URL = process.env.PLEX_URL?.trim();
-    const PLEX_TOKEN = process.env.PLEX_TOKEN?.trim();
 
-    if (!PLEX_URL || !PLEX_TOKEN) {
-        throw new Error("PLEX_URL or PLEX_TOKEN is not set. Plex features may not work.");
-    }
+async function fetchPlex<T>(endpoint: string, options: any = {}): Promise<T> {
+    const baseUrl = process.env.PLEX_URL?.trim() || "";
+    const apiKey = process.env.PLEX_TOKEN?.trim() || "";
 
-    const url = new URL(endpoint, PLEX_URL);
-    // Alternatively, token could be provided via X-Plex-Token header
-    url.searchParams.append("X-Plex-Token", PLEX_TOKEN);
-
-    // Plex requires Accept application/json to avoid returning XML
-    // Some Plex servers also require basic client identification headers
-    const response = await fetch(url.toString(), {
-        ...options,
-        headers: {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "X-Plex-Token": PLEX_TOKEN,
-            "X-Plex-Client-Identifier": "agentic-media-bot",
-            "X-Plex-Product": "Agentic Media Bot",
-            "X-Plex-Version": "1.0.0",
-            ...options.headers,
-        },
-    });
-
-    if (!response.ok) {
-        throw new Error(`Plex API Error: ${response.statusText}`);
-    }
-
-    return response.json() as Promise<T>;
+    return fetchService<T>(
+        baseUrl,
+        endpoint,
+        "X-Plex-Token",
+        apiKey,
+        {
+            ...options,
+            headers: {
+                "X-Plex-Client-Identifier": "agentic-media-bot",
+                "X-Plex-Product": "Agentic Media Bot",
+                "X-Plex-Version": "1.0.0",
+                ...options.headers,
+            },
+        }
+    );
 }
 
 /**
@@ -370,22 +359,22 @@ export async function getItemsByDuration(sectionId: string): Promise<PlexContain
     const initialResult = await fetchPlex<{ MediaContainer: PlexContainer }>(
         `/library/sections/${sectionId}/all?X-Plex-Container-Start=0&X-Plex-Container-Size=0`
     );
-    
+
     const totalSize = initialResult.MediaContainer.totalSize || initialResult.MediaContainer.size || 0;
-    
+
     if (totalSize === 0) {
         return { size: 0, identifier: "plex", mediaTagPrefix: "", mediaTagVersion: "", Metadata: [] };
     }
-    
+
     // Plex typically returns up to 100 items per request
     const batchSize = 100;
     const allMetadata: any[] = [];
-    
+
     // If we have initial metadata (when totalSize is 0 but size > 0), include it
     if (initialResult.MediaContainer.Metadata) {
         allMetadata.push(...initialResult.MediaContainer.Metadata);
     }
-    
+
     // Fetch remaining items in batches
     for (let start = allMetadata.length; start < totalSize; start += batchSize) {
         const result = await fetchPlex<{ MediaContainer: PlexContainer }>(
@@ -395,7 +384,7 @@ export async function getItemsByDuration(sectionId: string): Promise<PlexContain
             allMetadata.push(...result.MediaContainer.Metadata);
         }
     }
-    
+
     return {
         size: allMetadata.length,
         totalSize: totalSize,

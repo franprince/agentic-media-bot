@@ -1,29 +1,17 @@
 import type { SonarrSeries, SonarrQueueItem } from "../types/sonarr";
+import { fetchService } from "./api";
 
-async function fetchSonarr<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const SONARR_URL = process.env.SONARR_URL?.trim();
-    const SONARR_API_KEY = process.env.SONARR_API_KEY?.trim();
+async function fetchSonarr<T>(endpoint: string, options: any = {}): Promise<T> {
+    const baseUrl = process.env.SONARR_URL?.trim() || "";
+    const apiKey = process.env.SONARR_API_KEY?.trim() || "";
 
-    if (!SONARR_URL || !SONARR_API_KEY) {
-        throw new Error("SONARR_URL or SONARR_API_KEY is not set.");
-    }
-
-    const url = new URL(`/api/v3${endpoint}`, SONARR_URL);
-    url.searchParams.append("apikey", SONARR_API_KEY);
-
-    const response = await fetch(url.toString(), {
-        ...options,
-        headers: {
-            "Content-Type": "application/json",
-            ...options.headers,
-        },
-    });
-
-    if (!response.ok) {
-        throw new Error(`Sonarr API Error: ${response.statusText}`);
-    }
-
-    return response.json() as Promise<T>;
+    return fetchService<T>(
+        baseUrl,
+        `/api/v3${endpoint}`,
+        "apikey",
+        apiKey,
+        options
+    );
 }
 
 /**

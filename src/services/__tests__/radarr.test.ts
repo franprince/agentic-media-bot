@@ -60,6 +60,6 @@ describe("Radarr Service", () => {
             Promise.resolve(new Response(null, { status: 401, statusText: "Unauthorized" }))
         ) as any;
 
-        expect(radarr.searchMovie("matrix")).rejects.toThrow("Radarr API Error: Unauthorized");
+        expect(radarr.searchMovie("matrix")).rejects.toThrow("API Error (/api/v3/movie/lookup): 401 Unauthorized");
     });
 });

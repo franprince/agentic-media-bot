@@ -53,4 +53,12 @@ describe("Sonarr Service", () => {
         expect(result.id).toBe(15);
         expect(result.title).toBe("The Office");
     });
+
+    test("should throw an error on non-ok API responses", async () => {
+        global.fetch = mock(() =>
+            Promise.resolve(new Response(null, { status: 401, statusText: "Unauthorized" }))
+        ) as any;
+
+        expect(sonarr.searchSeries("breaking bad")).rejects.toThrow("API Error (/api/v3/series/lookup): 401 Unauthorized");
+    });
 });

@@ -1,29 +1,17 @@
 import type { RadarrMovie, RadarrQueueItem } from "../types/radarr";
+import { fetchService } from "./api";
 
-async function fetchRadarr<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const RADARR_URL = process.env.RADARR_URL?.trim();
-    const RADARR_API_KEY = process.env.RADARR_API_KEY?.trim();
+async function fetchRadarr<T>(endpoint: string, options: any = {}): Promise<T> {
+    const baseUrl = process.env.RADARR_URL?.trim() || "";
+    const apiKey = process.env.RADARR_API_KEY?.trim() || "";
 
-    if (!RADARR_URL || !RADARR_API_KEY) {
-        throw new Error("RADARR_URL or RADARR_API_KEY is not set.");
-    }
-
-    const url = new URL(`/api/v3${endpoint}`, RADARR_URL);
-    url.searchParams.append("apikey", RADARR_API_KEY);
-
-    const response = await fetch(url.toString(), {
-        ...options,
-        headers: {
-            "Content-Type": "application/json",
-            ...options.headers,
-        },
-    });
-
-    if (!response.ok) {
-        throw new Error(`Radarr API Error: ${response.statusText}`);
-    }
-
-    return response.json() as Promise<T>;
+    return fetchService<T>(
+        baseUrl,
+        `/api/v3${endpoint}`,
+        "apikey",
+        apiKey,
+        options
+    );
 }
 
 /**
