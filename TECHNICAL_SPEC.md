@@ -6,6 +6,7 @@
 - **Bot Framework:** `grammy`
 - **AI Integration:** `@ai-sdk/google` (`gemini-2.0-flash`) or `ollama-ai-provider` for local execution (e.g., `llama3.1`). Utilizes tool calling with `maxSteps: 5` for multi-step reasoning.
 - **HTTP Client:** Native `fetch` API.
+- **Testing:** `bun:test` for unit/integration tests, using **Mock Service Worker (MSW)** for network interception and service mocking.
 
 ## Project Structure
 - `src/bot.ts`: Entry point. Initializes Telegram bot, logs incoming traffic, and handles direct commands like `/start` and `/status`.

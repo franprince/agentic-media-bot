@@ -61,6 +61,14 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "test: Added comprehensive unit tests for the architectural refactor.",
         ],
     },
+    {
+        version: "4.2.0",
+        changes: [
+            "feat: Migrated complete testing suite to Mock Service Worker (MSW).",
+            "refactor: Replaced manual fetch mocks in Sonarr, Radarr, Plex, and qBittorrent tests with centralized MSW handlers.",
+            "test: Improved test reliability and network interception accuracy.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {
