@@ -124,6 +124,17 @@ export async function processUserMessage(
             delete tools.addSeries;
         }
 
+        // --- Defensive Tool Filtering ---
+        // Ensure no tool is undefined before passing to generateText to prevent crashes in AI SDK.
+        const activeToolEntries = Object.entries(tools).filter(([name, tool]) => {
+            if (tool === undefined) {
+                console.warn(`⚠️ Warning: Tool "${name}" is undefined and will be excluded from this request.`);
+                return false;
+            }
+            return true;
+        });
+        const sanitizedTools = Object.fromEntries(activeToolEntries);
+
         const firstPassParams = {
             model: modelFast as any,
             system: DEFAULT_SYSTEM_PROMPT
@@ -131,11 +142,11 @@ export async function processUserMessage(
                 .replace("{{userName}}", userName)
                 .trim(),
             messages: history,
-            tools,
+            tools: sanitizedTools,
             onStepFinish: async (step: any) => {
                 const thought = step.text?.trim();
+                const normalizedToolCalls = normalizeToolCallsForLogging(step.toolCalls as any[]);
                 if (onStep && (thought || step.toolCalls.length > 0)) {
-                    const normalizedToolCalls = normalizeToolCallsForLogging(step.toolCalls as any[]);
                     console.log(`📡 Step Tool Calls[FAST]: `, JSON.stringify(normalizedToolCalls, null, 2));
 
                     if (step.toolCalls.length > 0) {

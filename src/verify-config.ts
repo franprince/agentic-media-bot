@@ -109,6 +109,36 @@ export async function verifyConfig() {
                 }
                 return `Success: Webhooks enabled. Will notify ${notifyId} (Port: ${port})`;
             }
+        },
+        {
+            name: "Audit Log & Instance Check",
+            fn: async () => {
+                const logPath = "/tmp/agentic-media-bot-restart.log";
+                const logFile = Bun.file(logPath);
+                const logExists = await logFile.exists();
+
+                // Check for multiple instances matching this script
+                let instances = 1;
+                try {
+                    const proc = Bun.spawnSync({
+                        cmd: ["pgrep", "-f", "src/bot.ts"],
+                    });
+                    const pids = proc.stdout.toString().split("\n").filter(Boolean);
+                    instances = pids.length;
+                } catch (err) {
+                    // Ignore pgrep failures
+                }
+
+                let msg = "";
+                if (logExists) msg += "Log file found. ";
+                else msg += "Log file missing (will be created on restart). ";
+
+                if (instances > 1) {
+                    throw new Error(`${msg}Detected ${instances} running instances. This will cause 409 Conflict errors.`);
+                }
+
+                return `Success: ${msg}Only 1 instance detected.`;
+            }
         }
     ];
 

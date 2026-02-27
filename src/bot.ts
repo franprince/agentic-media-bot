@@ -141,6 +141,15 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "refactor: Updated configuration verification to handle disabled webhook status correctly.",
         ],
     },
+    {
+        version: "4.9.0",
+        changes: [
+            "feat: Added /audit command for admin-only log diagnostics and error reporting.",
+            "fix: Added defensive tool filtering to prevent 'undefined' tool crashes in the AI SDK.",
+            "fix: Improved process termination logic in restart supervisor to prevent 409 Conflict errors.",
+            "feat: Added startup instance detection to warn about multiple running bot processes.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {
@@ -406,6 +415,56 @@ bot.command("restart", async (ctx) => {
     }, 200);
 });
 
+// Handle /audit command (admin-only)
+bot.command("audit", async (ctx) => {
+    const userId = ctx.from?.id;
+    if (typeof userId !== "number") {
+        await ctx.reply("Cannot determine requesting user for authorization.");
+        return;
+    }
+    const allowedUserIds = getAllowedUserIdSet();
+
+    if (allowedUserIds.size > 0 && !allowedUserIds.has(userId)) {
+        await ctx.reply("You are not authorized to audit this bot.");
+        return;
+    }
+
+    await ctx.reply("🔍 *Running Bot Audit...*", { parse_mode: "Markdown" });
+
+    try {
+        const logPath = "/tmp/agentic-media-bot-restart.log";
+        const file = Bun.file(logPath);
+        if (await file.exists()) {
+            const text = await file.text();
+            const lines = text.split("\n");
+            const lastLines = lines.slice(-50).join("\n");
+
+            // Look for errors or crashes
+            const hasError = text.toLowerCase().includes("error") || text.toLowerCase().includes("typeerror") || text.toLowerCase().includes("conflict");
+
+            let report = `📊 *Bot Audit Report*\n\n`;
+            report += `Instance PID: \`${process.pid}\`\n`;
+            report += `Uptime: \`${Math.floor(process.uptime())}s\`\n`;
+            report += `Detected Errors: ${hasError ? "⚠️ *YES*" : "✅ *NO*"}\n\n`;
+            report += `*Last log entries:*\n\`\`\`\n${lastLines.slice(-3000)}\n\`\`\``;
+
+            const chunks = splitTelegramMessage(report);
+            for (const chunk of chunks) {
+                await ctx.reply(chunk, { parse_mode: "Markdown" });
+            }
+
+            if (hasError) {
+                await ctx.reply("🛠️ *Repair required?* You can ask Antigravity (Assistant) to review these logs and apply a fix.");
+            }
+        } else {
+            await ctx.reply("❌ Log file not found at /tmp/agentic-media-bot-restart.log");
+        }
+    } catch (error) {
+        console.error("Audit failed:", error);
+        await ctx.reply("❌ Failed to perform audit. Check server console.");
+    }
+});
+
 // Handle text messages
 bot.on("message:text", async (ctx) => {
     if (!ctx.from) return;
@@ -497,6 +556,21 @@ console.log("Starting the bot...");
 
 // Audit specs and verify config on every run
 await verifyConfig();
+
+// Check for multiple instances matching this script
+try {
+    const scriptPath = resolve(projectRoot, "src/bot.ts");
+    const proc = Bun.spawnSync({
+        cmd: ["pgrep", "-f", scriptPath],
+    });
+    const pids = proc.stdout.toString().split("\n").filter(Boolean);
+    if (pids.length > 1) {
+        console.warn(`⚠️ Warning: Detected ${pids.length} instances of this bot script running. This may cause 409 Conflict errors.`);
+        console.warn(`PIDs: ${pids.join(", ")}`);
+    }
+} catch (err) {
+    // Ignore pgrep failures
+}
 
 bot.api.getMe().then(async (me) => {
     console.log(`✅ Bot is online and listening as @${me.username}`);

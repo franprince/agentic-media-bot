@@ -27,16 +27,15 @@ A conversational Telegram bot that controls a user's home media server stack, ca
    - User asks: "Am I missing any episodes?"
    - Bot provides high-level summary (e.g., "Maching 2 series") or granular detail (Season, Episode, Air Date) upon request.
 
-5. **System Health & Commands**
+5. **System Health, Auditing & Commands**
    - User writes: `/status`
    - Bot checks all services (Radarr, Sonarr, qBittorrent, Plex) and returns a consolidated report showing which are online or offline.
+   - User writes: `/audit`
+   - Bot performs a deep diagnostic audit, reading recent logs to identify errors, instance conflicts, and uptime stats (admin only).
    - User writes: `/restart`
-   - Bot stops polling, launches a detached restart supervisor script that waits for shutdown and starts a fresh bot process (admin/allowed users only). A custom shell command can be used via `BOT_RESTART_COMMAND`.
-   - Restart command skips one startup catch-up pass to avoid unrelated retroactive replies immediately after restart.
-   - After startup, bot sends a brief "back online" confirmation to the chat that requested `/restart`.
-
-    - User writes: `/status`
-    - Bot checks all services (Radarr, Sonarr, qBittorrent, Plex) and returns a consolidated report showing which are online or offline.
+   - Bot triggers a safe restart using a detached supervisor script that ensures old processes are fully terminated (admin only).
+   - Restart command skips one startup catch-up pass to avoid retroactive replies.
+   - After startup, the bot sends a "back online" confirmation to the requester.
 
 6. **Advanced Search & Localization**
    - **Origin Search (Plex)**: Supports queries like "Japanese movies" or "películas de Japón" via 'searchPlexByCountry' with fuzzy country tag matching.
