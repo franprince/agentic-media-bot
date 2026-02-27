@@ -708,18 +708,6 @@ export const findPlexByCountryTool = tool({
     },
 });
 
-export const saveUserNameTool = tool({
-    description: "Save or update the user's preferred name in the database. Use this when the user introduces themselves or asks to be called by a specific name.",
-    parameters: z.object({
-        name: z.string().describe("The name to save for the user."),
-        userId: z.coerce.number().describe("The numeric ID of the user (provided in your system prompt)."),
-    }),
-    execute: async ({ name, userId }: { name: string, userId: number }) => {
-        const { setUserName } = await import("../services/database");
-        setUserName(userId, name);
-        return { message: `I've saved your name as ${name}. I'll remember it for our future chats!`, name };
-    },
-});
 
 export const searchPlexByDurationTool = tool({
     description: "Find movies in Plex that match a specific duration. Useful when the user asks for 'short movies under X minutes' or 'long movies over X minutes'. You can optionally specify a limit to control how many results to return.",
@@ -749,13 +737,13 @@ export const searchPlexByDurationTool = tool({
                 // Get all movies from the section - Plex returns duration in milliseconds
                 // Use the correct endpoint to fetch items from a section
                 const itemsResult = await plex.getItemsByDuration(sectionId);
-                
+
                 if (itemsResult && itemsResult.Metadata) {
                     for (const item of itemsResult.Metadata) {
                         if (item.duration) {
                             const durationMinutes = Math.round(item.duration / 60000);
                             let matches = false;
-                            
+
                             if (comparison === "shorterThan" && durationMinutes < minutes) {
                                 matches = true;
                             } else if (comparison === "longerThan" && durationMinutes > minutes) {
@@ -763,7 +751,7 @@ export const searchPlexByDurationTool = tool({
                             } else if (comparison === "between" && minutesMax && durationMinutes >= minutes && durationMinutes <= minutesMax) {
                                 matches = true;
                             }
-                            
+
                             if (matches) {
                                 allResults.push({
                                     ...item,
@@ -797,9 +785,9 @@ export const searchPlexByDurationTool = tool({
         }
 
         // Sort by duration
-        const sortedResults = [...uniqueResults].sort((a, b) => 
-            comparison === "shorterThan" 
-                ? a.durationMinutes - b.durationMinutes 
+        const sortedResults = [...uniqueResults].sort((a, b) =>
+            comparison === "shorterThan"
+                ? a.durationMinutes - b.durationMinutes
                 : b.durationMinutes - a.durationMinutes
         );
 
