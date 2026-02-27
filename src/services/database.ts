@@ -58,6 +58,15 @@ export function setMetadata(key: string, value: string) {
   db.run("INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)", [key, value]);
 }
 
+export function areNotificationsEnabled(): boolean {
+  const value = getMetadata("notifications_enabled");
+  return value !== "false"; // Default to true if not set
+}
+
+export function setNotificationsEnabled(enabled: boolean) {
+  setMetadata("notifications_enabled", String(enabled));
+}
+
 export function getAllConversations(): { userId: number, history: CoreMessage[] }[] {
   const rows = db.query("SELECT user_id, history FROM conversations").all() as { user_id: number, history: string }[];
   return rows.map(r => ({

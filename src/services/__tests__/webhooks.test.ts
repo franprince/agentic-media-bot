@@ -1,5 +1,6 @@
 import { expect, test, describe, spyOn, beforeEach } from "bun:test";
 import { handlePlexWebhook } from "../webhooks";
+import * as database from "../database";
 import { Bot } from "grammy";
 
 describe("Plex Webhooks", () => {
@@ -16,6 +17,8 @@ describe("Plex Webhooks", () => {
         process.env.WEBHOOK_NOTIFY_CHAT_ID = "12345";
         process.env.PLEX_URL = "http://plex.local";
         process.env.PLEX_TOKEN = "token123";
+        // Reset notification state
+        spyOn(database, "areNotificationsEnabled").mockImplementation(() => true);
     });
 
     test("should parse library.new movie event", async () => {
@@ -91,5 +94,37 @@ describe("Plex Webhooks", () => {
 
         const response = await handlePlexWebhook(request, mockBot as any);
         expect(response.status).toBe(400);
+    });
+
+    test("should skip notification if disabled in database", async () => {
+        spyOn(database, "areNotificationsEnabled").mockImplementation(() => false);
+
+        const payload = {
+            event: "library.new",
+            Metadata: {
+                title: "Inception",
+                type: "movie",
+                librarySectionType: "movie",
+            }
+        };
+
+        const formData = new FormData();
+        formData.append("payload", JSON.stringify(payload));
+
+        const request = new Request("http://localhost/plex-webhook", {
+            method: "POST",
+            body: formData,
+        });
+
+        const sendPhotoSpy = spyOn(mockBot.api, "sendPhoto");
+        const sendMessageSpy = spyOn(mockBot.api, "sendMessage");
+
+        const response = await handlePlexWebhook(request, mockBot as any);
+
+        expect(response.status).toBe(200);
+        const text = await response.text();
+        expect(text).toBe("Notifications disabled");
+        expect(sendPhotoSpy).not.toHaveBeenCalled();
+        expect(sendMessageSpy).not.toHaveBeenCalled();
     });
 });

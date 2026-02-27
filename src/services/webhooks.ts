@@ -1,5 +1,6 @@
 import { Bot } from "grammy";
 import { getPosterUrl } from "./plex";
+import { areNotificationsEnabled } from "./database";
 
 export interface PlexWebhookPayload {
     event: string;
@@ -66,6 +67,11 @@ export async function handlePlexWebhook(request: Request, bot: Bot) {
 
         const message = formatWebhookMessage(payload);
         if (message) {
+            if (!areNotificationsEnabled()) {
+                console.log(`Plex Webhook: Notifications are disabled, skipping ${payload.event}`);
+                return new Response("Notifications disabled", { status: 200 });
+            }
+
             const PLEX_URL = process.env.PLEX_URL?.trim();
             const PLEX_TOKEN = process.env.PLEX_TOKEN?.trim();
 

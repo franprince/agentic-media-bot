@@ -89,3 +89,4 @@ A conversational Telegram bot that controls a user's home media server stack, ca
     - **Playback Activity**: Notifies when a user starts watching (`media.play`) or finishes watching (`media.scrobble`) media.
     - **Rich Notifications**: Includes media posters/thumbnails in Telegram messages when available.
     - **Configurable Target**: Notifications can be sent to a specific chat ID via `WEBHOOK_NOTIFY_CHAT_ID`.
+    - **Notification Toggle**: Admin users can use the `/notifications <on/off>` command to enable or disable Plex alerts globally.

@@ -3,7 +3,7 @@ import { run } from "@grammyjs/runner";
 import { resolve, isAbsolute } from "node:path";
 import { processUserMessage } from "./agent/index.ts";
 import { detectStatusLanguage } from "./agent/status.ts";
-import { getMetadata, setMetadata, getAllConversations, getUserName, setUserName } from "./services/database.ts";
+import { getMetadata, setMetadata, getAllConversations, getUserName, setUserName, areNotificationsEnabled, setNotificationsEnabled } from "./services/database.ts";
 import { verifyConfig } from "./verify-config";
 import { checkAllServices } from "./services/health";
 import { handlePlexWebhook } from "./services/webhooks.ts";
@@ -122,6 +122,15 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "feat: Added automated notifications for new media and playback activity.",
             "feat: Embedded lightweight web server using Bun.serve to handle webhook callbacks.",
             "test: Added unit test suite for webhook payload parsing and notification formatting.",
+        ],
+    },
+    {
+        version: "4.7.0",
+        changes: [
+            "feat: Added /notifications <on/off> command to toggle Plex alerts.",
+            "feat: Persisted notification preferences in the database.",
+            "fix: Webhook service now respects user notification settings.",
+            "test: Added test case for skipped notifications in webhook service.",
         ],
     },
 ];
@@ -313,6 +322,33 @@ bot.command("status", async (ctx) => {
     }).join("\n");
 
     await ctx.reply(`📡 *Service Status Report*\n\n${message}`, { parse_mode: "Markdown" });
+});
+
+// Handle /notifications command (admin-only)
+bot.command("notifications", async (ctx) => {
+    const userId = ctx.from?.id;
+    if (typeof userId !== "number") {
+        await ctx.reply("Cannot determine requesting user for authorization.");
+        return;
+    }
+    const allowedUserIds = getAllowedUserIdSet();
+
+    if (allowedUserIds.size > 0 && !allowedUserIds.has(userId)) {
+        await ctx.reply("You are not authorized to change notification settings.");
+        return;
+    }
+
+    const arg = ctx.match?.trim().toLowerCase();
+    if (arg === "on") {
+        setNotificationsEnabled(true);
+        await ctx.reply("✅ Plex notifications enabled.");
+    } else if (arg === "off") {
+        setNotificationsEnabled(false);
+        await ctx.reply("❌ Plex notifications disabled.");
+    } else {
+        const enabled = areNotificationsEnabled();
+        await ctx.reply(`Plex notifications are currently *${enabled ? "enabled" : "disabled"}*.\n\nUse \`/notifications on\` or \`/notifications off\` to change.`, { parse_mode: "Markdown" });
+    }
 });
 
 // Handle /restart command (admin-only)
