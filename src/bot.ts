@@ -88,6 +88,13 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "refactor: Improved configuration verification logic to guide new users.",
         ],
     },
+    {
+        version: "4.3.1",
+        changes: [
+            "fix: Resolved tool-calling crash caused by dead reference to removed saveUserNameTool.",
+            "test: Added tool integrity test suite to prevent future mapping regressions.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {

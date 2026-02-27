@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.1] - 2026-02-27
+
+### Fixed
+- **Tool Mapping**: Resolved a critical crash (`TypeError: undefined is not an object`) when processing user messages due to a dead reference in the agent's tool set.
+- **Regression Prevention**: Added a new test suite to ensure all referenced tools in the agent are correctly defined.
+
 ## [4.3.0] - 2026-02-27
 
 ### Added

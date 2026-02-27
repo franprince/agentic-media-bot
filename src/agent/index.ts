@@ -113,7 +113,6 @@ export async function processUserMessage(
             getRecentlyAddedPlex: botTools.getRecentlyAddedPlexTool,
             getPlexLibraryStats: botTools.getPlexLibraryStatsTool,
             discoverMedia: botTools.discoverMediaTool,
-            saveUserName: botTools.saveUserNameTool,
         };
 
         if (shouldDisableAddTools) {
