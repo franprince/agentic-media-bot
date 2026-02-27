@@ -69,6 +69,15 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "test: Improved test reliability and network interception accuracy.",
         ],
     },
+    {
+        version: "4.2.1",
+        changes: [
+            "fix: Suppressed redundant changelog notifications on every restart.",
+            "fix: Optimized Spanish language detection for short user phrases.",
+            "fix: Removed redundant saveUserName tool to prevent LLM-based name hallucinations.",
+            "feat: Added strict rules to prevent mixing movies and series in recommendations.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {
@@ -429,21 +438,25 @@ bot.api.getMe().then(async (me) => {
 
     if (adminIds.length > 0) {
         const latestRelease = getLatestChangelogRelease();
-        const startupTitle = "🔄 Bot startup changelog";
-        const startupText = `${startupTitle}\n${buildReleaseChangelogText(latestRelease)}`;
+        const lastSentVersion = getMetadata("last_sent_changelog_version");
 
-        for (const adminId of adminIds) {
-            try {
-                const chunks = splitTelegramMessage(startupText);
-                for (const chunk of chunks) {
-                    await bot.api.sendMessage(adminId, chunk);
+        if (lastSentVersion !== latestRelease.version) {
+            const startupTitle = "🔄 Bot startup changelog";
+            const startupText = `${startupTitle}\n${buildReleaseChangelogText(latestRelease)}`;
+
+            for (const adminId of adminIds) {
+                try {
+                    const chunks = splitTelegramMessage(startupText);
+                    for (const chunk of chunks) {
+                        await bot.api.sendMessage(adminId, chunk);
+                    }
+                } catch (err) {
+                    console.error(`Failed to send startup message to ${adminId}:`, err);
                 }
-            } catch (err) {
-                console.error(`Failed to send startup message to ${adminId}:`, err);
             }
-        }
 
-        setMetadata("last_sent_changelog_version", latestRelease.version);
+            setMetadata("last_sent_changelog_version", latestRelease.version);
+        }
     }
 
     // Catch-up logic for unreplied messages
