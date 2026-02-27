@@ -150,6 +150,31 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "feat: Added startup instance detection to warn about multiple running bot processes.",
         ],
     },
+    {
+        version: "4.9.1",
+        changes: [
+            "feat: Added originalTitle field to PlexWebhookPayload.Metadata interface.",
+            "feat: Implemented isNonLatinTitle helper to detect non-Latin script titles (Japanese, Korean, Chinese, Arabic, etc.).",
+            "feat: Implemented withEnglishTitle helper to append English/original title in parentheses per Title Localization Protocol.",
+            "fix: Webhook notifications for library.new, media.play, and media.scrobble events now display English/original title alongside non-Latin titles.",
+            "test: Added 19 new tests covering isNonLatinTitle, withEnglishTitle, and webhook integration for foreign-language titles.",
+        ],
+    },
+    {
+        version: "4.9.2",
+        changes: [
+            "fix: Resolved tool integrity test mismatch by updating test to match current tool mapping with legacy aliases.",
+            "fix: Added timeout and retry logic to webhook image fetching to prevent hanging requests (10s timeout, 3 retries with exponential backoff).",
+            "fix: Enhanced process detection with more specific patterns and PID validation to prevent false positives.",
+            "feat: Implemented LRU cache management with 100-entry limit and automatic cleanup to prevent memory leaks.",
+            "feat: Added SQL input sanitization to prevent prototype pollution attacks in conversation history.",
+            "feat: Implemented cache invalidation on webhook library.new events to ensure fresh data.",
+            "feat: Added structured logging for webhook error scenarios with detailed diagnostic information.",
+            "refactor: Enhanced type safety by replacing 'any' types with proper TypeScript interfaces.",
+            "refactor: Standardized error handling patterns across all services with centralized error utilities.",
+            "test: Updated test expectations to match new standardized error message format.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {
@@ -561,7 +586,7 @@ await verifyConfig();
 try {
     const scriptPath = resolve(projectRoot, "src/bot.ts");
     const proc = Bun.spawnSync({
-        cmd: ["pgrep", "-f", scriptPath],
+        cmd: ["pgrep", "-f", `bun run ${scriptPath}`],
     });
     const pids = proc.stdout.toString().split("\n").filter(Boolean);
     if (pids.length > 1) {
