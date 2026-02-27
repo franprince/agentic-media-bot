@@ -74,7 +74,14 @@ export async function verifyConfig() {
             name: "Plex Connectivity",
             fn: async () => {
                 const added = await plex.getRecentlyAdded();
-                return `Success: Connected to Plex library.`;
+                const movieSections = process.env.PLEX_MOVIE_SECTION_IDS;
+                const showSections = process.env.PLEX_SHOW_SECTION_IDS;
+
+                if (!movieSections || !showSections) {
+                    throw new Error("Plex section IDs are missing (PLEX_MOVIE_SECTION_IDS or PLEX_SHOW_SECTION_IDS).");
+                }
+
+                return `Success: Connected to Plex library (Sections: Movies ${movieSections}, Shows ${showSections}).`;
             }
         },
         {
