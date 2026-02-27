@@ -88,6 +88,6 @@ describe("API Service", () => {
         );
 
         await expect(fetchService("http://h", "/e", "k", "v"))
-            .rejects.toThrow("API Error (/e): 404 Not Found");
+            .rejects.toThrow("HTTP 404: Not Found");
     });
 });
