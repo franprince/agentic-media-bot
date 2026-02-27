@@ -43,19 +43,19 @@
 - **Count Source of Truth**: Exact-count prefixes must use tool results from the execution pass (`firstPass`) even when a synthesis model generates the final prose.
 - **Plex Tag-Key Normalization**: Country/genre filters parse Plex tag keys that may arrive as full query paths (not only numeric IDs), ensuring accurate filter requests.
 - **Plex Direct Tag-Path Preference**: When Plex provides a full filter path in tag keys, the service uses that path directly to preserve server-side filter semantics.
-- **Deterministic Plex Browse Rendering**: Final text for Plex country/genre browse requests is generated from tool payload (`totalFound` + `sampleItems`) rather than relying only on LLM prose.
-- **Deterministic List Label**: Plex country/genre tools return `queryType` + `searchParam` + `listLabel` so output uses "This is the list of {genre} movies:" for genres and "This is the list of movies from {country}:" for countries instead of locale-default sample headers.
+- **Deterministic Plex Browse Rendering**: Final text for Plex country/genre browse requests (`searchPlexByCountry` / `searchPlexByGenre`) is generated from tool payload (`totalFound` + `sampleItems`) rather than relying only on LLM prose.
+- **Deterministic List Label**: Plex country/genre search tools return `queryType` + `searchParam` + `listLabel` so output uses "This is the list of {genre} movies:" for genres and "This is the list of movies from {country}:" for countries instead of locale-default sample headers.
 - **Country Noun Normalization**: Status rendering and prompt rules normalize country demonyms to country nouns to keep tool intent explicit and logs consistent.
-- **Tool-Boundary Country Canonicalization**: `findPlexByCountry` normalizes demonyms to country nouns in the tool schema before execution.
+- **Tool-Boundary Country Canonicalization**: `searchPlexByCountry` normalizes demonyms to country nouns in the tool schema before execution.
 - **Single Country Canonicalizer**: Country normalization for tool execution, status rendering, and tool-call logging is centralized in `src/services/plex.ts` to avoid drift.
 - **Accent-Resilient I18N Detection**: Status language detection handles common Spanish forms with and without diacritics.
 - **Plex Result Deduplication**: Country/genre aggregation across multiple sections deduplicates media entries before computing `totalFound`.
 - **Strict Country Tag Filter**: After Plex country browsing, each item is verified by fetching metadata and checking `Country` tags against the requested country; language tags are ignored and primary-country matching is used by default.
 - **Title-Level Country Verification**: `searchPlexByTitleOnly` includes normalized `countries` and `primaryCountry` so country yes/no answers are grounded in Plex metadata.
-- **Ranked Country Query Support**: `findPlexByCountry` supports `ranked` and `limit` arguments and orders results by available Plex rating fields for top-N responses.
+- **Ranked Country Query Support**: `searchPlexByCountry` supports `ranked` and `limit` arguments and orders results by available Plex rating fields for top-N responses.
 - **Deterministic Original-Title Rendering**: `buildPlexBrowseAuthoritativeText` appends `originalTitle` when different from displayed title.
 - **Browse Title Enrichment**: Ranked country sample items fetch Plex item metadata and fallback to `titleSort` when `originalTitle` is unavailable.
-- **Cross-Service Alias Recovery**: When sampled foreign-script titles still lack Latin aliases after Plex metadata enrichment, `findPlexByCountry` performs best-effort Radarr lookup (title/year) to recover English aliases.
+- **Cross-Service Alias Recovery**: When sampled foreign-script titles still lack Latin aliases after Plex metadata enrichment, `searchPlexByCountry` performs best-effort Radarr lookup (title/year) to recover English aliases.
 - **Alias Fallback Rendering**: If `originalTitle` is missing, deterministic rendering can use enriched `aliasTitle`; if a non-Latin title still has no alias, output explicitly marks the English/Spanish alias as unavailable.
 - **Intent-Based Tool Gating**: For detail/info/synopsis user intent, add tools (`addMovie`, `addSeries`) are removed from the tool set unless explicit add intent is detected.
 

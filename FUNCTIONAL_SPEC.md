@@ -23,7 +23,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
 
 4. **Library Auditing & Browsing (Plex, Radarr, Sonarr)**
    - User asks: "Do I have any horror movies?"
-   - Bot searches Plex by genre (translating to English if requested in Spanish) and returns results across all libraries.
+   - Bot searches Plex by genre (translating to English if requested in Spanish) via 'searchPlexByGenre' and returns results across all libraries.
    - User asks: "Am I missing any episodes?"
    - Bot provides high-level summary (e.g., "Maching 2 series") or granular detail (Season, Episode, Air Date) upon request.
 
@@ -39,7 +39,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
     - Bot checks all services (Radarr, Sonarr, qBittorrent, Plex) and returns a consolidated report showing which are online or offline.
 
 6. **Advanced Search & Localization**
-   - **Origin Search (Plex)**: Supports queries like "Japanese movies" or "películas de Japón" via fuzzy country tag matching.
+   - **Origin Search (Plex)**: Supports queries like "Japanese movies" or "películas de Japón" via 'searchPlexByCountry' with fuzzy country tag matching.
    - **Country Noun Input**: Country searches normalize to noun form (e.g., "Germany", not "German") for tool calls and status output clarity.
    - **Canonical Country Normalization**: Demonyms (e.g., "Danish") are normalized to country nouns (e.g., "Denmark") consistently across tool execution and status logs.
    - **Country Filter Accuracy**: Country-tag browsing uses normalized Plex tag keys to avoid unfiltered or mixed-country results.
@@ -52,7 +52,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
    - **Metadata-Enriched Alias**: If `originalTitle` is missing in browse results, the bot enriches sample items from Plex metadata (`originalTitle`/`titleSort`) to provide an alternate English/Spanish title when available.
    - **Cross-Source Alias Enrichment**: If Plex metadata still lacks a Latin alias for foreign-script titles, the bot attempts a best-effort Radarr lookup by title/year to recover an English alias.
    - **Missing Alias Transparency**: For non-Latin titles with no English/Spanish alias available in Plex metadata, the bot explicitly marks the alias as unavailable.
-   - **Exact Count Rule**: For Plex country/genre browsing, replies always include the precise `totalFound` count from the tool output.
+   - **Exact Count Rule**: For Plex country/genre browsing ('searchPlexByCountry'/'searchPlexByGenre'), replies always include the precise `totalFound` count from the tool output.
    - **Deterministic Plex Browse Reply**: Country/genre replies are rendered directly from tool results (count + sampled titles) to avoid model hallucinations or omissions.
    - **List Header Wording**: Plex genre lists use "This is the list of {genre} movies:" and country lists use "This is the list of movies from {country}:" instead of generic "Sample/Muestra".
 

@@ -95,6 +95,15 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "test: Added tool integrity test suite to prevent future mapping regressions.",
         ],
     },
+    {
+        version: "4.4.0",
+        changes: [
+            "feat: Standardized Plex search tool names to searchPlexByCountry, searchPlexByGenre, and searchPlexByDuration.",
+            "refactor: Updated system prompt and specifications to reflect standardized tool names.",
+            "feat: Improved history migration to automatically normalize legacy tool names to the new standard.",
+            "chore: Kept legacy tool names as aliases for backward compatibility.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {

@@ -38,7 +38,8 @@ export async function processUserMessage(
             msg.content = msg.content.map(part => {
                 if (part.type === "tool-call") {
                     if (part.toolName === "searchPlexLibrary") part.toolName = "searchPlexByTitleOnly";
-                    if (part.toolName === "browsePlexByCountry") part.toolName = "findPlexByCountry";
+                    if (part.toolName === "browsePlexByCountry" || part.toolName === "findPlexByCountry") part.toolName = "searchPlexByCountry";
+                    if (part.toolName === "browsePlexByGenre") part.toolName = "searchPlexByGenre";
                 }
                 return part;
             });
@@ -47,7 +48,8 @@ export async function processUserMessage(
             msg.content = msg.content.map(part => {
                 if (part.type === "tool-result") {
                     if (part.toolName === "searchPlexLibrary") part.toolName = "searchPlexByTitleOnly";
-                    if (part.toolName === "browsePlexByCountry") part.toolName = "findPlexByCountry";
+                    if (part.toolName === "browsePlexByCountry" || part.toolName === "findPlexByCountry") part.toolName = "searchPlexByCountry";
+                    if (part.toolName === "browsePlexByGenre") part.toolName = "searchPlexByGenre";
                 }
                 return part;
             });
@@ -107,8 +109,10 @@ export async function processUserMessage(
             getMissingSeries: botTools.getMissingSeriesTool,
             getMissingEpisodes: botTools.getMissingEpisodesTool,
             searchPlexByTitleOnly: botTools.searchPlexByTitleOnlyTool,
-            browsePlexByGenre: botTools.browsePlexByGenreTool,
-            findPlexByCountry: botTools.findPlexByCountryTool,
+            searchPlexByGenre: botTools.browsePlexByGenreTool,
+            browsePlexByGenre: botTools.browsePlexByGenreTool, // Legacy Alias
+            searchPlexByCountry: botTools.findPlexByCountryTool,
+            findPlexByCountry: botTools.findPlexByCountryTool, // Legacy Alias
             searchPlexByDuration: botTools.searchPlexByDurationTool,
             getRecentlyAddedPlex: botTools.getRecentlyAddedPlexTool,
             getPlexLibraryStats: botTools.getPlexLibraryStatsTool,
