@@ -183,6 +183,7 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "feat: Added notification for 'media.resume' only when not preceded by a pause (significant resume).",
             "fix: Reduced notification noise by ignoring 'media.pause' events while maintaining session state.",
         ],
+    },
     {
         version: "4.11.0",
         changes: [
