@@ -196,19 +196,11 @@ export function isNonLatinTitle(title: string): boolean {
     return /[^\u0000-\u024F\u1E00-\u1EFF]/.test(title);
 }
 
-/**
- * Appends the English/original title in parentheses when the primary title is non-Latin
- * and an originalTitle is available that differs from the displayed title.
- * Implements the "Title Localization Protocol" from the functional spec.
- */
 export function withEnglishTitle(displayedTitle: string, originalTitle: string | undefined): string {
     if (!originalTitle) return displayedTitle;
     if (originalTitle === displayedTitle) return displayedTitle;
-    if (isNonLatinTitle(displayedTitle) || isNonLatinTitle(originalTitle)) {
-        // Show original (English) title in parentheses alongside the non-Latin title
-        return `${displayedTitle} (${originalTitle})`;
-    }
-    return displayedTitle;
+    // Show original title in parentheses whenever it differs from the displayed title
+    return `${displayedTitle} (${originalTitle})`;
 }
 
 /**
@@ -223,30 +215,25 @@ function getSessionId(payload: PlexWebhookPayload): string {
 
 function formatWebhookMessage(payload: PlexWebhookPayload, previousState: string | null): string | undefined {
     const { event, Metadata, Account } = payload;
-    const title = Metadata?.title || "Unknown Title";
     const user = Account?.title || "Someone";
+    const typeLabel = Metadata?.librarySectionType === "show" ? "an episode of" : "the movie";
 
     switch (event) {
         case "library.new": {
             const type = Metadata?.librarySectionType === "show" ? "Episode" : "Movie";
-            let displayTitle = withEnglishTitle(title, Metadata?.originalTitle);
-            if (Metadata?.grandparentTitle) {
-                const episodeTitle = withEnglishTitle(title, Metadata?.originalTitle);
-                displayTitle = `${Metadata.grandparentTitle} - S${Metadata.parentIndex}E${Metadata.index} - ${episodeTitle}`;
-            }
-            return `🆕 *New ${type} added:*\n*${displayTitle}*`;
+            return `🆕 *New ${type} added:*\n*${getFullTitle(Metadata)}*`;
         }
 
         case "media.play":
-            return `🎬 *${user}* started watching:\n*${getFullTitle(Metadata)}*`;
+            return `🎬 *${user}* started watching ${typeLabel}:\n*${getFullTitle(Metadata)}*`;
 
         case "media.resume":
             // Only notify if the previous action was NOT a pause (Title: "Continue" logic)
             if (previousState === "media.pause") {
-                console.log(`Plex Webhook: Skipping redundant resume for ${title}`);
+                console.log(`Plex Webhook: Skipping redundant resume for ${Metadata?.title}`);
                 return undefined;
             }
-            return `▶️ *${user}* resumed watching:\n*${getFullTitle(Metadata)}*`;
+            return `▶️ *${user}* resumed watching ${typeLabel}:\n*${getFullTitle(Metadata)}*`;
 
         case "media.pause":
             // We update state in handlePlexWebhook but never notify on pause to reduce noise
@@ -254,7 +241,7 @@ function formatWebhookMessage(payload: PlexWebhookPayload, previousState: string
             return undefined;
 
         case "media.scrobble":
-            return `✅ *${user}* finished watching:\n*${getFullTitle(Metadata)}*`;
+            return `✅ *${user}* finished watching ${typeLabel}:\n*${getFullTitle(Metadata)}*`;
 
         default:
             console.log(`Plex Webhook: Ignored event ${event}`);
@@ -263,12 +250,15 @@ function formatWebhookMessage(payload: PlexWebhookPayload, previousState: string
 }
 
 function getFullTitle(metadata: PlexWebhookPayload["Metadata"]): string {
+    const title = metadata.title || "Unknown Item";
+    const originalTitle = metadata.originalTitle;
+
     if (metadata.type === "episode") {
-        const episodeTitle = withEnglishTitle(metadata.title, metadata.originalTitle);
-        return `${metadata.grandparentTitle} - S${metadata.parentIndex}E${metadata.index} - ${episodeTitle}`;
+        const episodeTitle = withEnglishTitle(title, originalTitle);
+        const season = metadata.parentIndex !== undefined ? `S${metadata.parentIndex.toString().padStart(2, '0')}` : 'S??';
+        const episode = metadata.index !== undefined ? `E${metadata.index.toString().padStart(2, '0')}` : 'E??';
+        return `${metadata.grandparentTitle} - ${season}${episode} - ${episodeTitle}`;
     }
-    if (metadata.type === "movie") {
-        return withEnglishTitle(metadata.title, metadata.originalTitle);
-    }
-    return withEnglishTitle(metadata.title || "Unknown Item", metadata.originalTitle);
+
+    return withEnglishTitle(title, originalTitle);
 }

@@ -193,6 +193,15 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "test: Added E2E regression test suite for origin search and language consistency.",
         ],
     },
+    {
+        version: "4.12.0",
+        changes: [
+            "feat: Customized Plex webhook notification templates for movies and series.",
+            "feat: Implemented SxxExx format for series notifications.",
+            "refactor: Generalized title localization to show original title whenever it differs from the displayed title.",
+            "test: Added comprehensive test suite for new notification formats and localization logic.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {

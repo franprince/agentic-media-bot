@@ -55,7 +55,7 @@
 - **Strict Country Tag Filter**: After Plex country browsing, each item is verified by fetching metadata and checking `Country` tags against the requested country; language tags are ignored and primary-country matching is used by default.
 - **Title-Level Country Verification**: `searchPlexByTitleOnly` includes normalized `countries` and `primaryCountry` so country yes/no answers are grounded in Plex metadata.
 - **Ranked Country Query Support**: `searchPlexByCountry` supports `ranked` and `limit` arguments and orders results by available Plex rating fields for top-N responses.
-- **Deterministic Original-Title Rendering**: `buildPlexBrowseAuthoritativeText` appends `originalTitle` when different from displayed title.
+- ** deterministic Original-Title Rendering**: `buildPlexBrowseAuthoritativeText` and webhook notifications append `originalTitle` when different from displayed title.
 - **Browse Title Enrichment**: Ranked country sample items fetch Plex item metadata and fallback to `titleSort` when `originalTitle` is unavailable.
 - **Cross-Service Alias Recovery**: When sampled foreign-script titles still lack Latin aliases after Plex metadata enrichment, `searchPlexByCountry` performs best-effort Radarr lookup (title/year) to recover English aliases.
 - **Alias Fallback Rendering**: If `originalTitle` is missing, deterministic rendering can use enriched `aliasTitle`; if a non-Latin title still has no alias, output explicitly marks the English/Spanish alias as unavailable.

@@ -338,9 +338,9 @@ describe("withEnglishTitle", () => {
         expect(withEnglishTitle("Inception", "Inception")).toBe("Inception");
     });
 
-    test("returns displayedTitle unchanged when both titles are Latin and differ", () => {
-        // Two different Latin titles (e.g. translated title vs original) — no parenthetical needed
-        expect(withEnglishTitle("El Laberinto del Fauno", "Pan's Labyrinth")).toBe("El Laberinto del Fauno");
+    test("appends originalTitle in parentheses when both titles are Latin and differ", () => {
+        // Now it SHOULD append even if both are Latin, as per user request
+        expect(withEnglishTitle("El Laberinto del Fauno", "Pan's Labyrinth")).toBe("El Laberinto del Fauno (Pan's Labyrinth)");
     });
 
     test("appends originalTitle in parentheses when displayedTitle is non-Latin", () => {

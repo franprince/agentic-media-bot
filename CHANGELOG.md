@@ -5,7 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [4.9.1] - 2026-02-27
+## [4.12.0] - 2026-02-27
+
+### Added
+- **Customized Webhook Templates**: Implemented movie and series specific templates for Plex notifications.
+- **Series Playback Details**: Added SxxExx and episode title formatting for TV show notifications.
+- **Universal Title Localization**: Bot now shows the original title in parentheses whenever it differs from the displayed title, regardless of script.
+
+### Tests
+- Added `notifications_v2.test.ts` to verify new formatting and localization requirements.
+- Updated `webhooks.test.ts` to align with universal title localization logic.
+
+## [4.11.0] - 2026-02-27
 
 ### Added
 - **originalTitle in Webhook Payload**: Added `originalTitle` field to `PlexWebhookPayload.Metadata` interface to capture the English/original title from Plex webhook events.
