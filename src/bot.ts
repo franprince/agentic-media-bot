@@ -211,6 +211,15 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "fix: Improved metadata enrichment reliability for movies missing original titles in Plex.",
         ],
     },
+    {
+        version: "4.14.0",
+        changes: [
+            "feat: Added 'Launch on Startup' option in the setup script for Linux (systemd).",
+            "feat: Implemented IMDb ID prioritization and title validation for movie and series additions.",
+            "fix: Resolved strict TypeScript 'possibly undefined' error in Plex webhook service.",
+            "test: Added unit tests for IMDb validation and regression tests for webhook show enrichment.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {

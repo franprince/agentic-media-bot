@@ -92,8 +92,9 @@ export async function handlePlexWebhook(request: Request, bot: Bot) {
                 } else if (metadata.librarySectionType === "show") {
                     const searchTerm = metadata.grandparentTitle || metadata.title;
                     const results = await searchSeries(searchTerm);
-                    if (results.length > 0 && results[0].title !== metadata.title) {
-                        const originalTitle = results[0].title;
+                    const firstMatch = results[0];
+                    if (firstMatch && firstMatch.title !== metadata.title) {
+                        const originalTitle = firstMatch.title;
                         if (payload.Metadata) {
                             payload.Metadata.originalTitle = originalTitle;
                         }

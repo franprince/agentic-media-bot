@@ -256,11 +256,26 @@ export const addMovieTool = tool({
         tmdbId: z.union([z.number(), z.string().transform(Number)]).nullable().describe("The TMDB ID of the movie to add."),
         title: z.string().describe("The title of the movie."),
         year: z.union([z.number(), z.string().transform(Number)]).nullable().describe("The release year of the movie."),
+        imdbId: z.string().optional().describe("The IMDb ID of the movie (e.g., 'tt0111161')."),
         confirm: z.boolean().default(false).describe("Set to true ONLY when the user has explicitly confirmed the specific match presented by the bot."),
     }),
-    execute: async ({ tmdbId, title, year, confirm }: { tmdbId: number | null, title: string, year: number | null, confirm: boolean }) => {
-        const normalizedTmdbId = (tmdbId !== null && tmdbId !== undefined) ? Number(tmdbId) : 0;
-        const normalizedYear = (year !== null && year !== undefined) ? Number(year) : 0;
+    execute: async ({ tmdbId, title, year, imdbId, confirm }: { tmdbId: number | null, title: string, year: number | null, imdbId?: string, confirm: boolean }) => {
+        let normalizedTmdbId = (tmdbId !== null && tmdbId !== undefined) ? Number(tmdbId) : 0;
+        let normalizedYear = (year !== null && year !== undefined) ? Number(year) : 0;
+
+        let imdbMatch: any = null;
+        if (imdbId) {
+            try {
+                const results = await radarr.searchMovie(imdbId);
+                imdbMatch = results[0];
+                if (imdbMatch) {
+                    normalizedTmdbId = imdbMatch.tmdbId;
+                    normalizedYear = imdbMatch.year;
+                }
+            } catch (err) {
+                console.warn(`⚠️ IMDb search failed for ${imdbId}:`, (err as Error).message);
+            }
+        }
 
         if (normalizedTmdbId <= 0 || normalizedYear <= 0) {
             try {
@@ -312,10 +327,17 @@ export const addMovieTool = tool({
                 return { message: `Could not find movie details for "${title}" (${normalizedYear}) to proceed.` } as any;
             }
 
-            if (!confirm) {
+            const titleMismatch = imdbMatch && stripDiacritics(match.title.toLowerCase()) !== stripDiacritics(title.toLowerCase());
+
+            if (!confirm || titleMismatch) {
+                let statusMessage = `I found "${match.title}" (${match.year}). Should I add it to Radarr?`;
+                if (titleMismatch) {
+                    statusMessage = `⚠️ *Title Mismatch:* I found "${match.title}" (${match.year}) for the IMDb ID \`${imdbId}\`, but you mentioned "${title}". Should I proceed with "${match.title}"?`;
+                }
+
                 return {
                     confirmationRequired: true,
-                    message: `I found "${match.title}" (${match.year}). Should I add it to Radarr?`,
+                    message: statusMessage,
                     mediaDetails: {
                         title: match.title,
                         year: match.year,
@@ -385,10 +407,25 @@ export const addSeriesTool = tool({
     parameters: z.object({
         tvdbId: z.union([z.number(), z.string().transform(Number)]).nullable().describe("The TVDB ID of the series."),
         title: z.string().describe("The title of the series."),
+        imdbId: z.string().optional().describe("The IMDb ID of the series (e.g., 'tt0111161')."),
         confirm: z.boolean().default(false).describe("Set to true ONLY when the user has explicitly confirmed the specific match presented by the bot."),
     }),
-    execute: async ({ tvdbId, title, confirm }: { tvdbId: number | null, title: string, confirm: boolean }) => {
-        const normalizedTvdbId = (tvdbId !== null && tvdbId !== undefined) ? Number(tvdbId) : 0;
+    execute: async ({ tvdbId, title, imdbId, confirm }: { tvdbId: number | null, title: string, imdbId?: string, confirm: boolean }) => {
+        let normalizedTvdbId = (tvdbId !== null && tvdbId !== undefined) ? Number(tvdbId) : 0;
+
+        let imdbMatch: any = null;
+        if (imdbId) {
+            try {
+                const results = await sonarr.searchSeries(imdbId);
+                imdbMatch = results[0];
+                if (imdbMatch) {
+                    normalizedTvdbId = imdbMatch.tvdbId;
+                }
+            } catch (err) {
+                console.warn(`⚠️ IMDb search failed for ${imdbId}:`, (err as Error).message);
+            }
+        }
+
         if (normalizedTvdbId <= 0) {
             const results = await sonarr.searchSeries(title);
             return {
@@ -431,10 +468,17 @@ export const addSeriesTool = tool({
             } as any;
         }
 
-        if (!confirm) {
+        const titleMismatch = imdbMatch && stripDiacritics(exactSeries.title.toLowerCase()) !== stripDiacritics(title.toLowerCase());
+
+        if (!confirm || titleMismatch) {
+            let statusMessage = `I found "${exactSeries.title}" (${exactSeries.year}). Shall I add this series to Sonarr?`;
+            if (titleMismatch) {
+                statusMessage = `⚠️ *Title Mismatch:* I found "${exactSeries.title}" (${exactSeries.year}) for the IMDb ID \`${imdbId}\`, but you mentioned "${title}". Should I proceed with "${exactSeries.title}"?`;
+            }
+
             return {
                 confirmationRequired: true,
-                message: `I found "${exactSeries.title}" (${exactSeries.year}). Shall I add this series to Sonarr?`,
+                message: statusMessage,
                 mediaDetails: {
                     title: exactSeries.title,
                     year: exactSeries.year,

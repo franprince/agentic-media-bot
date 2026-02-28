@@ -74,7 +74,9 @@ A conversational Telegram bot that controls a user's home media server stack, ca
     - The bot is helpful, concise, and confirms massive actions.
     - It handles Spanish requests intelligently by mapping localized concepts (like "terror") to technical English keywords required by APIs.
     - If a user asks to add a movie or series by title, the bot must search first to obtain the correct ID before adding.
-    - If Radarr is unavailable during a title-based add, the bot should surface a friendly error and offer to try again or check Plex.
+     - **IMDb ID Prioritization**: If the user provides an IMDb ID (e.g., "tt12345"), the bot uses it as the primary search term.
+     - **Title Match Validation**: When an IMDb ID is provided alongside a title, the bot validates that the metadata found matches the mentioned title; if a mismatch is detected, it specifically warns the user and requests explicit confirmation.
+     - If Radarr is unavailable during a title-based add, the bot should surface a friendly error and offer to try again or check Plex.
     - If Radarr returns a bad add/search request, the bot should respond gracefully and avoid crashing the conversation flow.
     - Detail/info/synopsis requests must not trigger add/download actions unless the user explicitly asks to add.
 
@@ -83,6 +85,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
     - **Dependency Management**: The setup tool automatically checks for and offers to install missing dependencies (`bun install`).
     - **Guided Configuration**: Provides step-by-step instructions for obtaining Telegram Bot Tokens, User IDs, and the complex Plex Authentication Token.
     - **Automated Service Discovery**: Automatically identifies Plex library sections to simplify environment variable configuration (`PLEX_MOVIE_SECTION_IDS`, `PLEX_SHOW_SECTION_IDS`).
+    - **Launch on Startup (Linux)**: Offers to create and enable a systemd user service for automated bot execution on system boot.
 11. **Real-time Notifications (Plex Webhooks)**
     - **Library Activity**: Automatically notifies the user when new media is added to Plex (`library.new`).
     - **Playback Activity**: Notifies when a user starts watching (`media.play`) or finishes watching (`media.scrobble`) media.

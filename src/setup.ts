@@ -132,6 +132,60 @@ if (useWebhook?.toLowerCase() !== "n") {
     console.log("Webhook server will be disabled.");
 }
 
+
+console.log("\n--- 🚀 Startup Configuration ---");
+const launchOnStartup = prompt("Would you like the bot to launch on startup? (Y/n):", "y");
+
+if (launchOnStartup?.toLowerCase() !== "n") {
+    if (process.platform === "linux") {
+        try {
+            const home = process.env.HOME;
+            if (!home) throw new Error("HOME environment variable not found");
+
+            const systemdDir = resolve(home, ".config/systemd/user");
+            const serviceFilePath = resolve(systemdDir, "agentic-media-bot.service");
+            const projectRoot = resolve(import.meta.dir, "..");
+            const bunPath = Bun.which("bun") || "/usr/local/bin/bun";
+
+            if (!existsSync(systemdDir)) {
+                const { mkdirSync } = await import("fs");
+                mkdirSync(systemdDir, { recursive: true });
+            }
+
+            const serviceContent = `[Unit]
+Description=Agentic Media Bot
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=${projectRoot}
+ExecStart=${bunPath} src/bot.ts
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+`;
+
+            writeFileSync(serviceFilePath, serviceContent);
+            console.log(`✅ Systemd service file created at: ${serviceFilePath}`);
+
+            console.log("Enabling and starting the service...");
+            Bun.spawnSync(["systemctl", "--user", "daemon-reload"]);
+            Bun.spawnSync(["systemctl", "--user", "enable", "agentic-media-bot.service"]);
+
+            console.log("✅ Service enabled! It will start automatically on login.");
+            console.log("💡 To start it now, run: systemctl --user start agentic-media-bot");
+        } catch (err) {
+            console.error("❌ Failed to configure systemd service:", (err as Error).message);
+            console.log("Manual setup might be required.");
+        }
+    } else {
+        console.log(`⚠️  Automatic startup configuration is not yet supported for ${process.platform}.`);
+        console.log("Please configure it manually for your system.");
+    }
+}
+
 console.log("\n--- 💾 Saving Configuration ---");
 
 let envContent = "";
