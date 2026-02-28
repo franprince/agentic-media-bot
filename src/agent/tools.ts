@@ -382,20 +382,27 @@ export const addSeriesTool = tool({
             } as any;
         }
 
-        const [profiles, languageProfiles, folders, seriesDetails] = await Promise.all([
+        const [profiles, languageProfiles, folders] = await Promise.all([
             withCache("sonarr_profiles", () => sonarr.getQualityProfiles()),
             withCache("sonarr_languages", () => sonarr.getLanguageProfiles()),
-            withCache("sonarr_folders", () => sonarr.getRootFolders()),
-            sonarr.searchSeries(title)
+            withCache("sonarr_folders", () => sonarr.getRootFolders())
         ]);
 
         if (profiles.length === 0 || languageProfiles.length === 0 || folders.length === 0) {
             throw new Error("Cannot add series: missing profiles or root folders in Sonarr.");
         }
 
-        const exactSeries = seriesDetails.find(s => s.tvdbId === normalizedTvdbId);
+        // Try to get exact series details using TVDB ID directly
+        let exactSeries = await sonarr.getSeriesByTvdbId(normalizedTvdbId);
+
+        // Fallback to title search if ID lookup fails
         if (!exactSeries) {
-            throw new Error("Could not fetch full details for series to add.");
+            const seriesDetails = await sonarr.searchSeries(title);
+            exactSeries = seriesDetails.find(s => s.tvdbId === normalizedTvdbId);
+        }
+
+        if (!exactSeries) {
+            throw new Error(`Could not fetch details for series "${title}" (TVDB ID: ${normalizedTvdbId}). Please try searching again.`);
         }
 
         // Use the first available profile and folder as defaults

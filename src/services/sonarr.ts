@@ -22,6 +22,14 @@ export async function searchSeries(term: string): Promise<SonarrSeries[]> {
 }
 
 /**
+ * Get series details by TVDB ID.
+ */
+export async function getSeriesByTvdbId(tvdbId: number): Promise<SonarrSeries | undefined> {
+    const results = await fetchSonarr<SonarrSeries[]>(`/series/lookup?term=tvdb:${tvdbId}`);
+    return results.find(s => s.tvdbId === tvdbId);
+}
+
+/**
  * Add a series to Sonarr.
  */
 export async function addSeries(
