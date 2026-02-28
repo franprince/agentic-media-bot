@@ -42,7 +42,7 @@ describe("Sonarr Add Series Robustness", () => {
         // Mock addSeries to succeed
         const addSpy = spyOn(sonarr, "addSeries").mockImplementation(async () => ({}) as any);
 
-        const result = await addSeriesTool.execute({ tvdbId, title });
+        const result = await addSeriesTool.execute({ tvdbId, title, confirm: true }, {} as any);
 
         expect(result.success).toBe(true);
         expect(getByIdSpy).toHaveBeenCalledWith(tvdbId);
@@ -75,9 +75,30 @@ describe("Sonarr Add Series Robustness", () => {
 
         spyOn(sonarr, "addSeries").mockImplementation(async () => ({}) as any);
 
-        const result = await addSeriesTool.execute({ tvdbId, title });
+        const result = await addSeriesTool.execute({ tvdbId, title, confirm: true }, {} as any);
 
         expect(result.success).toBe(true);
         expect(searchSpy).toHaveBeenCalledWith(title);
+    });
+
+    test("addSeriesTool should return confirmationRequired when confirm is false", async () => {
+        const tvdbId = 76156;
+        const title = "Scrubs";
+
+        spyOn(sonarr, "getQualityProfiles").mockImplementation(async () => [{ id: 1, name: "Any" }]);
+        spyOn(sonarr, "getLanguageProfiles").mockImplementation(async () => [{ id: 1, name: "English" }]);
+        spyOn(sonarr, "getRootFolders").mockImplementation(async () => [{ id: 1, path: "/tv", freeSpace: 1000000 }]);
+
+        spyOn(sonarr, "getSeriesByTvdbId").mockImplementation(async () => ({
+            title: "Scrubs",
+            tvdbId: 76156,
+            year: 2001,
+            seasons: [1]
+        } as any));
+
+        const result = await addSeriesTool.execute({ tvdbId, title, confirm: false }, {} as any);
+
+        expect(result.confirmationRequired).toBe(true);
+        expect(result.mediaDetails.title).toBe("Scrubs");
     });
 });

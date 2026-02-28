@@ -251,13 +251,14 @@ export const searchMovieTool = tool({
 });
 
 export const addMovieTool = tool({
-    description: "Add a MOVIE to Radarr to begin downloading it. Requires the TMDB ID from a previous search. Do NOT use this for TV shows/series.",
+    description: "Add a MOVIE to Radarr to begin downloading it. Requires the TMDB ID from a previous search. Do NOT use this for TV shows/series. This tool will first return details for confirmation unless 'confirm' is true.",
     parameters: z.object({
         tmdbId: z.union([z.number(), z.string().transform(Number)]).nullable().describe("The TMDB ID of the movie to add."),
         title: z.string().describe("The title of the movie."),
         year: z.union([z.number(), z.string().transform(Number)]).nullable().describe("The release year of the movie."),
+        confirm: z.boolean().default(false).describe("Set to true ONLY when the user has explicitly confirmed the specific match presented by the bot."),
     }),
-    execute: async ({ tmdbId, title, year }: { tmdbId: number | null, title: string, year: number | null }) => {
+    execute: async ({ tmdbId, title, year, confirm }: { tmdbId: number | null, title: string, year: number | null, confirm: boolean }) => {
         const normalizedTmdbId = (tmdbId !== null && tmdbId !== undefined) ? Number(tmdbId) : 0;
         const normalizedYear = (year !== null && year !== undefined) ? Number(year) : 0;
 
@@ -301,6 +302,28 @@ export const addMovieTool = tool({
 
             if (!qualityProfileId || !rootFolderPath) {
                 return { message: "Error: Could not retrieve base Radarr quality profile or root folder configuration." } as any;
+            }
+
+            // Find match details for confirmation or adding
+            const results = await radarr.searchMovie(title);
+            const match = results.find(m => m.tmdbId === normalizedTmdbId && m.year === normalizedYear) || results[0];
+
+            if (!match) {
+                return { message: `Could not find movie details for "${title}" (${normalizedYear}) to proceed.` } as any;
+            }
+
+            if (!confirm) {
+                return {
+                    confirmationRequired: true,
+                    message: `I found "${match.title}" (${match.year}). Should I add it to Radarr?`,
+                    mediaDetails: {
+                        title: match.title,
+                        year: match.year,
+                        overview: match.overview,
+                        posterUrl: match.images?.find(i => i.coverType === "poster")?.remoteUrl || match.images?.find(i => i.coverType === "poster")?.url,
+                        tmdbId: match.tmdbId,
+                    }
+                } as any;
             }
 
             const result = await radarr.addMovie(normalizedTmdbId, title, normalizedYear, rootFolderPath, qualityProfileId);
@@ -358,12 +381,13 @@ export const searchSeriesTool = tool({
 });
 
 export const addSeriesTool = tool({
-    description: "Add a TV SERIES/SHOW to Sonarr to begin downloading it. Requires the TVDB ID from a previous search. Do NOT use this for movies.",
+    description: "Add a TV SERIES/SHOW to Sonarr to begin downloading it. Requires the TVDB ID from a previous search. Do NOT use this for movies. This tool will first return details for confirmation unless 'confirm' is true.",
     parameters: z.object({
         tvdbId: z.union([z.number(), z.string().transform(Number)]).nullable().describe("The TVDB ID of the series."),
         title: z.string().describe("The title of the series."),
+        confirm: z.boolean().default(false).describe("Set to true ONLY when the user has explicitly confirmed the specific match presented by the bot."),
     }),
-    execute: async ({ tvdbId, title }: { tvdbId: number | null, title: string }) => {
+    execute: async ({ tvdbId, title, confirm }: { tvdbId: number | null, title: string, confirm: boolean }) => {
         const normalizedTvdbId = (tvdbId !== null && tvdbId !== undefined) ? Number(tvdbId) : 0;
         if (normalizedTvdbId <= 0) {
             const results = await sonarr.searchSeries(title);
@@ -404,6 +428,22 @@ export const addSeriesTool = tool({
         if (!exactSeries) {
             return {
                 message: `Could not fetch details for series "${title}" (TVDB ID: ${normalizedTvdbId}). Please try searching for the series by name again to refresh the IDs.`,
+            } as any;
+        }
+
+        if (!confirm) {
+            return {
+                confirmationRequired: true,
+                message: `I found "${exactSeries.title}" (${exactSeries.year}). Shall I add this series to Sonarr?`,
+                mediaDetails: {
+                    title: exactSeries.title,
+                    year: exactSeries.year,
+                    overview: exactSeries.overview,
+                    posterUrl: exactSeries.images?.find(i => i.coverType === "poster")?.remoteUrl || exactSeries.images?.find(i => i.coverType === "poster")?.url,
+                    tvdbId: exactSeries.tvdbId,
+                    network: exactSeries.network,
+                    seasons: exactSeries.seasons?.length || 0,
+                }
             } as any;
         }
 
