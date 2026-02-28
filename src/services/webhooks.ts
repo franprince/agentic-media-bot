@@ -249,10 +249,7 @@ function formatWebhookMessage(payload: PlexWebhookPayload, previousState: string
     const typeLabel = Metadata?.librarySectionType === "show" ? "an episode of" : "the movie";
 
     switch (event) {
-        case "library.new": {
-            const type = Metadata?.librarySectionType === "show" ? "Episode" : "Movie";
-            return `🆕 *New ${type} added:*\n*${getFullTitle(Metadata)}*`;
-        }
+        case "media.play":
 
         case "media.play":
             return `🎬 *${user}* started watching ${typeLabel} *${getFullTitle(Metadata)}*`;

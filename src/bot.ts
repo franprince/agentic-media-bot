@@ -220,6 +220,13 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "test: Added unit tests for IMDb validation and regression tests for webhook show enrichment.",
         ],
     },
+    {
+        version: "4.15.0",
+        changes: [
+            "feat: Restricted Plex webhook notifications to watching activity only (play, resume, scrobble).",
+            "chore: Library additions (library.new) no longer trigger Telegram alerts but still invalidate the internal cache.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {

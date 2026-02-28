@@ -33,7 +33,7 @@ describe("Plex Webhooks", () => {
         }) as any;
     });
 
-    test("should parse library.new movie event", async () => {
+    test("should NOT notify on library.new movie event but should clear cache", async () => {
         const payload = {
             event: "library.new",
             Metadata: {
@@ -53,16 +53,15 @@ describe("Plex Webhooks", () => {
         });
 
         const sendPhotoSpy = spyOn(mockBot.api, "sendPhoto");
+        const sendMessageSpy = spyOn(mockBot.api, "sendMessage");
+        const clearCacheSpy = spyOn(require("../../agent/tools"), "clearCache");
 
         const response = await handlePlexWebhook(request, mockBot as any);
 
         expect(response.status).toBe(200);
-        expect(sendPhotoSpy).toHaveBeenCalled();
-        const args = sendPhotoSpy.mock.calls[0];
-        if (!args) throw new Error("sendPhoto was not called");
-        expect(args[1]).toBeInstanceOf(InputFile);
-        expect((args[2] as any).caption).toContain("Inception");
-        expect((args[2] as any).caption).toContain("New Movie added");
+        expect(sendPhotoSpy).not.toHaveBeenCalled();
+        expect(sendMessageSpy).not.toHaveBeenCalled();
+        expect(clearCacheSpy).toHaveBeenCalled();
     });
 
     test("should parse media.play episode event", async () => {
@@ -112,11 +111,11 @@ describe("Plex Webhooks", () => {
         spyOn(database, "areNotificationsEnabled").mockImplementation(() => false);
 
         const payload = {
-            event: "library.new",
+            event: "media.play",
+            Account: { title: "Fran" },
             Metadata: {
                 title: "Inception",
                 type: "movie",
-                librarySectionType: "movie",
             }
         };
 
@@ -140,9 +139,10 @@ describe("Plex Webhooks", () => {
         expect(sendMessageSpy).not.toHaveBeenCalled();
     });
 
-    test("should include originalTitle in parentheses for non-Latin movie title (library.new)", async () => {
+    test("should include originalTitle in parentheses for non-Latin movie title (media.play)", async () => {
         const payload = {
-            event: "library.new",
+            event: "media.play",
+            Account: { title: "Fran" },
             Metadata: {
                 title: "千と千尋の神隠し",
                 originalTitle: "Spirited Away",
@@ -236,7 +236,8 @@ describe("Plex Webhooks", () => {
 
     test("should not append originalTitle when title is already Latin", async () => {
         const payload = {
-            event: "library.new",
+            event: "media.play",
+            Account: { title: "Fran" },
             Metadata: {
                 title: "Inception",
                 originalTitle: "Inception",

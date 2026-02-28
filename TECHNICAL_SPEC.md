@@ -38,6 +38,7 @@
 - **Tool Error Containment**: Radarr tool execution paths should return structured error messages for API 4xx/5xx responses rather than throw and abort the full LLM turn.
 - **Defensive Tool Filtering**: Before tool execution, the agent filters out any `undefined` tool mappings in `src/agent/index.ts` to prevent AI SDK crashes (`TypeError: tool2.type`).
 - **IMDb Validation Logic**: `addMovieTool` and `addSeriesTool` prioritize search-by-id when an `imdbId` is provided and use string normalization (stripping diacritics) to detect title mismatches between the provided ID and the mentioned name.
+- **Restricted Notifications**: Plex webhook notifications are restricted to playback events (play, resume, scrobble). Library additions (`library.new`) trigger internal cache invalidation but do not send outward notifications.
 - **History Migration**: Dynamically renames legacy tool calls in the conversation history to maintain compatibility with updated tool schemas.
 - **Real-time Status Feed**: Captures "thinking" preamble from the LLM to provide localized, real-time status updates via the Telegram `onStep` callback.
 - **Localized Entry Status**: `src/bot.ts` localizes initial "thinking" and restart catch-up status messages based on detected user-message language.

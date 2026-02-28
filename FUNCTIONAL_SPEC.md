@@ -87,7 +87,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
     - **Automated Service Discovery**: Automatically identifies Plex library sections to simplify environment variable configuration (`PLEX_MOVIE_SECTION_IDS`, `PLEX_SHOW_SECTION_IDS`).
     - **Launch on Startup (Linux)**: Offers to create and enable a systemd user service for automated bot execution on system boot.
 11. **Real-time Notifications (Plex Webhooks)**
-    - **Library Activity**: Automatically notifies the user when new media is added to Plex (`library.new`).
+    - **Library Activity**: Internal cache is automatically invalidated when new media is added to Plex (`library.new`) to ensure data freshness. No user notification is sent for this event.
     - **Playback Activity**: Notifies when a user starts watching (`media.play`) or finishes watching (`media.scrobble`) media.
     - **Rich Notifications**: Fetches posters/thumbnails locally from Plex and uploads them as `InputFile` to ensure delivery even from internal/localhost addresses.
     - **Customized Playback Format**: Notifies starting/resuming/finishing media with user-specific templates:
