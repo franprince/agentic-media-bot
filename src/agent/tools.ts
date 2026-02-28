@@ -251,17 +251,17 @@ export const searchMovieTool = tool({
 });
 
 export const addMovieTool = tool({
-    description: "Add a movie to Radarr to begin downloading it. Requires the TMDB ID from a previous search.",
+    description: "Add a MOVIE to Radarr to begin downloading it. Requires the TMDB ID from a previous search. Do NOT use this for TV shows/series.",
     parameters: z.object({
         tmdbId: z.union([z.number(), z.string().transform(Number)]).nullable().describe("The TMDB ID of the movie to add."),
         title: z.string().describe("The title of the movie."),
         year: z.union([z.number(), z.string().transform(Number)]).nullable().describe("The release year of the movie."),
     }),
     execute: async ({ tmdbId, title, year }: { tmdbId: number | null, title: string, year: number | null }) => {
-        const normalizedTmdbId = typeof tmdbId === "number" ? tmdbId : Number(tmdbId);
-        const normalizedYear = typeof year === "number" ? year : Number(year);
+        const normalizedTmdbId = (tmdbId !== null && tmdbId !== undefined) ? Number(tmdbId) : 0;
+        const normalizedYear = (year !== null && year !== undefined) ? Number(year) : 0;
 
-        if (!Number.isFinite(normalizedTmdbId) || !Number.isFinite(normalizedYear)) {
+        if (normalizedTmdbId <= 0 || normalizedYear <= 0) {
             try {
                 const results = await radarr.searchMovie(title);
                 return {
@@ -358,14 +358,14 @@ export const searchSeriesTool = tool({
 });
 
 export const addSeriesTool = tool({
-    description: "Add a TV series to Sonarr to begin downloading it. Requires the TVDB ID.",
+    description: "Add a TV SERIES/SHOW to Sonarr to begin downloading it. Requires the TVDB ID from a previous search. Do NOT use this for movies.",
     parameters: z.object({
         tvdbId: z.union([z.number(), z.string().transform(Number)]).nullable().describe("The TVDB ID of the series."),
         title: z.string().describe("The title of the series."),
     }),
     execute: async ({ tvdbId, title }: { tvdbId: number | null, title: string }) => {
-        const normalizedTvdbId = typeof tvdbId === "number" ? tvdbId : Number(tvdbId);
-        if (!Number.isFinite(normalizedTvdbId)) {
+        const normalizedTvdbId = (tvdbId !== null && tvdbId !== undefined) ? Number(tvdbId) : 0;
+        if (normalizedTvdbId <= 0) {
             const results = await sonarr.searchSeries(title);
             return {
                 message: "Missing TVDB ID. Please choose the correct series first.",
