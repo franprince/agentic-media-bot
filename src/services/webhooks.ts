@@ -93,7 +93,10 @@ export async function handlePlexWebhook(request: Request, bot: Bot) {
                     const searchTerm = metadata.grandparentTitle || metadata.title;
                     const results = await searchSeries(searchTerm);
                     if (results.length > 0 && results[0].title !== metadata.title) {
-                        payload.Metadata.originalTitle = results[0].title;
+                        const originalTitle = results[0].title;
+                        if (payload.Metadata) {
+                            payload.Metadata.originalTitle = originalTitle;
+                        }
                     }
                 }
             } catch (err) {

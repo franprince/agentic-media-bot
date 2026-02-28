@@ -389,7 +389,7 @@ export const addSeriesTool = tool({
         ]);
 
         if (profiles.length === 0 || languageProfiles.length === 0 || folders.length === 0) {
-            throw new Error("Cannot add series: missing profiles or root folders in Sonarr.");
+            return { message: "Cannot add series: missing profiles or root folders in Sonarr." } as any;
         }
 
         // Try to get exact series details using TVDB ID directly
@@ -402,7 +402,9 @@ export const addSeriesTool = tool({
         }
 
         if (!exactSeries) {
-            throw new Error(`Could not fetch details for series "${title}" (TVDB ID: ${normalizedTvdbId}). Please try searching again.`);
+            return {
+                message: `Could not fetch details for series "${title}" (TVDB ID: ${normalizedTvdbId}). Please try searching for the series by name again to refresh the IDs.`,
+            } as any;
         }
 
         // Use the first available profile and folder as defaults
