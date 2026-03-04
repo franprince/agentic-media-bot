@@ -175,7 +175,12 @@ WantedBy=default.target
             Bun.spawnSync(["systemctl", "--user", "enable", "agentic-media-bot.service"]);
 
             console.log("✅ Service enabled! It will start automatically on login.");
-            console.log("💡 To start it now, run: systemctl --user start agentic-media-bot");
+            console.log("\n💡 How to Manage the Bot:");
+            console.log("- Check Status: systemctl --user status agentic-media-bot");
+            console.log("- View Logs:    journalctl --user -u agentic-media-bot -f");
+            console.log("- Restart:      systemctl --user restart agentic-media-bot");
+            console.log("- Stop:         systemctl --user stop agentic-media-bot");
+            console.log("\n💡 To start it now, run: systemctl --user start agentic-media-bot");
         } catch (err) {
             console.error("❌ Failed to configure systemd service:", (err as Error).message);
             console.log("Manual setup might be required.");

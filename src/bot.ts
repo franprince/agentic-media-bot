@@ -7,6 +7,7 @@ import { getMetadata, setMetadata, getAllConversations, getUserName, setUserName
 import { verifyConfig } from "./verify-config";
 import { checkAllServices } from "./services/health";
 import { handlePlexWebhook } from "./services/webhooks.ts";
+import * as sonarr from "./services/sonarr";
 
 // Setup telegram bot using the token from environment variables
 const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -225,6 +226,14 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
         changes: [
             "feat: Restricted Plex webhook notifications to watching activity only (play, resume, scrobble).",
             "chore: Library additions (library.new) no longer trigger Telegram alerts but still invalidate the internal cache.",
+        ],
+    },
+    {
+        version: "4.16.0",
+        changes: [
+            "feat: Added systemd user service management instructions to README.",
+            "feat: Updated setup script with explicit service management commands.",
+            "docs: Added 'Bot Logs' and 'How to Manage the Bot' sections to README.",
         ],
     },
 ];
@@ -670,7 +679,18 @@ bot.api.getMe().then(async (me) => {
 
     // Initial health check
     console.log("📡 performing initial service health check...");
-    const results = await checkAllServices();
+    let results = await checkAllServices();
+
+    // If Sonarr is down, try to restart it (only on startup)
+    const sonarrStatus = results.find(s => s.service === "Sonarr");
+    if (sonarrStatus && !sonarrStatus.online) {
+        console.warn("⚠️ Sonarr is offline at startup. Attempting auto-restart...");
+        await sonarr.restartSonarrService();
+        // Wait a bit for it to start up before checking again
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        results = await checkAllServices();
+    }
+
     results.forEach(s => {
         const icon = s.online ? "✅" : "❌";
         console.log(`${icon} ${s.service}: ${s.message}`);

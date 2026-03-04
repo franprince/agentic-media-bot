@@ -119,3 +119,21 @@ export async function getMissingEpisodes(pageSize: number = 20): Promise<any> {
     const result = await fetchSonarr<any>(`/wanted/missing?pageSize=${pageSize}&includeSeries=true`);
     return result;
 }
+
+/**
+ * Restart Sonarr service using systemctl.
+ */
+export async function restartSonarrService(): Promise<void> {
+    console.log("🔄 Attempting to restart Sonarr service: systemctl restart snap.sonarr.sonarr.service");
+    try {
+        const proc = Bun.spawn({
+            cmd: ["systemctl", "restart", "snap.sonarr.sonarr.service"],
+            stdout: "inherit",
+            stderr: "inherit",
+        });
+        await proc.exited;
+        console.log("✅ Sonarr service restart command executed.");
+    } catch (error) {
+        console.error("❌ Failed to restart Sonarr service:", error);
+    }
+}

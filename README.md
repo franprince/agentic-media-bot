@@ -63,6 +63,31 @@ If you prefer manual configuration, copy `.env.example` to `.env.local` and fill
 
 ---
 
+## 📊 Bot Logs
+
+The bot performs a startup verification. A successful startup should look like this:
+
+```text
+✨ Verification complete.
+✅ Bot is online and listening as @your_bot_name
+✅ Radarr: Online
+✅ Sonarr: Online
+✅ Plex: Online
+✅ qBittorrent: Online
+🚀 Bot is ready for messages on Telegram.
+```
+
+## ⚙️ How to Manage the Bot
+
+If you installed the bot as a systemd user service, you can use these commands:
+
+- **Check Status**: `systemctl --user status agentic-media-bot`
+- **View Logs**: `journalctl --user -u agentic-media-bot -f`
+- **Restart**: `systemctl --user restart agentic-media-bot`
+- **Stop**: `systemctl --user stop agentic-media-bot`
+
+---
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
