@@ -35,7 +35,7 @@ describe("IMDb Validation", () => {
                 tmdbId: 27205,
                 imdbId: "tt0111161",
                 confirm: false
-            });
+            }, { abortSignal: undefined as any });
 
             expect(radarrSearchSpy).toHaveBeenCalledWith("tt0111161");
             expect(result.confirmationRequired).toBe(true);
@@ -60,7 +60,7 @@ describe("IMDb Validation", () => {
                 tmdbId: 27205,
                 imdbId: "tt1375666",
                 confirm: false
-            });
+            }, { abortSignal: undefined as any });
 
             expect(result.confirmationRequired).toBe(true);
             expect(result.message).not.toContain("Title Mismatch");
@@ -100,7 +100,7 @@ describe("IMDb Validation", () => {
                 tvdbId: 355567,
                 imdbId: "tt0903747",
                 confirm: false
-            });
+            }, { abortSignal: undefined as any });
 
             expect(sonarrSearchSpy).toHaveBeenCalledWith("tt0903747");
             expect(result.confirmationRequired).toBe(true);

@@ -381,6 +381,31 @@ export const getMovieQueueTool = tool({
     },
 });
 
+export const removeMovieTool = tool({
+    description: "Remove a MOVIE from Radarr. Requires the TMDB ID from a previous search. By default, it will not delete the files. Set 'deleteFiles' to true to delete the actual media files.",
+    parameters: z.object({
+        tmdbId: z.union([z.number(), z.string().transform(Number)]).describe("The TMDB ID of the movie to remove."),
+        deleteFiles: z.boolean().default(false).describe("Whether to delete the downloaded media files as well."),
+    }),
+    execute: async ({ tmdbId, deleteFiles }: { tmdbId: number, deleteFiles: boolean }) => {
+        try {
+            const results = await radarr.searchMovie(`tmdb:${tmdbId}`);
+            const match = results.find(m => m.tmdbId === Number(tmdbId));
+            if (!match || !match.id) {
+                return { message: `Could not find a movie in Radarr with TMDB ID ${tmdbId}.` };
+            }
+
+            await radarr.deleteMovie(match.id, deleteFiles);
+            return {
+                success: true,
+                message: `Successfully removed '${match.title}' from Radarr. Files deleted: ${deleteFiles}.`
+            };
+        } catch (error: any) {
+            return { message: `Failed to remove movie: ${error.message || "Unknown error"}` };
+        }
+    },
+});
+
 // --- Sonarr Tools --- //
 
 export const searchSeriesTool = tool({
@@ -543,6 +568,30 @@ export const getSeriesQueueTool = tool({
             sizeTotal: q.size,
             sizeLeft: q.sizeleft,
         })) as any;
+    },
+});
+
+export const removeSeriesTool = tool({
+    description: "Remove a TV SERIES from Sonarr. Requires the TVDB ID from a previous search. By default, it will not delete the files. Set 'deleteFiles' to true to delete the actual media files.",
+    parameters: z.object({
+        tvdbId: z.union([z.number(), z.string().transform(Number)]).describe("The TVDB ID of the series to remove."),
+        deleteFiles: z.boolean().default(false).describe("Whether to delete the downloaded media files as well."),
+    }),
+    execute: async ({ tvdbId, deleteFiles }: { tvdbId: number, deleteFiles: boolean }) => {
+        try {
+            const match = await sonarr.getSeriesByTvdbId(Number(tvdbId));
+            if (!match || !match.id) {
+                return { message: `Could not find a series in Sonarr with TVDB ID ${tvdbId}.` };
+            }
+
+            await sonarr.deleteSeries(match.id, deleteFiles);
+            return {
+                success: true,
+                message: `Successfully removed '${match.title}' from Sonarr. Files deleted: ${deleteFiles}.`
+            };
+        } catch (error: any) {
+            return { message: `Failed to remove series: ${error.message || "Unknown error"}` };
+        }
     },
 });
 

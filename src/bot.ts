@@ -264,6 +264,13 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "feat: Implemented NZBGet health check in /status command.",
         ],
     },
+    {
+        version: "4.20.0",
+        changes: [
+            "feat: Added media deletion support for both movies and TV shows.",
+            "feat: Implemented removeMovieTool and removeSeriesTool for the agent.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {

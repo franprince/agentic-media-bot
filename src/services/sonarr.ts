@@ -139,3 +139,12 @@ export async function restartSonarrService(): Promise<void> {
         console.error("❌ Failed to restart Sonarr service:", error);
     }
 }
+
+/**
+ * Delete a series from Sonarr.
+ */
+export async function deleteSeries(id: number, deleteFiles: boolean = false): Promise<void> {
+    await fetchSonarr(`/series/${id}?deleteFiles=${deleteFiles}`, {
+        method: "DELETE",
+    });
+}

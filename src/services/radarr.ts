@@ -86,3 +86,12 @@ export async function getMissingMovies(): Promise<RadarrMovie[]> {
     const movies = await fetchRadarr<RadarrMovie[]>("/movie");
     return movies.filter(m => m.monitored && !m.hasFile);
 }
+
+/**
+ * Delete a movie from Radarr.
+ */
+export async function deleteMovie(id: number, deleteFiles: boolean = false): Promise<void> {
+    await fetchRadarr(`/movie/${id}?deleteFiles=${deleteFiles}`, {
+        method: "DELETE",
+    });
+}

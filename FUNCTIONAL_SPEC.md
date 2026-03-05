@@ -10,6 +10,8 @@ A conversational Telegram bot that controls a user's home media server stack, ca
    - Bot searches Radarr, asks for clarification if multiple items are found, and triggers the download on user confirmation.
    - User asks: "How is the Deadpool download going?"
    - Bot checks queue and returns download percentage and ETA.
+   - User asks: "Delete the movie Deadpool from Radarr."
+   - Bot searches Radarr database for the internal ID and optionally asks whether to delete files as well.
 
 2. **TV Show Management (Sonarr)**
    - User writes: "I want to watch the latest season of The Boys."

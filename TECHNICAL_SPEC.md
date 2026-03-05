@@ -41,6 +41,7 @@
 - **Radarr Search Resilience**: If Radarr lookup fails during a title-based add, return a user-facing error instead of crashing.
 - **Tool Error Containment**: Radarr tool execution paths should return structured error messages for API 4xx/5xx responses rather than throw and abort the full LLM turn.
 - **Defensive Tool Filtering**: Before tool execution, the agent filters out any `undefined` tool mappings in `src/agent/index.ts` to prevent AI SDK crashes (`TypeError: tool2.type`).
+- **Media Deletion Tools**: `removeMovieTool` and `removeSeriesTool` use external database IDs (TMDB/TVDB) to fetch internal Radarr/Sonarr IDs before making `DELETE` API calls.
 - **IMDb Validation & Interactive Config**: `addMovieTool` and `addSeriesTool` prioritize search-by-id when an `imdbId` is provided. They now also return available quality profiles and root folders when `confirm` is false.
 - **Anime Detection**: `addSeriesTool` automatically detects Anime (via genres) and sets `seriesType: "anime"` in Sonarr POST payloads.
 - **Restricted Notifications**: Plex webhook notifications are restricted to playback events (play, resume, scrobble). Library additions (`library.new`) trigger internal cache invalidation but do not send outward notifications.

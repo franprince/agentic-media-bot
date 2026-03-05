@@ -109,9 +109,11 @@ export async function processUserMessage(
         const tools: any = {
             searchMovie: botTools.searchMovieTool,
             addMovie: botTools.addMovieTool,
+            removeMovie: botTools.removeMovieTool,
             getMovieQueue: botTools.getMovieQueueTool,
             searchSeries: botTools.searchSeriesTool,
             addSeries: botTools.addSeriesTool,
+            removeSeries: botTools.removeSeriesTool,
             getSeriesQueue: botTools.getSeriesQueueTool,
             getTorrents: botTools.getTorrentsTool,
             pauseTorrent: botTools.pauseTorrentTool,
