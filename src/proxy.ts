@@ -31,6 +31,14 @@ serve({
     async fetch(req) {
         const url = new URL(req.url);
 
+        // Health check endpoint
+        if (req.method === "GET" && url.pathname === "/health") {
+            return new Response(JSON.stringify({ status: "ok", timestamp: new Date().toISOString() }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" }
+            });
+        }
+
         // Security check for API tool calls
         if (req.method === "POST" && url.pathname === "/api/tool") {
             const authHeader = req.headers.get("Authorization");

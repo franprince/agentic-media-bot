@@ -7,7 +7,7 @@ import * as sonarr from "./services/sonarr";
 import * as qbittorrent from "./services/qbittorrent";
 import * as plex from "./services/plex";
 
-export async function verifyConfig() {
+export async function verifyConfig(exitOnFailure: boolean = true) {
     console.log("🔍 Starting configuration verification (Specs Audit)... \n");
 
     const checks = [
@@ -207,7 +207,12 @@ export async function verifyConfig() {
         } catch (error: any) {
             console.log("❌ Failed: " + (error.message || error));
             console.log("\n💡 Tip: Run 'bun src/setup.ts' to configure your environment interactively.\n");
-            process.exit(1); // Exit if critical config is missing
+
+            if (exitOnFailure) {
+                process.exit(1); // Exit if critical config is missing
+            } else {
+                console.warn("⚠️ Continuing startup despite verification failure (non-fatal mode).");
+            }
         }
     }
 

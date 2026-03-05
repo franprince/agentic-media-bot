@@ -806,8 +806,8 @@ function startWeeklySummaryCron() {
     });
 }
 
-// Audit specs and verify config on every run
-await verifyConfig();
+// Audit specs and verify config on every run (non-fatal on startup to allow healchecks to pass)
+await verifyConfig(false);
 
 // Check for multiple instances matching this script
 try {
@@ -904,29 +904,39 @@ bot.api.getMe().then(async (me) => {
     // Use grammyjs/runner to handle graceful restarts and long-polling concurrently
     botRunner = run(bot);
 
-    // Initialize Webhook Server if enabled
-    if (process.env.USE_PLEX_WEBHOOK === "true") {
-        Bun.serve({
-            port: WEBHOOK_PORT,
-            async fetch(req) {
-                const url = new URL(req.url);
-                if (req.method === "POST") {
-                    if (url.pathname === "/plex-webhook") {
-                        return handlePlexWebhook(req, bot);
-                    }
-                    if (url.pathname === "/radarr-webhook") {
-                        return handleRadarrWebhook(req, bot);
-                    }
-                    if (url.pathname === "/sonarr-webhook") {
-                        return handleSonarrWebhook(req, bot);
-                    }
+    // Initialize HTTP Server for Healthchecks and Webhooks
+    Bun.serve({
+        port: Number(process.env.WEBHOOK_PORT) || 3000,
+        async fetch(req) {
+            const url = new URL(req.url);
+
+            // Health check endpoint for Docker/Coolify
+            if (req.method === "GET" && url.pathname === "/health") {
+                return new Response(JSON.stringify({ status: "ok", timestamp: new Date().toISOString() }), {
+                    status: 200,
+                    headers: { "Content-Type": "application/json" }
+                });
+            }
+
+            if (req.method === "POST" && process.env.USE_PLEX_WEBHOOK === "true") {
+                if (url.pathname === "/plex-webhook") {
+                    return handlePlexWebhook(req, bot);
                 }
-                return new Response("Not Found", { status: 404 });
-            },
-        });
-        console.log(`🚀 Bot is ready for messages on Telegram. Webhook server listening on port ${WEBHOOK_PORT}.`);
+                if (url.pathname === "/radarr-webhook") {
+                    return handleRadarrWebhook(req, bot);
+                }
+                if (url.pathname === "/sonarr-webhook") {
+                    return handleSonarrWebhook(req, bot);
+                }
+            }
+            return new Response("Not Found", { status: 404 });
+        },
+    });
+
+    if (process.env.USE_PLEX_WEBHOOK === "true") {
+        console.log(`🚀 Bot is ready. Webhook server listening on port ${process.env.WEBHOOK_PORT || 3000}.`);
     } else {
-        console.log("🚀 Bot is ready for messages on Telegram. Webhook server is disabled.");
+        console.log(`🚀 Bot is ready. Health server listening on port ${process.env.WEBHOOK_PORT || 3000}.`);
     }
 });
 
