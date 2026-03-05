@@ -406,7 +406,11 @@ export const removeMovieTool = tool({
                         tmdbId: match.tmdbId,
                         path: match.path
                     },
-                    requiresConfirmation: true
+                    requiresConfirmation: true,
+                    buttons: [
+                        { text: "✅ Remove from Radarr only", data: "Remove the movie but keep the files" },
+                        { text: "🗑️ Remove and DELETE files", data: "Remove the movie and delete the files" }
+                    ]
                 };
             }
 
@@ -610,7 +614,11 @@ export const removeSeriesTool = tool({
                         tvdbId: match.tvdbId,
                         path: match.path
                     },
-                    requiresConfirmation: true
+                    requiresConfirmation: true,
+                    buttons: [
+                        { text: "✅ Remove from Sonarr only", data: "Remove the series but keep the files" },
+                        { text: "🗑️ Remove and DELETE files", data: "Remove the series and delete the files" }
+                    ]
                 };
             }
 

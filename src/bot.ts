@@ -1,4 +1,4 @@
-import { Bot } from "grammy";
+import { Bot, InlineKeyboard } from "grammy";
 import { run } from "@grammyjs/runner";
 import { resolve, isAbsolute } from "node:path";
 import { processUserMessage } from "./agent/index.ts";
@@ -285,6 +285,13 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "fix: Added mandatory interactive confirmation for media removal in Radarr and Sonarr.",
             "fix: Bot now explicitly asks whether to keep or delete media files during removals.",
             "fix: Resolved type definition missing fields for Radarr and Sonarr media objects.",
+        ],
+    },
+    {
+        version: "4.21.2",
+        changes: [
+            "feat: Added Telegram Inline Buttons for interactive confirmations and choices.",
+            "fix: Streamlined message handling to properly route callback queries through the agent.",
         ],
     },
 ];
@@ -716,17 +723,21 @@ How can I help you today?
         }
     }
 
-    if (ctx.message.text.startsWith("/")) return;
     const user = ctx.from.username || ctx.from.first_name;
-    console.log(`📩 Message from @${user} (${userId}): ${ctx.message.text}`);
+    await handleUserText(ctx, userId, ctx.message.text as string, user);
+});
+
+async function handleUserText(ctx: any, userId: number, userText: string, username: string | number) {
+    if (userText.startsWith("/")) return;
+    console.log(`📩 Message from @${username} (${userId}): ${userText}`);
 
     await ctx.replyWithChatAction("typing");
 
     // Create a status message to keep the user informed
-    let statusMsg = await ctx.reply(getLocalizedThinkingStatus(ctx.message.text as string), { parse_mode: "Markdown" });
+    let statusMsg = await ctx.api.sendMessage(userId, getLocalizedThinkingStatus(userText), { parse_mode: "Markdown" });
 
     const onStep = async (status: string) => {
-        console.log(`🤖 Agent Update [@${user}]: ${status}`);
+        console.log(`🤖 Agent Update [@${username}]: ${status}`);
         try {
             await ctx.api.editMessageText(userId, statusMsg.message_id, status, { parse_mode: "Markdown" });
         } catch (err) {
@@ -734,7 +745,7 @@ How can I help you today?
         }
     };
 
-    const { text, imageUrl } = await processUserMessage(userId, ctx.message.text as string, onStep);
+    const { text, imageUrl, buttons } = await processUserMessage(userId, userText, onStep);
 
     // Clean up status message
     try {
@@ -743,32 +754,77 @@ How can I help you today?
         // Ignore
     }
 
-    await safeReply(ctx, text, imageUrl, user);
+    await safeReply(ctx, text, imageUrl, username, buttons);
+}
+
+/**
+ * Handle button clicks by re-routing the callback data to the agent.
+ */
+bot.on("callback_query:data", async (ctx) => {
+    const userId = ctx.from.id;
+    const userText = ctx.callbackQuery.data;
+    const username = ctx.from.username || ctx.from.first_name;
+
+    // Answer the callback to remove loading state in Telegram
+    await ctx.answerCallbackQuery();
+
+    // Acknowledge the click in the chat if possible, or just process it
+    // We send it to the agent as if the user typed it.
+    await handleUserText(ctx, userId, userText, username);
 });
 
 /**
  * Sends a message or photo with Markdown parsing, 
  * falling back to plain text if parsing fails.
  */
-async function safeReply(ctx: any, text: string, imageUrl: string | undefined, user: string | number) {
+async function safeReply(
+    ctx: any,
+    text: string,
+    imageUrl: string | undefined,
+    user: string | number,
+    buttons?: Array<{ text: string, data: string }>
+) {
+    const keyboard = buttons && buttons.length > 0
+        ? new InlineKeyboard()
+        : undefined;
+
+    if (keyboard && buttons) {
+        buttons.forEach((btn, index) => {
+            keyboard.text(btn.text, btn.data);
+            if ((index + 1) % 1 === 0) keyboard.row(); // One button per row for better readability
+        });
+    }
+
     try {
         if (imageUrl) {
             console.log(`🤖 Bot Reply Photo [@${user}]: ${imageUrl} - ${text.slice(0, 50)}...`);
-            await ctx.replyWithPhoto(imageUrl, { caption: text, parse_mode: "Markdown" });
+            await ctx.replyWithPhoto(imageUrl, {
+                caption: text,
+                parse_mode: "Markdown",
+                reply_markup: keyboard
+            });
         } else {
             console.log(`🤖 Bot Reply Text [@${user}]: ${text.slice(0, 100)}${text.length > 100 ? "..." : ""}`);
-            await ctx.reply(text, { parse_mode: "Markdown" });
+            await ctx.reply(text, {
+                parse_mode: "Markdown",
+                reply_markup: keyboard
+            });
         }
     } catch (error: any) {
         if (error.description && error.description.includes("can't parse entities")) {
             console.warn(`⚠️ Markdown parsing failed for [@${user}], retrying in plain text:`, error.description);
             if (imageUrl) {
-                await ctx.replyWithPhoto(imageUrl, { caption: text });
+                await ctx.replyWithPhoto(imageUrl, {
+                    caption: text,
+                    reply_markup: keyboard
+                });
             } else {
-                await ctx.reply(text);
+                await ctx.reply(text, {
+                    reply_markup: keyboard
+                });
             }
         } else {
-            throw error; // Rethrow other errors
+            throw error;
         }
     }
 }

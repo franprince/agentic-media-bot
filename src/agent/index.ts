@@ -25,7 +25,7 @@ export async function processUserMessage(
     userId: number,
     userMessage?: string,
     onStep?: (status: string) => Promise<void>
-): Promise<{ text: string, imageUrl?: string }> {
+): Promise<{ text: string, imageUrl?: string, buttons?: Array<{ text: string, data: string }> }> {
     // Retrieve conversation history for the user from SQLite
     let history = getHistory(userId);
     const userName = getUserName(userId) || "Friend";
@@ -279,6 +279,7 @@ export async function processUserMessage(
 
         let text = response.text || "I had trouble formulating a response.";
         let imageUrl: string | undefined;
+        let buttons: Array<{ text: string, data: string }> | undefined;
 
         // Scrub any remaining textual placeholders the model might have hallucinated
         text = text.replace(/^(Poster|Image|Thumbnail|Poster URL):\s*.*$/gim, "");
@@ -303,6 +304,14 @@ export async function processUserMessage(
             const hasExactPrefixAlready = text.startsWith(exactCountPrefix);
             if (!hasExactPrefixAlready) {
                 text = `${exactCountPrefix} \n\n${text} `.trim();
+            }
+        }
+
+        // Extract buttons from tool results if any tool suggested them
+        for (const tr of toolResultsForCounts) {
+            if (tr.result && Array.isArray(tr.result.buttons)) {
+                buttons = tr.result.buttons;
+                break; // Use the first set of buttons found
             }
         }
 
@@ -331,8 +340,9 @@ export async function processUserMessage(
 
         console.log(`🤖 Bot Response to ${userId}: `, text);
         if (imageUrl) console.log(`🖼️ Attached Poster: `, imageUrl);
+        if (buttons) console.log(`🔘 Attached Buttons: `, JSON.stringify(buttons));
 
-        return { text, imageUrl };
+        return { text, imageUrl, buttons };
     } catch (error) {
         console.error("Error processing LLM response:", error);
         const fallbackLang = detectStatusLanguage(userMessage ?? getLastUserTextFromHistory(history));
