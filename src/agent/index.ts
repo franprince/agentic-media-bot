@@ -149,6 +149,38 @@ export async function processUserMessage(
         });
         const sanitizedTools = Object.fromEntries(activeToolEntries);
 
+        // --- Proxy Tool Interception ---
+        const { isProxyEnabled, executeOnProxy } = await import("./proxyClient");
+        let finalTools = sanitizedTools;
+
+        if (isProxyEnabled()) {
+            finalTools = Object.fromEntries(
+                Object.entries(sanitizedTools).map(([name, toolObject]) => {
+                    return [
+                        name,
+                        {
+                            ...(toolObject as any),
+                            execute: async (args: any, options: any) => {
+                                // Maps the unified tool name (e.g. "searchMovie") to the actual exported SDK tool name (e.g. "searchMovieTool")
+                                // by looking up the key in the original mapping, but wait, the Proxy needs the target function.
+                                // We can just send the tool object key from `botTools`.
+                                const originalExportName = Object.keys(botTools).find(
+                                    k => (botTools as any)[k] === toolObject
+                                );
+
+                                if (!originalExportName) {
+                                    throw new Error(`Could not find export name for tool ${name}`);
+                                }
+
+                                // Send the RPC payload: { service: "tools", method: "searchMovieTool", args: [args, {}] }
+                                return await executeOnProxy("tools", originalExportName, [args, {}]);
+                            }
+                        }
+                    ];
+                })
+            );
+        }
+
         const firstPassParams = {
             model: modelFast as any,
             system: DEFAULT_SYSTEM_PROMPT
@@ -156,7 +188,7 @@ export async function processUserMessage(
                 .replace("{{userName}}", userName)
                 .trim(),
             messages: history,
-            tools: sanitizedTools,
+            tools: finalTools,
             onStepFinish: async (step: any) => {
                 const thought = step.text?.trim();
                 const normalizedToolCalls = normalizeToolCallsForLogging(step.toolCalls as any[]);

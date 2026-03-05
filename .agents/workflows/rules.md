@@ -9,3 +9,4 @@ description: Ensure the bot remains compliant with project specifications and up
 4. **Verify Verification Logic**: Ensure `src/verify-config.ts` includes checks for any new environment variables or service dependencies you've added.
 5. **Atomic Commit**: Commit your changes following the conventional commit format, referencing the feature addition.
 6. **Restart Bot**: Use `run_command` with `bun run src/bot.ts` to restart the bot and verify the latest changes (including the startup audit and changelog).
+7. **Restart Proxy**: If the changes involve the proxy or local services, use `run_command` with `bun run src/proxy.ts` or the supervisor command to restart the proxy.

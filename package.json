@@ -6,6 +6,7 @@
   "scripts": {
     "verify": "bun src/verify-config.ts",
     "dev": "bun run --watch src/bot.ts",
+    "proxy": "bun run src/proxy.ts",
     "check:bot-parse": "bun build src/bot.ts --target bun --outfile /tmp/bot-parse-check.js"
   },
   "devDependencies": {
