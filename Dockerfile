@@ -1,10 +1,18 @@
-FROM oven/bun:1 as base
-WORKDIR /usr/src/app
+FROM oven/bun:1.1 as base
+WORKDIR /app
 
+# Install dependencies
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
+# Copy source
 COPY . .
 
-# Run the app 
+# Deployment env
+ENV NODE_ENV=production
+
+# The bot uses port 3000 for webhooks
+EXPOSE 3000
+
+# Run the bot
 CMD ["bun", "run", "src/bot.ts"]
