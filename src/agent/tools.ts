@@ -233,6 +233,7 @@ export const searchMovieTool = tool({
             // Limit results to avoid massive context payloads
             return results.slice(0, 5).map(m => ({
                 title: m.title,
+                mediaType: "[Movie]",
                 originalTitle: m.originalTitle,
                 year: m.year,
                 genres: m.genres,
@@ -417,6 +418,7 @@ export const searchSeriesTool = tool({
         const results = await sonarr.searchSeries(term);
         return results.slice(0, 5).map(s => ({
             title: s.title,
+            mediaType: "[Show]",
             originalTitle: s.originalTitle,
             year: s.year,
             genres: s.genres,
@@ -721,6 +723,7 @@ export const searchPlexByTitleOnlyTool = tool({
             return {
                 title: m.title,
                 type: m.type,
+                mediaType: m.type === "movie" ? "[Movie]" : m.type === "show" ? "[Show]" : `[${m.type}]`,
                 year: m.year,
                 overview: m.summary,
                 imdbId: imdbMatch ? imdbMatch[1] : undefined,
@@ -774,6 +777,7 @@ export const browsePlexByGenreTool = tool({
             searchParam: genre,
             sampleItems: uniqueResults.slice(0, 15).map(m => ({
                 title: m.title,
+                mediaType: m.type === "movie" ? "[Movie]" : m.type === "show" ? "[Show]" : `[${m.type}]`,
                 originalTitle: m.originalTitle,
                 year: m.year,
                 overview: m.summary,
@@ -917,7 +921,7 @@ export const findPlexByCountryTool = tool({
         }
 
         const uniqueResults = deduplicatePlexItems(allResults);
-        const strictCountryResults = await plex.filterItemsByCountryTag(uniqueResults, country, { primaryOnly: true });
+        const strictCountryResults = await plex.filterItemsByCountryTag(uniqueResults, country, { primaryOnly: false });
 
         if (strictCountryResults.length === 0) {
             return {
@@ -978,6 +982,7 @@ export const findPlexByCountryTool = tool({
 
             return {
                 title: m.title,
+                mediaType: m.type === "movie" ? "[Movie]" : m.type === "show" ? "[Show]" : `[${m.type}]`,
                 originalTitle: enrichedOriginalTitle,
                 aliasTitle,
                 year: m.year,
@@ -1111,24 +1116,26 @@ export const searchPlexByDurationTool = tool({
 });
 
 export const getPlexLibraryStatsTool = tool({
-    description: "Get statistics about the Plex library, specifically the total number of movies and TV shows.",
+    description: "Get statistics about the Plex library, summarizing content by section type across all library sections.",
     parameters: z.object({}),
     execute: async (_args: any) => {
-        const movieSectionIds = plex.getMovieSectionIds();
-        const showSectionIds = plex.getShowSectionIds();
+        const sections = await plex.getLibrarySections();
+        if (!sections.Directory || sections.Directory.length === 0) {
+            return { totalMovies: 0, totalShows: 0, message: "No library sections found in Plex." };
+        }
 
-        const [movieCounts, showCounts] = await Promise.all([
-            Promise.all(movieSectionIds.map(id => plex.getLibrarySize(id))),
-            Promise.all(showSectionIds.map(id => plex.getLibrarySize(id))),
-        ]);
+        const counts = await Promise.all((sections.Directory as any[]).map(async (d) => {
+            const size = await plex.getLibrarySize(d.key);
+            return { type: d.type, size };
+        }));
 
-        const totalMovies = movieCounts.reduce((a, b) => a + b, 0);
-        const totalShows = showCounts.reduce((a, b) => a + b, 0);
+        const totalMovies = counts.filter(c => c.type === "movie").reduce((acc, c) => acc + c.size, 0);
+        const totalShows = counts.filter(c => c.type === "show").reduce((acc, c) => acc + c.size, 0);
 
         return {
             totalMovies,
             totalShows,
-            message: `You have ${totalMovies} movies and ${totalShows} TV shows in your Plex library across monitored sections.`
+            message: `You have ${totalMovies} movies and ${totalShows} TV shows in your Plex library across all ${sections.Directory.length} sections.`
         };
     },
 });

@@ -271,6 +271,14 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "feat: Implemented removeMovieTool and removeSeriesTool for the agent.",
         ],
     },
+    {
+        version: "4.21.0",
+        changes: [
+            "feat: Added media type labeling ([Movie]/[Show]) to all search results.",
+            "feat: Broadened country search to include co-productions (e.g., Japan/USA).",
+            "feat: Improved library statistics to include all sections (including Anime) dynamically.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {
