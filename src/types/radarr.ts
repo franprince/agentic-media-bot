@@ -20,6 +20,7 @@ export interface RadarrMovie {
     // Additional fields needed for adding
     qualityProfileId?: number;
     rootFolderPath?: string;
+    path?: string;
 }
 
 export interface RadarrQueueItem {

@@ -31,6 +31,7 @@ export interface SonarrSeries {
         episodeCount: number;
         episodeFileCount: number;
     };
+    path?: string;
 }
 
 export interface SonarrQueueItem {

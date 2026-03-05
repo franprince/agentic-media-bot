@@ -383,17 +383,31 @@ export const getMovieQueueTool = tool({
 });
 
 export const removeMovieTool = tool({
-    description: "Remove a MOVIE from Radarr. Requires the TMDB ID from a previous search. By default, it will not delete the files. Set 'deleteFiles' to true to delete the actual media files.",
+    description: "Remove a MOVIE from Radarr. Requires the TMDB ID from a previous search. This tool will first return the match details and ask for confirmation along with a choice to delete or keep the actual media files, unless 'confirm' is true.",
     parameters: z.object({
         tmdbId: z.union([z.number(), z.string().transform(Number)]).describe("The TMDB ID of the movie to remove."),
         deleteFiles: z.boolean().default(false).describe("Whether to delete the downloaded media files as well."),
+        confirm: z.boolean().default(false).describe("Set to true ONLY when the user has explicitly confirmed the removal and the file deletion choice."),
     }),
-    execute: async ({ tmdbId, deleteFiles }: { tmdbId: number, deleteFiles: boolean }) => {
+    execute: async ({ tmdbId, deleteFiles, confirm }: { tmdbId: number, deleteFiles: boolean, confirm: boolean }) => {
         try {
             const results = await radarr.searchMovie(`tmdb:${tmdbId}`);
             const match = results.find(m => m.tmdbId === Number(tmdbId));
             if (!match || !match.id) {
                 return { message: `Could not find a movie in Radarr with TMDB ID ${tmdbId}.` };
+            }
+
+            if (!confirm) {
+                return {
+                    message: `Found movie: '${match.title} (${match.year})'. Path: ${match.path || "N/A"}.\n\n⚠️ Are you sure you want to remove it? Please confirm and specify if you want to **DELETE THE MEDIA FILES** or keep them safely.`,
+                    item: {
+                        title: match.title,
+                        year: match.year,
+                        tmdbId: match.tmdbId,
+                        path: match.path
+                    },
+                    requiresConfirmation: true
+                };
             }
 
             await radarr.deleteMovie(match.id, deleteFiles);
@@ -574,16 +588,30 @@ export const getSeriesQueueTool = tool({
 });
 
 export const removeSeriesTool = tool({
-    description: "Remove a TV SERIES from Sonarr. Requires the TVDB ID from a previous search. By default, it will not delete the files. Set 'deleteFiles' to true to delete the actual media files.",
+    description: "Remove a TV SERIES from Sonarr. Requires the TVDB ID from a previous search. This tool will first return the match details and ask for confirmation along with a choice to delete or keep the actual media files, unless 'confirm' is true.",
     parameters: z.object({
         tvdbId: z.union([z.number(), z.string().transform(Number)]).describe("The TVDB ID of the series to remove."),
         deleteFiles: z.boolean().default(false).describe("Whether to delete the downloaded media files as well."),
+        confirm: z.boolean().default(false).describe("Set to true ONLY when the user has explicitly confirmed the removal and the file deletion choice."),
     }),
-    execute: async ({ tvdbId, deleteFiles }: { tvdbId: number, deleteFiles: boolean }) => {
+    execute: async ({ tvdbId, deleteFiles, confirm }: { tvdbId: number, deleteFiles: boolean, confirm: boolean }) => {
         try {
             const match = await sonarr.getSeriesByTvdbId(Number(tvdbId));
             if (!match || !match.id) {
                 return { message: `Could not find a series in Sonarr with TVDB ID ${tvdbId}.` };
+            }
+
+            if (!confirm) {
+                return {
+                    message: `Found series: '${match.title} (${match.year})'. Path: ${match.path || "N/A"}.\n\n⚠️ Are you sure you want to remove it? Please confirm and specify if you want to **DELETE THE MEDIA FILES** or keep them safely.`,
+                    item: {
+                        title: match.title,
+                        year: match.year,
+                        tvdbId: match.tvdbId,
+                        path: match.path
+                    },
+                    requiresConfirmation: true
+                };
             }
 
             await sonarr.deleteSeries(match.id, deleteFiles);

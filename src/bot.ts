@@ -279,6 +279,14 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "feat: Improved library statistics to include all sections (including Anime) dynamically.",
         ],
     },
+    {
+        version: "4.21.1",
+        changes: [
+            "fix: Added mandatory interactive confirmation for media removal in Radarr and Sonarr.",
+            "fix: Bot now explicitly asks whether to keep or delete media files during removals.",
+            "fix: Resolved type definition missing fields for Radarr and Sonarr media objects.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {
