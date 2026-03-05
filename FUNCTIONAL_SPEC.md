@@ -97,6 +97,10 @@ A conversational Telegram bot that controls a user's home media server stack, ca
 11. **Real-time Notifications (Plex Webhooks)**
     - **Library Activity**: Internal cache is automatically invalidated when new media is added to Plex (`library.new`) to ensure data freshness. No user notification is sent for this event.
     - **Playback Activity**: Notifies when a user starts watching (`media.play`) or finishes watching (`media.scrobble`) media.
+    - **Real-time Notifications**: Integrated Telegram notifications for:
+    - **Plex**: Playback status (play, resume, finish) and library additions.
+    - **Radarr**: Media grabbed and download completes.
+    - **Sonarr**: Episode grabbed and download completes.
     - **Rich Notifications**: Fetches posters/thumbnails locally from Plex and uploads them as `InputFile` to ensure delivery even from internal/localhost addresses.
     - **Customized Playback Format**: Notifies starting/resuming/finishing media with user-specific templates:
         - Movies: `User started watching the movie Title (Original Title)`

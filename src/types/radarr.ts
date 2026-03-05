@@ -33,3 +33,30 @@ export interface RadarrQueueItem {
     trackedDownloadState: string;
     errorMessage?: string;
 }
+
+export interface RadarrWebhookPayload {
+    eventType: "Grab" | "Download" | "Test";
+    movie: {
+        id: number;
+        title: string;
+        year: number;
+        tmdbId: number;
+        imdbId?: string;
+    };
+    remoteMovie: {
+        title: string;
+        year: number;
+        tmdbId: number;
+        imdbId?: string;
+    };
+    release: {
+        quality: string;
+        qualityVersion: number;
+        releaseGroup?: string;
+        releaseTitle: string;
+        indexer: string;
+        size: number;
+    };
+    downloadClient?: string;
+    downloadId?: string;
+}

@@ -4,6 +4,8 @@ import { searchMovie } from "./radarr";
 import { searchSeries } from "./sonarr";
 import { clearCache } from "../agent/tools";
 import { Bot, InputFile } from "grammy";
+import type { RadarrWebhookPayload } from "../types/radarr";
+import type { SonarrWebhookPayload } from "../types/sonarr";
 
 export interface PlexWebhookPayload {
     event: string;
@@ -213,6 +215,84 @@ export async function handlePlexWebhook(request: Request, bot: Bot) {
     } catch (error) {
         const err = error as Error;
         console.error("Error processing Plex webhook:", err.message);
+        return new Response("Internal Server Error", { status: 500 });
+    }
+}
+
+export async function handleRadarrWebhook(request: Request, bot: Bot) {
+    try {
+        const payload = (await request.json()) as RadarrWebhookPayload;
+        const { eventType, movie, release } = payload;
+
+        if (eventType === "Test") {
+            return new Response("OK", { status: 200 });
+        }
+
+        const notifyChatId = process.env.WEBHOOK_NOTIFY_CHAT_ID || process.env.ALLOWED_USER_IDS?.split(",")[0];
+        if (!notifyChatId || !areNotificationsEnabled()) {
+            return new Response("OK", { status: 200 });
+        }
+
+        let message = "";
+        if (eventType === "Grab") {
+            message = `📥 *Radarr*: Grabbed *${movie.title} (${movie.year})*\n\n`;
+            message += `▫️ *Quality*: ${release.quality}\n`;
+            if (release.releaseTitle) message += `▫️ *Release*: \`${release.releaseTitle}\`\n`;
+            if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
+        } else if (eventType === "Download") {
+            message = `✅ *Radarr*: Download complete for *${movie.title} (${movie.year})*\n\n`;
+            message += `▫️ *Quality*: ${release.quality}\n`;
+            if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
+        }
+
+        if (message) {
+            await bot.api.sendMessage(notifyChatId, message, { parse_mode: "Markdown" });
+        }
+
+        return new Response("OK", { status: 200 });
+    } catch (err) {
+        console.error("Error processing Radarr webhook:", (err as Error).message);
+        return new Response("Internal Server Error", { status: 500 });
+    }
+}
+
+export async function handleSonarrWebhook(request: Request, bot: Bot) {
+    try {
+        const payload = (await request.json()) as SonarrWebhookPayload;
+        const { eventType, series, episodes, release } = payload;
+
+        if (eventType === "Test") {
+            return new Response("OK", { status: 200 });
+        }
+
+        const notifyChatId = process.env.WEBHOOK_NOTIFY_CHAT_ID || process.env.ALLOWED_USER_IDS?.split(",")[0];
+        if (!notifyChatId || !areNotificationsEnabled()) {
+            return new Response("OK", { status: 200 });
+        }
+
+        let message = "";
+        const episodesLabel = episodes && episodes.length > 0
+            ? episodes.map(e => `S${e.seasonNumber.toString().padStart(2, '0')}E${e.episodeNumber.toString().padStart(2, '0')}`).join(", ")
+            : "";
+
+        if (eventType === "Grab") {
+            message = `📥 *Sonarr*: Grabbed *${series.title}${episodesLabel ? ` - ${episodesLabel}` : ""}*\n\n`;
+            if (release) message += `▫️ *Quality*: ${release.quality}\n`;
+            if (release?.releaseTitle) message += `▫️ *Release*: \`${release.releaseTitle}\`\n`;
+            if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
+        } else if (eventType === "Download") {
+            message = `✅ *Sonarr*: Download complete for *${series.title}${episodesLabel ? ` - ${episodesLabel}` : ""}*\n\n`;
+            if (release) message += `▫️ *Quality*: ${release.quality}\n`;
+            if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
+        }
+
+        if (message) {
+            await bot.api.sendMessage(notifyChatId, message, { parse_mode: "Markdown" });
+        }
+
+        return new Response("OK", { status: 200 });
+    } catch (err) {
+        console.error("Error processing Sonarr webhook:", (err as Error).message);
         return new Response("Internal Server Error", { status: 500 });
     }
 }

@@ -45,3 +45,34 @@ export interface SonarrQueueItem {
     trackedDownloadState: string;
     errorMessage?: string;
 }
+
+export interface SonarrWebhookPayload {
+    eventType: "Grab" | "Download" | "SeriesAdd" | "Test";
+    series: {
+        id: number;
+        title: string;
+        path: string;
+        tvdbId: number;
+        tvMazeId?: number;
+        imdbId?: string;
+        type: string;
+    };
+    episodes?: Array<{
+        id: number;
+        episodeNumber: number;
+        seasonNumber: number;
+        title: string;
+        airDate?: string;
+        airDateUtc?: string;
+    }>;
+    release?: {
+        quality: string;
+        qualityVersion: number;
+        releaseGroup?: string;
+        releaseTitle: string;
+        indexer: string;
+        size: number;
+    };
+    downloadClient?: string;
+    downloadId?: string;
+}

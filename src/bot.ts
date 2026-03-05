@@ -6,7 +6,7 @@ import { detectStatusLanguage } from "./agent/status.ts";
 import { getMetadata, setMetadata, getAllConversations, getUserName, setUserName, areNotificationsEnabled, setNotificationsEnabled } from "./services/database.ts";
 import { verifyConfig } from "./verify-config";
 import { checkAllServices } from "./services/health";
-import { handlePlexWebhook } from "./services/webhooks.ts";
+import { handlePlexWebhook, handleRadarrWebhook, handleSonarrWebhook } from "./services/webhooks.ts";
 import * as sonarr from "./services/sonarr";
 
 // Setup telegram bot using the token from environment variables
@@ -761,8 +761,16 @@ bot.api.getMe().then(async (me) => {
             port: WEBHOOK_PORT,
             async fetch(req) {
                 const url = new URL(req.url);
-                if (req.method === "POST" && url.pathname === "/plex-webhook") {
-                    return handlePlexWebhook(req, bot);
+                if (req.method === "POST") {
+                    if (url.pathname === "/plex-webhook") {
+                        return handlePlexWebhook(req, bot);
+                    }
+                    if (url.pathname === "/radarr-webhook") {
+                        return handleRadarrWebhook(req, bot);
+                    }
+                    if (url.pathname === "/sonarr-webhook") {
+                        return handleSonarrWebhook(req, bot);
+                    }
                 }
                 return new Response("Not Found", { status: 404 });
             },

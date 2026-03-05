@@ -5,6 +5,10 @@
 - **Language:** TypeScript (`strict` true)
 - **Bot Framework:** `grammy`
 - **AI Integration:** `@ai-sdk/google` (`gemini-2.0-flash`) or `@ai-sdk/openai` (via `createOpenAI` bridge) for Ollama (local or cloud). Utilizes tool calling with `maxSteps: 5` for multi-step reasoning.
+- **Webhooks**: Exposes endpoints via `Bun.serve` on port 3000:
+    - `/plex-webhook`: Processes Plex Media Server events (Plex-specific multipart/form-data).
+    - `/radarr-webhook`: Processes Radarr JSON notifications (Grab, Download).
+    - `/sonarr-webhook`: Processes Sonarr JSON notifications (Grab, Download).
 - **HTTP Client:** Native `fetch` API.
 - **Testing:** `bun:test` for unit/integration tests, using **Mock Service Worker (MSW)** for network interception and service mocking.
 
