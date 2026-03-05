@@ -832,6 +832,37 @@ try {
     // Ignore pgrep failures
 }
 
+// Initialize HTTP Server for Healthchecks and Webhooks
+Bun.serve({
+    port: Number(process.env.WEBHOOK_PORT) || 3000,
+    async fetch(req) {
+        const url = new URL(req.url);
+
+        // Health check endpoint for Docker/Coolify
+        if (req.method === "GET" && url.pathname === "/health") {
+            return new Response(JSON.stringify({ status: "ok", timestamp: new Date().toISOString() }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" }
+            });
+        }
+
+        if (req.method === "POST" && process.env.USE_PLEX_WEBHOOK === "true") {
+            if (url.pathname === "/plex-webhook") {
+                return handlePlexWebhook(req, bot);
+            }
+            if (url.pathname === "/radarr-webhook") {
+                return handleRadarrWebhook(req, bot);
+            }
+            if (url.pathname === "/sonarr-webhook") {
+                return handleSonarrWebhook(req, bot);
+            }
+        }
+        return new Response("Not Found", { status: 404 });
+    },
+});
+
+console.log(`📡 Health/Webhook server listening on port ${process.env.WEBHOOK_PORT || 3000}.`);
+
 bot.api.getMe().then(async (me) => {
     console.log(`✅ Bot is online and listening as @${me.username}`);
 
@@ -911,41 +942,7 @@ bot.api.getMe().then(async (me) => {
 
     // Use grammyjs/runner to handle graceful restarts and long-polling concurrently
     botRunner = run(bot);
-
-    // Initialize HTTP Server for Healthchecks and Webhooks
-    Bun.serve({
-        port: Number(process.env.WEBHOOK_PORT) || 3000,
-        async fetch(req) {
-            const url = new URL(req.url);
-
-            // Health check endpoint for Docker/Coolify
-            if (req.method === "GET" && url.pathname === "/health") {
-                return new Response(JSON.stringify({ status: "ok", timestamp: new Date().toISOString() }), {
-                    status: 200,
-                    headers: { "Content-Type": "application/json" }
-                });
-            }
-
-            if (req.method === "POST" && process.env.USE_PLEX_WEBHOOK === "true") {
-                if (url.pathname === "/plex-webhook") {
-                    return handlePlexWebhook(req, bot);
-                }
-                if (url.pathname === "/radarr-webhook") {
-                    return handleRadarrWebhook(req, bot);
-                }
-                if (url.pathname === "/sonarr-webhook") {
-                    return handleSonarrWebhook(req, bot);
-                }
-            }
-            return new Response("Not Found", { status: 404 });
-        },
-    });
-
-    if (process.env.USE_PLEX_WEBHOOK === "true") {
-        console.log(`🚀 Bot is ready. Webhook server listening on port ${process.env.WEBHOOK_PORT || 3000}.`);
-    } else {
-        console.log(`🚀 Bot is ready. Health server listening on port ${process.env.WEBHOOK_PORT || 3000}.`);
-    }
+    console.log("🚀 Bot is ready and polling.");
 });
 
 async function syncUnrepliedMessages() {
