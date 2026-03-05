@@ -1,4 +1,8 @@
-import { LanguageModelV1, LanguageModelV1Prompt, LanguageModelV1StreamPart } from "ai";
+import type {
+    LanguageModelV1,
+    LanguageModelV1Prompt,
+    LanguageModelV1CallOptions
+} from "ai";
 
 export class SimpleOllamaProvider implements LanguageModelV1 {
     readonly specificationVersion = 'v1';
@@ -13,16 +17,7 @@ export class SimpleOllamaProvider implements LanguageModelV1 {
 
     readonly defaultObjectGenerationMode = undefined;
 
-    async doGenerate(options: {
-        prompt: LanguageModelV1Prompt;
-        stopSequences?: string[];
-        maxTokens?: number;
-        temperature?: number;
-        topP?: number;
-        frequencyPenalty?: number;
-        presencePenalty?: number;
-        seed?: number;
-    }) {
+    async doGenerate(options: LanguageModelV1CallOptions) {
         // Convert LanguageModelV1Prompt to a simple prompt string
         // This is a minimal implementation for text generation
         const prompt = options.prompt
@@ -57,16 +52,23 @@ export class SimpleOllamaProvider implements LanguageModelV1 {
 
         return {
             text,
-            finishReason: 'stop' as const,
+            finishReason: 'stop' as any,
             usage: {
                 promptTokens: data.prompt_eval_count || 0,
                 completionTokens: data.eval_count || 0,
             },
-            rawCall: { rawPrompt: prompt, rawResponse: data },
+            rawCall: {
+                rawPrompt: prompt,
+                rawSettings: {
+                    temperature: options.temperature,
+                    topP: options.topP,
+                    maxTokens: options.maxTokens,
+                }
+            },
         };
     }
 
-    async doStream(options: any) {
+    async doStream(options: LanguageModelV1CallOptions): Promise<any> {
         throw new Error('Streaming not implemented in SimpleOllamaProvider');
     }
 }
