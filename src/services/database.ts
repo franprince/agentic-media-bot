@@ -1,7 +1,14 @@
 import { Database } from "bun:sqlite";
 import type { CoreMessage } from "ai";
+import { existsSync, mkdirSync } from "fs";
+import { join } from "path";
 
-const db = new Database("bot_data.sqlite", { create: true });
+const DATA_DIR = "data";
+if (!existsSync(DATA_DIR)) {
+  mkdirSync(DATA_DIR, { recursive: true });
+}
+
+const db = new Database(join(DATA_DIR, "bot_data.sqlite"), { create: true });
 
 // Initialize database
 db.run(`

@@ -18,9 +18,10 @@
 - `src/agent/index.ts`: LLM abstraction. Handles message history, conditional model loading, and iterative tool execution.
 - `src/services/`: Modular wrappers for Radarr, Sonarr, qBittorrent, Plex, and NZBGet APIs.
 - `src/agent/tools.ts`: Unified tool repository for AI integration.
-- `src/services/database.ts`: Persistence layer using `bun:sqlite` for conversation history and user personalization (names).
+- `src/services/database.ts`: Persistence layer using `bun:sqlite` for conversation history and user personalization (names). The database is stored in `data/bot_data.sqlite` to facilitate persistence via Docker volumes.
 - `src/services/webhooks.ts`: Webhook handler for external service integration (e.g., Plex).
 - `src/types/`: TypeScript interfaces representing external payloads.
+- `data/`: Directory for persistent data (database files, etc.). Must be mapped to a persistent volume in Docker/Coolify.
 
 ## Security & Authentication
 - The bot must implement an allowlist of Telegram User IDs. If a message is received from an unknown ID, it should be ignored or gracefully rejected.

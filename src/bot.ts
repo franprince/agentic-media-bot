@@ -294,6 +294,14 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "fix: Streamlined message handling to properly route callback queries through the agent.",
         ],
     },
+    {
+        version: "4.22.0",
+        changes: [
+            "fix: Implemented database persistence in Coolify by migrating bot_data.sqlite to a dedicated data/ directory.",
+            "feat: Added automated data/ directory provisioning on startup.",
+            "docs: Updated technical specifications with persistent volume mapping requirements.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {
