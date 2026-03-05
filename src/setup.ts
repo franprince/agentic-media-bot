@@ -62,6 +62,7 @@ if (config.AI_PROVIDER === "google") {
     console.log("Get your API key at: https://aistudio.google.com/app/apikey");
     config.GOOGLE_GENERATIVE_AI_API_KEY = prompt("Enter your Google AI API Key:") || "";
 } else {
+    config.OLLAMA_BASE_URL = prompt("Enter Ollama base URL [http://127.0.0.1:11434]:", "http://127.0.0.1:11434") || "http://127.0.0.1:11434";
     config.OLLAMA_MODEL = prompt("Enter Ollama Model name [llama3.1]:", "llama3.1") || "llama3.1";
 }
 

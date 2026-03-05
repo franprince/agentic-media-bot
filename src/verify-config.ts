@@ -1,6 +1,6 @@
 import { generateText } from "ai";
 import { google } from "@ai-sdk/google";
-import { ollama } from "ollama-ai-provider";
+import { createOpenAI } from "@ai-sdk/openai";
 import { Bot } from "grammy";
 import * as radarr from "./services/radarr";
 import * as sonarr from "./services/sonarr";
@@ -38,15 +38,47 @@ export async function verifyConfig() {
             }
         },
         {
-            name: "Ollama Connectivity (Local Agent)",
+            name: "Ollama / Cloud Ollama Connectivity",
             fn: async () => {
-                const modelName = process.env.OLLAMA_MODEL || "llama3.1";
+                if (process.env.AI_PROVIDER !== "ollama") {
+                    return "Skipped: Not using Ollama as provider.";
+                }
+                const modelName = process.env.OLLAMA_MODEL || process.env.AI_MODEL_FAST || "llama3.1";
+                const baseUrl = (process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
+                try {
+                    const ollamaProvider = createOpenAI({ baseURL: `${baseUrl}/v1`, apiKey: "ollama" });
+                    const response = await generateText({
+                        model: ollamaProvider(modelName),
+                        prompt: "Say hi",
+                        maxRetries: 1,
+                    });
+                    return `Success: Ollama (${modelName}) at ${baseUrl} responded: ${response.text.slice(0, 80)}`;
+                } catch (err: any) {
+                    console.error("\nFull Ollama Error:", err);
+                    throw err;
+                }
+            }
+        },
+        {
+            name: "OpenAI/OpenRouter Connectivity",
+            fn: async () => {
+                if (process.env.AI_PROVIDER !== "openai") {
+                    return "Skipped: Not using OpenAI as provider.";
+                }
+                const key = process.env.OPENAI_API_KEY;
+                if (!key) throw new Error("OPENAI_API_KEY is missing.");
+
+                const modelName = process.env.AI_MODEL_FAST || "gpt-4o-mini";
+                const openaiProvider = createOpenAI({
+                    apiKey: key,
+                    baseURL: process.env.OPENAI_BASE_URL,
+                });
                 const response = await generateText({
-                    model: ollama(modelName) as any,
-                    prompt: "Say 'Local agent active'",
+                    model: openaiProvider(modelName),
+                    prompt: "Hello, are you working?",
                     maxRetries: 1,
                 });
-                return `Success: Ollama (${modelName}) responded: ${response.text}`;
+                return `Success: OpenAI (${modelName}) responded.`;
             }
         },
         {
@@ -125,7 +157,7 @@ export async function verifyConfig() {
                     });
                     const pids = proc.stdout.toString().split("\n").filter(Boolean);
                     instances = pids.length;
-                    
+
                     // Additional validation: check if PIDs are actually running our bot
                     const validPids = [];
                     for (const pid of pids) {
@@ -174,4 +206,4 @@ export async function verifyConfig() {
     console.log("\n✨ Verification complete.");
 }
 
-// verifyConfig().catch(console.error);
+verifyConfig().catch(console.error);

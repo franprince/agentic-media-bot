@@ -1,6 +1,6 @@
 import { generateText, type CoreMessage } from "ai";
 import { google } from "@ai-sdk/google";
-import { ollama } from "ollama-ai-provider";
+import { createOpenAI } from "@ai-sdk/openai";
 import * as botTools from "./tools";
 import { getHistory, saveHistory, getUserName } from "../services/database.ts";
 import { detectStatusLanguage, formatToolCallsStatus, type StatusLanguage } from "./status";
@@ -85,16 +85,21 @@ export async function processUserMessage(
     try {
         const statusSeedText = userMessage ?? getLastUserTextFromHistory(history);
         const statusLang: StatusLanguage = detectStatusLanguage(statusSeedText);
-        const provider = process.env.AI_PROVIDER === "ollama" ? ollama : google;
+        const isOllama = process.env.AI_PROVIDER === "ollama";
+        const ollamaBaseUrl = (process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
         const modelFastName = process.env.AI_MODEL_FAST || process.env.AI_MODEL || "gemini-1.5-flash";
         const modelCapableName = process.env.AI_MODEL_CAPABLE || modelFastName;
 
-        const modelFast = process.env.AI_PROVIDER === "ollama"
-            ? ollama(modelFastName)
+        const ollamaProvider = isOllama
+            ? createOpenAI({ baseURL: `${ollamaBaseUrl}/v1`, apiKey: "ollama" })
+            : null;
+
+        const modelFast = isOllama
+            ? ollamaProvider!(modelFastName)
             : google(modelFastName);
 
-        const modelCapable = process.env.AI_PROVIDER === "ollama"
-            ? ollama(modelCapableName)
+        const modelCapable = isOllama
+            ? ollamaProvider!(modelCapableName)
             : google(modelCapableName);
 
         const userName = getUserName(userId) || "Friend";
