@@ -3,7 +3,8 @@ import { run } from "@grammyjs/runner";
 import { resolve, isAbsolute } from "node:path";
 import { processUserMessage } from "./agent/index.ts";
 import { detectStatusLanguage } from "./agent/status.ts";
-import { getMetadata, setMetadata, getAllConversations, getUserName, setUserName, areNotificationsEnabled, setNotificationsEnabled } from "./services/database.ts";
+import { getMetadata, setMetadata, getAllConversations, getUserName, setUserName, areNotificationsEnabled, setNotificationsEnabled, getRecentMediaEvents, setEventAlertConfig } from "./services/database.ts";
+import cron from "node-cron";
 import { verifyConfig } from "./verify-config";
 import { checkAllServices } from "./services/health";
 import { handlePlexWebhook, handleRadarrWebhook, handleSonarrWebhook } from "./services/webhooks.ts";
@@ -474,6 +475,94 @@ bot.command("notifications", async (ctx) => {
     }
 });
 
+// Handle /radarr command
+bot.command("radarr", async (ctx) => {
+    const userId = ctx.from?.id;
+    if (typeof userId !== "number") {
+        await ctx.reply("Cannot determine requesting user for authorization.");
+        return;
+    }
+    const allowedUserIds = getAllowedUserIdSet();
+
+    if (allowedUserIds.size > 0 && !allowedUserIds.has(userId)) {
+        await ctx.reply("You are not authorized.");
+        return;
+    }
+
+    const args = ctx.match?.trim().toLowerCase().split(/\s+/);
+    if (args && args[0] === "alerts") {
+        const eventType = args[1];
+        const state = args[2];
+        if (eventType && (state === "on" || state === "off")) {
+            const enabled = state === "on";
+            setEventAlertConfig("radarr", eventType, enabled);
+            await ctx.reply(`✅ Radarr *${eventType}* alerts turned *${state}*.`, { parse_mode: "Markdown" });
+            return;
+        } else {
+            await ctx.reply("Usage: `/radarr alerts <grab|download> <on|off>`", { parse_mode: "Markdown" });
+            return;
+        }
+    }
+
+    const events = getRecentMediaEvents("radarr", 10);
+    if (events.length === 0) {
+        await ctx.reply("No recent Radarr events found.");
+        return;
+    }
+
+    let report = "🎬 *Recent Radarr Events*\n\n";
+    for (const ev of events) {
+        const dateStr = new Date(ev.timestamp + "Z").toLocaleString();
+        report += `[${dateStr}] *${ev.event_type.toUpperCase()}* - ${ev.title}\n`;
+    }
+
+    await ctx.reply(report, { parse_mode: "Markdown" });
+});
+
+// Handle /sonarr command
+bot.command("sonarr", async (ctx) => {
+    const userId = ctx.from?.id;
+    if (typeof userId !== "number") {
+        await ctx.reply("Cannot determine requesting user for authorization.");
+        return;
+    }
+    const allowedUserIds = getAllowedUserIdSet();
+
+    if (allowedUserIds.size > 0 && !allowedUserIds.has(userId)) {
+        await ctx.reply("You are not authorized.");
+        return;
+    }
+
+    const args = ctx.match?.trim().toLowerCase().split(/\s+/);
+    if (args && args[0] === "alerts") {
+        const eventType = args[1];
+        const state = args[2];
+        if (eventType && (state === "on" || state === "off")) {
+            const enabled = state === "on";
+            setEventAlertConfig("sonarr", eventType, enabled);
+            await ctx.reply(`✅ Sonarr *${eventType}* alerts turned *${state}*.`, { parse_mode: "Markdown" });
+            return;
+        } else {
+            await ctx.reply("Usage: `/sonarr alerts <grab|download|seriesadd> <on|off>`", { parse_mode: "Markdown" });
+            return;
+        }
+    }
+
+    const events = getRecentMediaEvents("sonarr", 10);
+    if (events.length === 0) {
+        await ctx.reply("No recent Sonarr events found.");
+        return;
+    }
+
+    let report = "📺 *Recent Sonarr Events*\n\n";
+    for (const ev of events) {
+        const dateStr = new Date(ev.timestamp + "Z").toLocaleString();
+        report += `[${dateStr}] *${ev.event_type.toUpperCase()}* - ${ev.title}\n`;
+    }
+
+    await ctx.reply(report, { parse_mode: "Markdown" });
+});
+
 // Handle /restart command (admin-only)
 bot.command("restart", async (ctx) => {
     const userId = ctx.from?.id;
@@ -660,6 +749,49 @@ bot.catch((err: unknown) => {
 
 console.log("Starting the bot...");
 
+function startWeeklySummaryCron() {
+    cron.schedule("0 18 * * 5", async () => {
+        const adminIds = getAllowedUserIdSet();
+        if (adminIds.size === 0) return;
+
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+        const radarrEvents = getRecentMediaEvents("radarr", 100, sevenDaysAgo);
+        const sonarrEvents = getRecentMediaEvents("sonarr", 100, sevenDaysAgo);
+
+        if (radarrEvents.length === 0 && sonarrEvents.length === 0) {
+            return; // Nothing to report
+        }
+
+        let summary = "📊 *Weekly Media Summary*\n\n";
+
+        if (radarrEvents.length > 0) {
+            summary += `🎬 *Radarr* (${radarrEvents.length} events)\n`;
+            const grabs = radarrEvents.filter(e => e.event_type === "grab").length;
+            const downloads = radarrEvents.filter(e => e.event_type === "download").length;
+            summary += `▫️ Grabbed: ${grabs}\n▫️ Downloaded: ${downloads}\n\n`;
+        }
+
+        if (sonarrEvents.length > 0) {
+            summary += `📺 *Sonarr* (${sonarrEvents.length} events)\n`;
+            const grabs = sonarrEvents.filter(e => e.event_type === "grab").length;
+            const downloads = sonarrEvents.filter(e => e.event_type === "download").length;
+            summary += `▫️ Grabbed: ${grabs}\n▫️ Downloaded: ${downloads}\n\n`;
+        }
+
+        summary += `_You can manage immediate alerts with_\n\`/radarr alerts <grab|download> <on|off>\`\n\`/sonarr alerts <grab|download> <on|off>\``;
+
+        for (const adminId of adminIds) {
+            try {
+                await bot.api.sendMessage(adminId, summary, { parse_mode: "Markdown" });
+            } catch (err) {
+                console.error(`Failed to send weekly summary to ${adminId}:`, err);
+            }
+        }
+    });
+}
+
 // Audit specs and verify config on every run
 await verifyConfig();
 
@@ -680,6 +812,9 @@ try {
 
 bot.api.getMe().then(async (me) => {
     console.log(`✅ Bot is online and listening as @${me.username}`);
+
+    // Start the cron scheduler
+    startWeeklySummaryCron();
 
     const restartNotifyChatId = Number(getMetadata("restart_notify_chat_id"));
     if (Number.isFinite(restartNotifyChatId) && restartNotifyChatId > 0) {

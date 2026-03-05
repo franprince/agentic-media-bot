@@ -1,4 +1,4 @@
-import { areNotificationsEnabled, getPlaybackState, updatePlaybackState } from "./database";
+import { areNotificationsEnabled, getPlaybackState, updatePlaybackState, saveMediaEvent, getEventAlertConfig } from "./database";
 import { getItemMetadata, getPosterUrl } from "./plex";
 import { searchMovie } from "./radarr";
 import { searchSeries } from "./sonarr";
@@ -228,25 +228,27 @@ export async function handleRadarrWebhook(request: Request, bot: Bot) {
             return new Response("OK", { status: 200 });
         }
 
-        const notifyChatId = process.env.WEBHOOK_NOTIFY_CHAT_ID || process.env.ALLOWED_USER_IDS?.split(",")[0];
-        if (!notifyChatId || !areNotificationsEnabled()) {
-            return new Response("OK", { status: 200 });
-        }
-
         let message = "";
+        let eventTitle = `${movie.title} (${movie.year})`;
+
         if (eventType === "Grab") {
-            message = `📥 *Radarr*: Grabbed *${movie.title} (${movie.year})*\n\n`;
+            message = `📥 *Radarr*: Grabbed *${eventTitle}*\n\n`;
             message += `▫️ *Quality*: ${release.quality}\n`;
             if (release.releaseTitle) message += `▫️ *Release*: \`${release.releaseTitle}\`\n`;
             if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
         } else if (eventType === "Download") {
-            message = `✅ *Radarr*: Download complete for *${movie.title} (${movie.year})*\n\n`;
+            message = `✅ *Radarr*: Download complete for *${eventTitle}*\n\n`;
             message += `▫️ *Quality*: ${release.quality}\n`;
             if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
         }
 
         if (message) {
-            await bot.api.sendMessage(notifyChatId, message, { parse_mode: "Markdown" });
+            saveMediaEvent("radarr", eventType.toLowerCase(), eventTitle, message);
+
+            const notifyChatId = process.env.WEBHOOK_NOTIFY_CHAT_ID || process.env.ALLOWED_USER_IDS?.split(",")[0];
+            if (notifyChatId && areNotificationsEnabled() && getEventAlertConfig("radarr", eventType.toLowerCase())) {
+                await bot.api.sendMessage(notifyChatId, message, { parse_mode: "Markdown" });
+            }
         }
 
         return new Response("OK", { status: 200 });
@@ -265,29 +267,32 @@ export async function handleSonarrWebhook(request: Request, bot: Bot) {
             return new Response("OK", { status: 200 });
         }
 
-        const notifyChatId = process.env.WEBHOOK_NOTIFY_CHAT_ID || process.env.ALLOWED_USER_IDS?.split(",")[0];
-        if (!notifyChatId || !areNotificationsEnabled()) {
-            return new Response("OK", { status: 200 });
-        }
-
         let message = "";
         const episodesLabel = episodes && episodes.length > 0
             ? episodes.map(e => `S${e.seasonNumber.toString().padStart(2, '0')}E${e.episodeNumber.toString().padStart(2, '0')}`).join(", ")
             : "";
+        let eventTitle = `${series.title}${episodesLabel ? ` - ${episodesLabel}` : ""}`;
 
         if (eventType === "Grab") {
-            message = `📥 *Sonarr*: Grabbed *${series.title}${episodesLabel ? ` - ${episodesLabel}` : ""}*\n\n`;
+            message = `📥 *Sonarr*: Grabbed *${eventTitle}*\n\n`;
             if (release) message += `▫️ *Quality*: ${release.quality}\n`;
             if (release?.releaseTitle) message += `▫️ *Release*: \`${release.releaseTitle}\`\n`;
             if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
         } else if (eventType === "Download") {
-            message = `✅ *Sonarr*: Download complete for *${series.title}${episodesLabel ? ` - ${episodesLabel}` : ""}*\n\n`;
+            message = `✅ *Sonarr*: Download complete for *${eventTitle}*\n\n`;
             if (release) message += `▫️ *Quality*: ${release.quality}\n`;
             if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
-        }
+        } else if (eventType === "SeriesAdd") {
+            message = `📺 *Sonarr*: Added new series *${eventTitle}*\n`;
+        } // Handle SeriesAdd if received
 
         if (message) {
-            await bot.api.sendMessage(notifyChatId, message, { parse_mode: "Markdown" });
+            saveMediaEvent("sonarr", eventType.toLowerCase(), eventTitle, message);
+
+            const notifyChatId = process.env.WEBHOOK_NOTIFY_CHAT_ID || process.env.ALLOWED_USER_IDS?.split(",")[0];
+            if (notifyChatId && areNotificationsEnabled() && getEventAlertConfig("sonarr", eventType.toLowerCase())) {
+                await bot.api.sendMessage(notifyChatId, message, { parse_mode: "Markdown" });
+            }
         }
 
         return new Response("OK", { status: 200 });

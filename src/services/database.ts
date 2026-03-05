@@ -33,6 +33,26 @@ db.run(`
   )
 `);
 
+db.run(`
+  CREATE TABLE IF NOT EXISTS media_events (
+    id TEXT PRIMARY KEY,
+    service TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+db.run(`
+  CREATE TABLE IF NOT EXISTS alert_config (
+    service TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    enabled INTEGER NOT NULL,
+    PRIMARY KEY (service, event_type)
+  )
+`);
+
 /**
  * Sanitize conversation history to prevent prototype pollution and injection attacks
  */
@@ -213,4 +233,44 @@ export function getAllConversations(): { userId: number, history: CoreMessage[] 
     userId: r.user_id,
     history: JSON.parse(r.history)
   }));
+}
+
+export interface MediaEvent {
+  id: string;
+  service: string;
+  event_type: string;
+  title: string;
+  message: string;
+  timestamp: string;
+}
+
+export function saveMediaEvent(service: string, eventType: string, title: string, message: string) {
+  const id = crypto.randomUUID();
+  db.run(
+    "INSERT INTO media_events (id, service, event_type, title, message) VALUES (?, ?, ?, ?, ?)",
+    [id, service, eventType, title, message]
+  );
+}
+
+export function getRecentMediaEvents(service: string, limit: number = 10, sinceDate?: Date): MediaEvent[] {
+  if (sinceDate) {
+    const timeStr = sinceDate.toISOString().replace("T", " ").substring(0, 19);
+    return db.query("SELECT * FROM media_events WHERE service = ? AND timestamp >= ? ORDER BY timestamp DESC LIMIT ?").all(service, timeStr, limit) as MediaEvent[];
+  }
+  return db.query("SELECT * FROM media_events WHERE service = ? ORDER BY timestamp DESC LIMIT ?").all(service, limit) as MediaEvent[];
+}
+
+export function getEventAlertConfig(service: string, eventType: string): boolean {
+  const row = db.query("SELECT enabled FROM alert_config WHERE service = ? AND event_type = ?").get(service, eventType) as { enabled: number } | null;
+  if (row) {
+    return row.enabled === 1;
+  }
+  return true; // Default to true if not set
+}
+
+export function setEventAlertConfig(service: string, eventType: string, enabled: boolean) {
+  db.run(
+    "INSERT OR REPLACE INTO alert_config (service, event_type, enabled) VALUES (?, ?, ?)",
+    [service, eventType, enabled ? 1 : 0]
+  );
 }

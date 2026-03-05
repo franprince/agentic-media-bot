@@ -1,6 +1,14 @@
-import { describe, expect, it, spyOn } from "bun:test";
+import { describe, expect, it, spyOn, mock } from "bun:test";
 import { handleRadarrWebhook, handleSonarrWebhook } from "../webhooks";
 import { Bot } from "grammy";
+
+mock.module("../database", () => ({
+    getPlaybackState: () => null,
+    updatePlaybackState: () => { },
+    areNotificationsEnabled: () => true,
+    saveMediaEvent: mock(() => { }),
+    getEventAlertConfig: mock(() => true)
+}));
 
 describe("Radarr/Sonarr Webhook Notifications", () => {
     const mockBotData = {
