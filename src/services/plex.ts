@@ -1,5 +1,6 @@
 import type { PlexSearchResult, PlexContainer } from "../types/plex";
 import { fetchService } from "./api";
+import { executeOnProxy, isProxyEnabled } from "../agent/proxyClient";
 
 const COUNTRY_NAME_MAP: Record<string, string> = {
     // English demonyms/adjectives -> country names as used by Plex metadata
@@ -85,12 +86,14 @@ function extractCountryTags(metadata: any): string[] {
 }
 
 export async function getItemCountryTags(ratingKey: string): Promise<string[]> {
+    if (isProxyEnabled()) return executeOnProxy("plex", "getItemCountryTags", [ratingKey]);
     const result = await fetchPlex<{ MediaContainer: PlexContainer }>(`/library/metadata/${ratingKey}`);
     const item = result.MediaContainer?.Metadata?.[0];
     return extractCountryTags(item);
 }
 
 export async function getItemMetadata(ratingKey: string): Promise<any | undefined> {
+    if (isProxyEnabled()) return executeOnProxy("plex", "getItemMetadata", [ratingKey]);
     const result = await fetchPlex<{ MediaContainer: PlexContainer }>(`/library/metadata/${ratingKey}`);
     return result.MediaContainer?.Metadata?.[0];
 }
@@ -217,34 +220,26 @@ async function fetchPlex<T>(endpoint: string, options: any = {}): Promise<T> {
     );
 }
 
-/**
- * Global search across the Plex server.
- */
 export async function searchPlex(query: string): Promise<PlexSearchResult> {
+    if (isProxyEnabled()) return executeOnProxy("plex", "searchPlex", [query]);
     const result = await fetchPlex<{ MediaContainer: PlexSearchResult }>(`/search?query=${encodeURIComponent(query)}`);
     return result.MediaContainer;
 }
 
-/**
- * Get recently added items globally.
- */
 export async function getRecentlyAdded(): Promise<PlexContainer> {
+    if (isProxyEnabled()) return executeOnProxy("plex", "getRecentlyAdded");
     // /library/recentlyAdded
     const result = await fetchPlex<{ MediaContainer: PlexContainer }>("/library/recentlyAdded");
     return result.MediaContainer;
 }
 
-/**
- * Get Plex system status (basic connectivity check).
- */
 export async function getSystemStatus(): Promise<any> {
+    if (isProxyEnabled()) return executeOnProxy("plex", "getSystemStatus");
     return fetchPlex<any>("/");
 }
 
-/**
- * Get all library sections (e.g., Movies, TV Shows).
- */
 export async function getLibrarySections(): Promise<PlexContainer> {
+    if (isProxyEnabled()) return executeOnProxy("plex", "getLibrarySections");
     const result = await fetchPlex<{ MediaContainer: PlexContainer }>("/library/sections");
     return result.MediaContainer;
 }
@@ -278,10 +273,8 @@ function normalizeLibraryTagPath(rawKey: unknown): string | undefined {
         return key;
     }
 }
-/**
- * Get items by genre from a specific section.
- */
 export async function getItemsByGenre(sectionId: string, genreName: string): Promise<PlexContainer> {
+    if (isProxyEnabled()) return executeOnProxy("plex", "getItemsByGenre", [sectionId, genreName]);
     const genres = await getLibraryGenres(sectionId);
     const genre = genres.find((g: any) => g.title.toLowerCase() === genreName.toLowerCase());
 
@@ -301,10 +294,8 @@ export async function getItemsByGenre(sectionId: string, genreName: string): Pro
     return result.MediaContainer;
 }
 
-/**
- * Get items by country from a specific section.
- */
 export async function getItemsByCountry(sectionId: string, countryName: string): Promise<PlexContainer> {
+    if (isProxyEnabled()) return executeOnProxy("plex", "getItemsByCountry", [sectionId, countryName]);
     const countries = await getLibraryCountries(sectionId);
     const normalizedInput = countryName.toLowerCase().trim();
     const mappedName = normalizeCountryName(countryName);
@@ -340,35 +331,26 @@ export async function getItemsByCountry(sectionId: string, countryName: string):
     return result.MediaContainer;
 }
 
-/**
- * Get available genres in a section.
- */
 export async function getLibraryGenres(sectionId: string): Promise<any> {
+    if (isProxyEnabled()) return executeOnProxy("plex", "getLibraryGenres", [sectionId]);
     const result = await fetchPlex<any>(`/library/sections/${sectionId}/genre`);
     return result.MediaContainer?.Directory || [];
 }
 
-/**
- * Get available countries in a section.
- */
 export async function getLibraryCountries(sectionId: string): Promise<any> {
+    if (isProxyEnabled()) return executeOnProxy("plex", "getLibraryCountries", [sectionId]);
     const result = await fetchPlex<any>(`/library/sections/${sectionId}/country`);
     return result.MediaContainer?.Directory || [];
 }
 
-/**
- * Get the total number of items in a specific section.
- */
 export async function getLibrarySize(sectionId: string): Promise<number> {
+    if (isProxyEnabled()) return executeOnProxy("plex", "getLibrarySize", [sectionId]);
     const result = await fetchPlex<{ MediaContainer: PlexContainer }>(`/library/sections/${sectionId}/all?X-Plex-Container-Start=0&X-Plex-Container-Size=0`);
     return result.MediaContainer?.totalSize ?? result.MediaContainer?.size ?? 0;
 }
 
-/**
- * Get all items from a specific section.
- * Plex paginates results, so we need to fetch in batches.
- */
 export async function getItemsByDuration(sectionId: string): Promise<PlexContainer> {
+    if (isProxyEnabled()) return executeOnProxy("plex", "getItemsByDuration", [sectionId]);
     // First, get the total count to know how many to fetch
     const initialResult = await fetchPlex<{ MediaContainer: PlexContainer }>(
         `/library/sections/${sectionId}/all?X-Plex-Container-Start=0&X-Plex-Container-Size=0`

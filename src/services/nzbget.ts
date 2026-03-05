@@ -1,4 +1,7 @@
+import { executeOnProxy, isProxyEnabled } from "../agent/proxyClient";
+
 export async function getVersion(): Promise<any> {
+    if (isProxyEnabled()) return executeOnProxy("nzbget", "getVersion");
     const baseUrl = process.env.NZBGET_URL?.trim() || "";
     const username = process.env.NZBGET_USERNAME?.trim() || "";
     const password = process.env.NZBGET_PASSWORD?.trim() || "";

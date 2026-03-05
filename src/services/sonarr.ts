@@ -1,7 +1,16 @@
 import type { SonarrSeries, SonarrQueueItem } from "../types/sonarr";
 import { fetchService } from "./api";
+import { executeOnProxy, isProxyEnabled } from "../agent/proxyClient";
 
 async function fetchSonarr<T>(endpoint: string, options: any = {}): Promise<T> {
+    if (isProxyEnabled()) {
+        const caller = new Error().stack?.split("\n")[2]?.trim() || "";
+        const methodName = caller.match(/at\s+(?:async\s+)?(\w+)/)?.[1] || "unknown";
+        if (methodName !== "fetchSonarr") {
+            return executeOnProxy("sonarr", methodName, options.body ? [JSON.parse(options.body)] : []);
+        }
+    }
+
     const baseUrl = process.env.SONARR_URL?.trim() || "";
     const apiKey = process.env.SONARR_API_KEY?.trim() || "";
 
@@ -14,24 +23,17 @@ async function fetchSonarr<T>(endpoint: string, options: any = {}): Promise<T> {
     );
 }
 
-/**
- * Search for a series in Sonarr using TVDB.
- */
 export async function searchSeries(term: string): Promise<SonarrSeries[]> {
+    if (isProxyEnabled()) return executeOnProxy("sonarr", "searchSeries", [term]);
     return fetchSonarr<SonarrSeries[]>(`/series/lookup?term=${encodeURIComponent(term)}`);
 }
 
-/**
- * Get series details by TVDB ID.
- */
 export async function getSeriesByTvdbId(tvdbId: number): Promise<SonarrSeries | undefined> {
+    if (isProxyEnabled()) return executeOnProxy("sonarr", "getSeriesByTvdbId", [tvdbId]);
     const results = await fetchSonarr<SonarrSeries[]>(`/series/lookup?term=tvdb:${tvdbId}`);
     return results.find(s => s.tvdbId === tvdbId);
 }
 
-/**
- * Add a series to Sonarr.
- */
 export async function addSeries(
     tvdbId: number,
     title: string,
@@ -41,6 +43,7 @@ export async function addSeries(
     seasons: Array<{ seasonNumber: number; monitored: boolean }>,
     seriesType: "standard" | "daily" | "anime" = "standard"
 ): Promise<SonarrSeries> {
+    if (isProxyEnabled()) return executeOnProxy("sonarr", "addSeries", [tvdbId, title, qualityProfileId, languageProfileId, rootFolderPath, seasons, seriesType]);
     const allSeries = await fetchSonarr<SonarrSeries[]>("/series");
     const existing = allSeries.find(s => s.tvdbId === tvdbId);
     if (existing) {
@@ -69,55 +72,41 @@ export async function addSeries(
     });
 }
 
-/**
- * Get the current activity queue.
- */
 export async function getSeriesQueue(): Promise<SonarrQueueItem[]> {
+    if (isProxyEnabled()) return executeOnProxy("sonarr", "getSeriesQueue");
     const result = await fetchSonarr<{ records: SonarrQueueItem[] }>("/queue");
     return result.records;
 }
 
-/**
- * Get the root folders configured in Sonarr (needed for adding series).
- */
 export async function getRootFolders(): Promise<Array<{ id: number, path: string, freeSpace: number }>> {
+    if (isProxyEnabled()) return executeOnProxy("sonarr", "getRootFolders");
     return fetchSonarr("/rootfolder");
 }
 
-/**
- * Get the quality profiles configured in Sonarr (needed for adding series).
- */
 export async function getQualityProfiles(): Promise<Array<{ id: number, name: string }>> {
+    if (isProxyEnabled()) return executeOnProxy("sonarr", "getQualityProfiles");
     return fetchSonarr("/qualityprofile");
 }
 
-/**
- * Get the language profiles configured in Sonarr (needed for adding series).
- */
 export async function getLanguageProfiles(): Promise<Array<{ id: number, name: string }>> {
+    if (isProxyEnabled()) return executeOnProxy("sonarr", "getLanguageProfiles");
     return fetchSonarr("/languageprofile");
 }
 
-/**
- * Get Sonarr system status.
- */
 export async function getSystemStatus(): Promise<any> {
+    if (isProxyEnabled()) return executeOnProxy("sonarr", "getSystemStatus");
     return fetchSonarr<any>("/system/status");
 }
 
-/**
- * Get series with missing episodes.
- */
 export async function getMissingSeries(): Promise<SonarrSeries[]> {
+    if (isProxyEnabled()) return executeOnProxy("sonarr", "getMissingSeries");
     const series = await fetchSonarr<SonarrSeries[]>("/series");
     // Return series where monitored is true and statistics.percentOfEpisodes < 100
     return series.filter(s => s.monitored && (s.statistics?.percentOfEpisodes ?? 100) < 100);
 }
 
-/**
- * Get specific missing episodes with series details.
- */
 export async function getMissingEpisodes(pageSize: number = 20): Promise<any> {
+    if (isProxyEnabled()) return executeOnProxy("sonarr", "getMissingEpisodes", [pageSize]);
     const result = await fetchSonarr<any>(`/wanted/missing?pageSize=${pageSize}&includeSeries=true`);
     return result;
 }
@@ -140,10 +129,8 @@ export async function restartSonarrService(): Promise<void> {
     }
 }
 
-/**
- * Delete a series from Sonarr.
- */
 export async function deleteSeries(id: number, deleteFiles: boolean = false): Promise<void> {
+    if (isProxyEnabled()) return executeOnProxy("sonarr", "deleteSeries", [id, deleteFiles]);
     await fetchSonarr(`/series/${id}?deleteFiles=${deleteFiles}`, {
         method: "DELETE",
     });

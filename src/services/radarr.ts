@@ -1,5 +1,6 @@
 import type { RadarrMovie, RadarrQueueItem } from "../types/radarr";
 import { fetchService } from "./api";
+import { executeOnProxy, isProxyEnabled } from "../agent/proxyClient";
 
 async function fetchRadarr<T>(endpoint: string, options: any = {}): Promise<T> {
     const baseUrl = process.env.RADARR_URL?.trim() || "";
@@ -14,10 +15,8 @@ async function fetchRadarr<T>(endpoint: string, options: any = {}): Promise<T> {
     );
 }
 
-/**
- * Search for a movie in Radarr using TMDB.
- */
 export async function searchMovie(term: string): Promise<RadarrMovie[]> {
+    if (isProxyEnabled()) return executeOnProxy("radarr", "searchMovie", [term]);
     return fetchRadarr<RadarrMovie[]>(`/movie/lookup?term=${encodeURIComponent(term)}`);
 }
 
@@ -26,6 +25,7 @@ export async function searchMovie(term: string): Promise<RadarrMovie[]> {
  * Usually requires rootFolderPath and qualityProfileId to be set from your Radarr instance.
  */
 export async function addMovie(tmdbId: number, title: string, year: number, rootFolderPath: string, qualityProfileId: number): Promise<RadarrMovie> {
+    if (isProxyEnabled()) return executeOnProxy("radarr", "addMovie", [tmdbId, title, year, rootFolderPath, qualityProfileId]);
     const allMovies = await fetchRadarr<RadarrMovie[]>("/movie");
     const existing = allMovies.find(m => m.tmdbId === tmdbId);
     if (existing) {
@@ -54,6 +54,7 @@ export async function addMovie(tmdbId: number, title: string, year: number, root
  * Get the current activity queue.
  */
 export async function getMovieQueue(): Promise<RadarrQueueItem[]> {
+    if (isProxyEnabled()) return executeOnProxy("radarr", "getMovieQueue");
     const result = await fetchRadarr<{ records: RadarrQueueItem[] }>("/queue");
     return result.records;
 }
@@ -62,6 +63,7 @@ export async function getMovieQueue(): Promise<RadarrQueueItem[]> {
  * Get the root folders configured in Radarr (needed for adding movies).
  */
 export async function getRootFolders(): Promise<Array<{ id: number, path: string, freeSpace: number }>> {
+    if (isProxyEnabled()) return executeOnProxy("radarr", "getRootFolders");
     return fetchRadarr("/rootfolder");
 }
 
@@ -69,6 +71,7 @@ export async function getRootFolders(): Promise<Array<{ id: number, path: string
  * Get the quality profiles configured in Radarr (needed for adding movies).
  */
 export async function getQualityProfiles(): Promise<Array<{ id: number, name: string }>> {
+    if (isProxyEnabled()) return executeOnProxy("radarr", "getQualityProfiles");
     return fetchRadarr("/qualityprofile");
 }
 
@@ -76,6 +79,7 @@ export async function getQualityProfiles(): Promise<Array<{ id: number, name: st
  * Get Radarr system status.
  */
 export async function getSystemStatus(): Promise<any> {
+    if (isProxyEnabled()) return executeOnProxy("radarr", "getSystemStatus");
     return fetchRadarr<any>("/system/status");
 }
 
@@ -83,6 +87,7 @@ export async function getSystemStatus(): Promise<any> {
  * Get movies that are monitored but missing files.
  */
 export async function getMissingMovies(): Promise<RadarrMovie[]> {
+    if (isProxyEnabled()) return executeOnProxy("radarr", "getMissingMovies");
     const movies = await fetchRadarr<RadarrMovie[]>("/movie");
     return movies.filter(m => m.monitored && !m.hasFile);
 }
@@ -91,6 +96,7 @@ export async function getMissingMovies(): Promise<RadarrMovie[]> {
  * Delete a movie from Radarr.
  */
 export async function deleteMovie(id: number, deleteFiles: boolean = false): Promise<void> {
+    if (isProxyEnabled()) return executeOnProxy("radarr", "deleteMovie", [id, deleteFiles]);
     await fetchRadarr(`/movie/${id}?deleteFiles=${deleteFiles}`, {
         method: "DELETE",
     });

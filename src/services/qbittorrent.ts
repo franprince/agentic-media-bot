@@ -1,4 +1,5 @@
 import type { QBittorrentTorrent } from "../types/qbittorrent";
+import { executeOnProxy, isProxyEnabled } from "../agent/proxyClient";
 
 function getConfig() {
     const url = process.env.QBITTORRENT_URL?.trim();
@@ -89,18 +90,13 @@ async function fetchQbittorrent<T = any>(endpoint: string, options: RequestInit 
     return response as any;
 }
 
-/**
- * Get the list of all active torrents.
- * Filter can be "all", "downloading", "seeding", "completed", "paused", "active", "inactive", "errored"
- */
 export async function getTorrents(filter: string = "all"): Promise<QBittorrentTorrent[]> {
+    if (isProxyEnabled()) return executeOnProxy("qbittorrent", "getTorrents", [filter]);
     return fetchQbittorrent<QBittorrentTorrent[]>(`/torrents/info?filter=${filter}`);
 }
 
-/**
- * Pause a specific torrent by hash.
- */
 export async function pauseTorrent(hash: string): Promise<void> {
+    if (isProxyEnabled()) return executeOnProxy("qbittorrent", "pauseTorrent", [hash]);
     await fetchQbittorrent("/torrents/pause", {
         method: "POST",
         body: new URLSearchParams({ hashes: hash }),
@@ -110,10 +106,8 @@ export async function pauseTorrent(hash: string): Promise<void> {
     });
 }
 
-/**
- * Resume a specific torrent by hash.
- */
 export async function resumeTorrent(hash: string): Promise<void> {
+    if (isProxyEnabled()) return executeOnProxy("qbittorrent", "resumeTorrent", [hash]);
     await fetchQbittorrent("/torrents/resume", {
         method: "POST",
         body: new URLSearchParams({ hashes: hash }),
