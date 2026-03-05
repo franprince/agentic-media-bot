@@ -135,16 +135,22 @@ if (useWebhook?.toLowerCase() !== "n") {
 
 
 console.log("\n--- 🚀 Startup Configuration ---");
-const launchOnStartup = prompt("Would you like the bot to launch on startup? (Y/n):", "y");
+const launchOnStartup = prompt("Would you like to install a background service? (Y/n):", "y");
 
 if (launchOnStartup?.toLowerCase() !== "n") {
     if (process.platform === "linux") {
         try {
+            const serviceType = prompt("Which service to run here? [1] Brain (Bot) [2] Proxy Gateway [1]:", "1");
+            const isProxy = serviceType === "2";
+            const serviceName = isProxy ? "agentic-media-proxy" : "agentic-media-bot";
+            const entryFile = isProxy ? "src/proxy.ts" : "src/bot.ts";
+            const description = isProxy ? "Agentic Media Proxy Gateway" : "Agentic Media Bot";
+
             const home = process.env.HOME;
             if (!home) throw new Error("HOME environment variable not found");
 
             const systemdDir = resolve(home, ".config/systemd/user");
-            const serviceFilePath = resolve(systemdDir, "agentic-media-bot.service");
+            const serviceFilePath = resolve(systemdDir, `${serviceName}.service`);
             const projectRoot = resolve(import.meta.dir, "..");
             const bunPath = Bun.which("bun") || "/usr/local/bin/bun";
 
@@ -154,13 +160,13 @@ if (launchOnStartup?.toLowerCase() !== "n") {
             }
 
             const serviceContent = `[Unit]
-Description=Agentic Media Bot
+Description=${description}
 After=network.target
 
 [Service]
 Type=simple
 WorkingDirectory=${projectRoot}
-ExecStart=${bunPath} src/bot.ts
+ExecStart=${bunPath} ${entryFile}
 Restart=always
 RestartSec=10
 
@@ -173,15 +179,14 @@ WantedBy=default.target
 
             console.log("Enabling and starting the service...");
             Bun.spawnSync(["systemctl", "--user", "daemon-reload"]);
-            Bun.spawnSync(["systemctl", "--user", "enable", "agentic-media-bot.service"]);
+            Bun.spawnSync(["systemctl", "--user", "enable", "--now", `${serviceName}.service`]);
 
             console.log("✅ Service enabled! It will start automatically on login.");
-            console.log("\n💡 How to Manage the Bot:");
-            console.log("- Check Status: systemctl --user status agentic-media-bot");
-            console.log("- View Logs:    journalctl --user -u agentic-media-bot -f");
-            console.log("- Restart:      systemctl --user restart agentic-media-bot");
-            console.log("- Stop:         systemctl --user stop agentic-media-bot");
-            console.log("\n💡 To start it now, run: systemctl --user start agentic-media-bot");
+            console.log("\n💡 How to Manage the Service:");
+            console.log(`- Check Status: systemctl --user status ${serviceName}`);
+            console.log(`- View Logs:    journalctl --user -u ${serviceName} -f`);
+            console.log(`- Restart:      systemctl --user restart ${serviceName}`);
+            console.log(`- Stop:         systemctl --user stop ${serviceName}`);
         } catch (err) {
             console.error("❌ Failed to configure systemd service:", (err as Error).message);
             console.log("Manual setup might be required.");
