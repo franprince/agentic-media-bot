@@ -246,6 +246,16 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "test: Added unit tests for history management and Sonarr anime detection.",
         ],
     },
+    {
+        version: "4.18.0",
+        changes: [
+            "feat: Added support for cloud-hosted Ollama models via OLLAMA_BASE_URL env var.",
+            "refactor: Transitioned to @ai-sdk/openai bridge for Ollama to support custom hosts and better endpoint flexibility.",
+            "feat: Improved configuration verification with real AI generation tests for Ollama.",
+            "fix: Resolved pre-existing bug in OpenRouter/OpenAI verification connectivity check.",
+            "fix: Updated zod and zod-to-json-schema to resolve environment-specific module loading errors.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {
