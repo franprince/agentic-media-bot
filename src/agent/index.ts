@@ -71,6 +71,13 @@ export async function processUserMessage(
 
     // Add the user's message to the history ONLY if it's a new message
     if (userMessage) {
+        // Clear history if it's too long or stale
+        const { trimHistory } = await import("../services/database");
+
+        // Check for long gap (> 12 hours) from the metadata of the last message if available
+        // For now, we'll just trim to keep it simple and effective.
+        history = trimHistory(userId, 20);
+
         history.push({ role: "user", content: userMessage });
         saveHistory(userId, history);
     }

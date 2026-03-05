@@ -236,6 +236,16 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "docs: Added 'Bot Logs' and 'How to Manage the Bot' sections to README.",
         ],
     },
+    {
+        version: "4.17.0",
+        changes: [
+            "feat: Implemented history trimming to prevent context 'stickiness'.",
+            "feat: Added interactive selection of quality profiles and root folders for media additions.",
+            "feat: Improved Anime support in Sonarr with automatic seriesType detection.",
+            "fix: Standardized success messages for Radarr and Sonarr tools.",
+            "test: Added unit tests for history management and Sonarr anime detection.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {

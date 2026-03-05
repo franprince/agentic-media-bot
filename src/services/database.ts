@@ -157,6 +157,26 @@ export function saveHistory(userId: number, history: CoreMessage[]) {
   );
 }
 
+/**
+ * Trim history to keep only the most recent messages.
+ * This helps prevent the context from becoming too "sticky" or confusing the AI.
+ */
+export function trimHistory(userId: number, maxMessages: number = 20): CoreMessage[] {
+  const history = getHistory(userId);
+  if (history.length <= maxMessages) return history;
+
+  const trimmed = history.slice(-maxMessages);
+  saveHistory(userId, trimmed);
+  return trimmed;
+}
+
+/**
+ * Clear the conversation history for a user.
+ */
+export function clearHistory(userId: number): void {
+  db.run("DELETE FROM conversations WHERE user_id = ?", [userId]);
+}
+
 export function getMetadata(key: string): string | null {
   const row = db.query("SELECT value FROM metadata WHERE key = ?").get(key) as { value: string } | null;
   return row ? row.value : null;

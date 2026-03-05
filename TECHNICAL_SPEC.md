@@ -28,7 +28,7 @@
 
 ## AI Agent Design
 - The agent utilizes an LLM capable of function calling.
-- State is stateless per-request but keeps a bounded history within the Telegram session.
+- **Context Management**: Conversation history is stateless per-request but keeps a bounded history within the Telegram session. The `trimHistory` logic (in `src/services/database.ts`) prunes history to the last 20 messages to maintain model focus and avoid context "stickiness".
 - System prompt strongly guides the agent to use tools rather than answering based on local knowledge.
 - Recursive execution loop (`maxSteps: 5`) allows the agent to audit libraries across multiple sections (movies and shows).
 - **Auditing Intelligence**: Includes specialized tools for finding genre-specific content across multiple internal Plex IDs and identifying missing episodes with granular metadata.
@@ -37,7 +37,8 @@
 - **Radarr Search Resilience**: If Radarr lookup fails during a title-based add, return a user-facing error instead of crashing.
 - **Tool Error Containment**: Radarr tool execution paths should return structured error messages for API 4xx/5xx responses rather than throw and abort the full LLM turn.
 - **Defensive Tool Filtering**: Before tool execution, the agent filters out any `undefined` tool mappings in `src/agent/index.ts` to prevent AI SDK crashes (`TypeError: tool2.type`).
-- **IMDb Validation Logic**: `addMovieTool` and `addSeriesTool` prioritize search-by-id when an `imdbId` is provided and use string normalization (stripping diacritics) to detect title mismatches between the provided ID and the mentioned name.
+- **IMDb Validation & Interactive Config**: `addMovieTool` and `addSeriesTool` prioritize search-by-id when an `imdbId` is provided. They now also return available quality profiles and root folders when `confirm` is false.
+- **Anime Detection**: `addSeriesTool` automatically detects Anime (via genres) and sets `seriesType: "anime"` in Sonarr POST payloads.
 - **Restricted Notifications**: Plex webhook notifications are restricted to playback events (play, resume, scrobble). Library additions (`library.new`) trigger internal cache invalidation but do not send outward notifications.
 - **History Migration**: Dynamically renames legacy tool calls in the conversation history to maintain compatibility with updated tool schemas.
 - **Real-time Status Feed**: Captures "thinking" preamble from the LLM to provide localized, real-time status updates via the Telegram `onStep` callback.

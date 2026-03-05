@@ -14,8 +14,14 @@ A conversational Telegram bot that controls a user's home media server stack, ca
 2. **TV Show Management (Sonarr)**
    - User writes: "I want to watch the latest season of The Boys."
    - Bot searches Sonarr, triggers the download of the missing season.
+   - **Anime Support**: The bot automatically detects if a series is an Anime (via genres) and sets the correct `seriesType: "anime"` in Sonarr to ensure proper metadata and episode handling.
 
-3. **Torrent Management (qBittorrent)**
+3. **Interactive Addition Settings**
+   - When adding movies or series, the bot presents a summary of the match.
+   - **Configuration Options**: Before adding, the bot displays available **Quality Profiles** and **Root Folders** from the service.
+   - **User Confirmation**: The addition only proceeds once the user confirms the match and (optionally) specifies their preferred profile or folder.
+
+4. **Torrent Management (qBittorrent)**
    - User asks: "Are there any torrents currently active?"
    - Bot lists active torrents.
    - User commands: "Pause all downloads" or "Resume downloads".
@@ -57,6 +63,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
 
 7. **Personalization**
    - **Name Saving**: User can say "Call me Fran," and the bot will persist this in its database and greet the user by name.
+   - **Context Management**: Conversation history is bounded and automatically trimmed to the last 20 messages. This prevents "sticky" context where the bot confuses current requests with old, unrelated topics.
    - **Warm Tone**: The bot maintains a friendly, emoji-rich personality (✨🤖).
 
 8. **Dynamic Status Feedback**

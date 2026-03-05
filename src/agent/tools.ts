@@ -251,15 +251,17 @@ export const searchMovieTool = tool({
 });
 
 export const addMovieTool = tool({
-    description: "Add a MOVIE to Radarr to begin downloading it. Requires the TMDB ID from a previous search. Do NOT use this for TV shows/series. This tool will first return details for confirmation unless 'confirm' is true.",
+    description: "Add a MOVIE to Radarr to begin downloading it. Requires the TMDB ID from a previous search. Do NOT use this for TV shows/series. This tool will first return details and available configuration options (quality profiles, folders) for confirmation unless 'confirm' is true.",
     parameters: z.object({
         tmdbId: z.union([z.number(), z.string().transform(Number)]).nullable().describe("The TMDB ID of the movie to add."),
         title: z.string().describe("The title of the movie."),
         year: z.union([z.number(), z.string().transform(Number)]).nullable().describe("The release year of the movie."),
         imdbId: z.string().optional().describe("The IMDb ID of the movie (e.g., 'tt0111161')."),
-        confirm: z.boolean().default(false).describe("Set to true ONLY when the user has explicitly confirmed the specific match presented by the bot."),
+        qualityProfileId: z.number().optional().describe("The ID of the quality profile to use (e.g., 1 for HD-1080p)."),
+        rootFolderPath: z.string().optional().describe("The root folder path where the movie should be saved."),
+        confirm: z.boolean().default(false).describe("Set to true ONLY when the user has explicitly confirmed the specific match and settings (folder, profile)."),
     }),
-    execute: async ({ tmdbId, title, year, imdbId, confirm }: { tmdbId: number | null, title: string, year: number | null, imdbId?: string, confirm: boolean }) => {
+    execute: async ({ tmdbId, title, year, imdbId, qualityProfileId, rootFolderPath, confirm }: { tmdbId: number | null, title: string, year: number | null, imdbId?: string, qualityProfileId?: number, rootFolderPath?: string, confirm: boolean }) => {
         let normalizedTmdbId = (tmdbId !== null && tmdbId !== undefined) ? Number(tmdbId) : 0;
         let normalizedYear = (year !== null && year !== undefined) ? Number(year) : 0;
 
@@ -301,7 +303,7 @@ export const addMovieTool = tool({
         }
 
         try {
-            // Fetch required configuration dynamically to ensure we add it correctly
+            // Fetch required configuration dynamically
             const [profiles, folders] = await Promise.all([
                 withCache("radarr_profiles", () => radarr.getQualityProfiles()),
                 withCache("radarr_folders", () => radarr.getRootFolders())
@@ -309,14 +311,6 @@ export const addMovieTool = tool({
 
             if (profiles.length === 0 || folders.length === 0) {
                 return { message: "Cannot add movie right now: Radarr quality profiles or root folders are unavailable." } as any;
-            }
-
-            // Use the first available profile and folder as defaults
-            const qualityProfileId = profiles[0]?.id;
-            const rootFolderPath = folders[0]?.path;
-
-            if (!qualityProfileId || !rootFolderPath) {
-                return { message: "Error: Could not retrieve base Radarr quality profile or root folder configuration." } as any;
             }
 
             // Find match details for confirmation or adding
@@ -330,14 +324,16 @@ export const addMovieTool = tool({
             const titleMismatch = imdbMatch && stripDiacritics(match.title.toLowerCase()) !== stripDiacritics(title.toLowerCase());
 
             if (!confirm || titleMismatch) {
-                let statusMessage = `I found "${match.title}" (${match.year}). Should I add it to Radarr?`;
+                let statusMessage = `I found "${match.title}" (${match.year}). Please confirm if I should add it and which settings to use:`;
                 if (titleMismatch) {
-                    statusMessage = `⚠️ *Title Mismatch:* I found "${match.title}" (${match.year}) for the IMDb ID \`${imdbId}\`, but you mentioned "${title}". Should I proceed with "${match.title}"?`;
+                    statusMessage = `⚠️ *Title Mismatch:* I found "${match.title}" (${match.year}) for the IMDb ID \`${imdbId}\`, but you mentioned "${title}". Should I proceed with "${match.title}" using these settings?`;
                 }
 
                 return {
                     confirmationRequired: true,
                     message: statusMessage,
+                    availableProfiles: profiles.map(p => ({ id: p.id, name: p.name })),
+                    availableFolders: folders.map(f => ({ path: f.path, freeSpace: (f.freeSpace / 1024 / 1024 / 1024).toFixed(1) + " GB" })),
                     mediaDetails: {
                         title: match.title,
                         year: match.year,
@@ -348,14 +344,22 @@ export const addMovieTool = tool({
                 } as any;
             }
 
-            const result = await radarr.addMovie(normalizedTmdbId, title, normalizedYear, rootFolderPath, qualityProfileId);
+            // Final addition using specified or default settings
+            const finalProfileId = qualityProfileId ?? profiles[0]?.id;
+            const finalFolderPath = rootFolderPath ?? folders[0]?.path;
+
+            if (finalProfileId === undefined || finalFolderPath === undefined) {
+                return { message: "Error: Could not determine quality profile or root folder for Radarr addition." } as any;
+            }
+
+            const result = await radarr.addMovie(normalizedTmdbId, match.title, match.year, finalFolderPath, finalProfileId);
             return {
                 success: true,
                 message: `Successfully added '${result.title}' to Radarr.`
             };
         } catch (_error: any) {
             return {
-                message: "Radarr rejected that add request. I'll need to re-check the exact match first.",
+                message: "Radarr rejected that add request. Please check if the movie is already in your library.",
             } as any;
         }
     },
@@ -403,14 +407,17 @@ export const searchSeriesTool = tool({
 });
 
 export const addSeriesTool = tool({
-    description: "Add a TV SERIES/SHOW to Sonarr to begin downloading it. Requires the TVDB ID from a previous search. Do NOT use this for movies. This tool will first return details for confirmation unless 'confirm' is true.",
+    description: "Add a TV SERIES/SHOW to Sonarr to begin downloading it. Requires the TVDB ID from a previous search. Do NOT use this for movies. This tool will first return details and available configuration options (profiles, folders) for confirmation unless 'confirm' is true.",
     parameters: z.object({
         tvdbId: z.union([z.number(), z.string().transform(Number)]).nullable().describe("The TVDB ID of the series."),
         title: z.string().describe("The title of the series."),
         imdbId: z.string().optional().describe("The IMDb ID of the series (e.g., 'tt0111161')."),
-        confirm: z.boolean().default(false).describe("Set to true ONLY when the user has explicitly confirmed the specific match presented by the bot."),
+        qualityProfileId: z.number().optional().describe("The ID of the quality profile to use."),
+        languageProfileId: z.number().optional().describe("The ID of the language profile to use."),
+        rootFolderPath: z.string().optional().describe("The root folder path for the series."),
+        confirm: z.boolean().default(false).describe("Set to true ONLY when the user has explicitly confirmed the specific match and settings (folder, profile)."),
     }),
-    execute: async ({ tvdbId, title, imdbId, confirm }: { tvdbId: number | null, title: string, imdbId?: string, confirm: boolean }) => {
+    execute: async ({ tvdbId, title, imdbId, qualityProfileId, languageProfileId, rootFolderPath, confirm }: { tvdbId: number | null, title: string, imdbId?: string, qualityProfileId?: number, languageProfileId?: number, rootFolderPath?: string, confirm: boolean }) => {
         let normalizedTvdbId = (tvdbId !== null && tvdbId !== undefined) ? Number(tvdbId) : 0;
 
         let imdbMatch: any = null;
@@ -471,14 +478,17 @@ export const addSeriesTool = tool({
         const titleMismatch = imdbMatch && stripDiacritics(exactSeries.title.toLowerCase()) !== stripDiacritics(title.toLowerCase());
 
         if (!confirm || titleMismatch) {
-            let statusMessage = `I found "${exactSeries.title}" (${exactSeries.year}). Shall I add this series to Sonarr?`;
+            let statusMessage = `I found "${exactSeries.title}" (${exactSeries.year}). Please confirm if I should add it and which settings to use:`;
             if (titleMismatch) {
-                statusMessage = `⚠️ *Title Mismatch:* I found "${exactSeries.title}" (${exactSeries.year}) for the IMDb ID \`${imdbId}\`, but you mentioned "${title}". Should I proceed with "${exactSeries.title}"?`;
+                statusMessage = `⚠️ *Title Mismatch:* I found "${exactSeries.title}" (${exactSeries.year}) for the IMDb ID \`${imdbId}\`, but you mentioned "${title}". Should I proceed with "${exactSeries.title}" using these settings?`;
             }
 
             return {
                 confirmationRequired: true,
                 message: statusMessage,
+                availableProfiles: profiles.map(p => ({ id: p.id, name: p.name })),
+                availableLanguages: languageProfiles.map(l => ({ id: l.id, name: l.name })),
+                availableFolders: folders.map(f => ({ path: f.path, freeSpace: (f.freeSpace / 1024 / 1024 / 1024).toFixed(1) + " GB" })),
                 mediaDetails: {
                     title: exactSeries.title,
                     year: exactSeries.year,
@@ -487,25 +497,35 @@ export const addSeriesTool = tool({
                     tvdbId: exactSeries.tvdbId,
                     network: exactSeries.network,
                     seasons: exactSeries.seasons?.length || 0,
+                    genres: exactSeries.genres,
                 }
             } as any;
         }
 
-        // Use the first available profile and folder as defaults
-        const qualityProfileId = profiles[0]?.id;
-        const languageProfileId = languageProfiles[0]?.id;
-        const rootFolderPath = folders[0]?.path;
+        // Use specified or default settings
+        const finalProfileId = qualityProfileId ?? profiles[0]?.id;
+        const finalLanguageId = languageProfileId ?? languageProfiles[0]?.id;
+        const finalFolderPath = rootFolderPath ?? folders[0]?.path;
 
-        if (!qualityProfileId || !languageProfileId || !rootFolderPath) {
+        if (!finalProfileId || !finalLanguageId || !finalFolderPath) {
             return { message: "Error: Could not retrieve base Sonarr configuration (profile, language, or root settings)." } as any;
         }
 
         // Monitor all seasons by default
         const seasons = exactSeries.seasons?.map(s => ({ seasonNumber: s.seasonNumber, monitored: true })) || [];
 
-        const result = await sonarr.addSeries(normalizedTvdbId, title, qualityProfileId, languageProfileId, rootFolderPath, seasons);
+        // Anime Detection
+        const isAnime = exactSeries.genres?.some(g => g.toLowerCase() === "anime") ||
+            (exactSeries.genres?.some(g => g.toLowerCase() === "animation") &&
+                exactSeries.genres?.some(g => ["action", "adventure", "fantasy"].includes(g.toLowerCase())));
+
+        const seriesType = isAnime ? "anime" : "standard";
+
+        await sonarr.addSeries(normalizedTvdbId, exactSeries.title, finalProfileId, finalLanguageId, finalFolderPath, seasons, seriesType);
+
         return {
             success: true,
+            message: `Successfully added '${exactSeries.title}' to Sonarr as ${seriesType} series.`
         };
     },
 });

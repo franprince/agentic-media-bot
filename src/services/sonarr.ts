@@ -38,7 +38,8 @@ export async function addSeries(
     qualityProfileId: number,
     languageProfileId: number,
     rootFolderPath: string,
-    seasons: Array<{ seasonNumber: number; monitored: boolean }>
+    seasons: Array<{ seasonNumber: number; monitored: boolean }>,
+    seriesType: "standard" | "daily" | "anime" = "standard"
 ): Promise<SonarrSeries> {
     const allSeries = await fetchSonarr<SonarrSeries[]>("/series");
     const existing = allSeries.find(s => s.tvdbId === tvdbId);
@@ -54,6 +55,7 @@ export async function addSeries(
         rootFolderPath,
         monitored: true,
         seasons,
+        seriesType, // Add seriesType to payload
         addOptions: {
             ignoreEpisodesWithFiles: false,
             ignoreEpisodesWithoutFiles: false,
