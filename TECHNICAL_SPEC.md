@@ -16,7 +16,7 @@
 - `src/bot.ts`: Entry point. Initializes Telegram bot, logs incoming traffic, and handles direct commands like `/start` and `/status`.
 - `src/setup.ts`: Standalone interactive CLI tool for initial configuration and dependency installation.
 - `src/agent/index.ts`: LLM abstraction. Handles message history, conditional model loading, and iterative tool execution.
-- `src/services/`: Modular wrappers for Radarr, Sonarr, qBittorrent, and Plex APIs.
+- `src/services/`: Modular wrappers for Radarr, Sonarr, qBittorrent, Plex, and NZBGet APIs.
 - `src/agent/tools.ts`: Unified tool repository for AI integration.
 - `src/services/database.ts`: Persistence layer using `bun:sqlite` for conversation history and user personalization (names).
 - `src/services/webhooks.ts`: Webhook handler for external service integration (e.g., Plex).

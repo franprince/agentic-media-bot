@@ -189,6 +189,7 @@ function inferServices(toolCalls: ToolCallLike[]): string[] {
         else if (name.includes("Movie") || name.includes("Radarr")) services.add("Radarr");
         else if (name.includes("Series") || name.includes("Sonarr")) services.add("Sonarr");
         else if (name.toLowerCase().includes("torrent") || name.toLowerCase().includes("qbittorrent")) services.add("qBittorrent");
+        else if (name.toLowerCase().includes("nzbget")) services.add("NZBGet");
         else if (name === "checkServiceHealth") services.add("servicios");
     }
     return [...services];

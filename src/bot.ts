@@ -257,6 +257,13 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "fix: Updated zod and zod-to-json-schema to resolve environment-specific module loading errors.",
         ],
     },
+    {
+        version: "4.19.0",
+        changes: [
+            "feat: Added NZBGet service integration.",
+            "feat: Implemented NZBGet health check in /status command.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {

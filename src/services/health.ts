@@ -2,6 +2,7 @@ import * as radarr from "./radarr";
 import * as sonarr from "./sonarr";
 import * as plex from "./plex";
 import * as qbittorrent from "./qbittorrent";
+import * as nzbget from "./nzbget";
 
 export type ServiceStatus = {
     service: string;
@@ -15,6 +16,7 @@ export async function checkAllServices(): Promise<ServiceStatus[]> {
         { name: "Sonarr", check: () => sonarr.getSystemStatus() },
         { name: "Plex", check: () => plex.getSystemStatus() },
         { name: "qBittorrent", check: () => qbittorrent.getTorrents("all") },
+        { name: "NZBGet", check: () => nzbget.getVersion() },
     ];
 
     const results = await Promise.all(

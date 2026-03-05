@@ -752,9 +752,9 @@ export const getRecentlyAddedPlexTool = tool({
 // --- System & Audit Tools --- //
 
 export const checkServiceHealthTool = tool({
-    description: "Check if a specific service (Radarr, Sonarr, qBittorrent, or Plex) is online and responsive.",
+    description: "Check if a specific service (Radarr, Sonarr, qBittorrent, or Plex, or NZBGet) is online and responsive.",
     parameters: z.object({
-        service: z.string().describe("The service to check health for (e.g., Radarr, Sonarr, qBittorrent, Plex, Jellyfin)."),
+        service: z.string().describe("The service to check health for (e.g., Radarr, Sonarr, qBittorrent, Plex, Jellyfin, NZBGet)."),
     }),
     execute: async ({ service }: { service: string }) => {
         try {
@@ -762,10 +762,14 @@ export const checkServiceHealthTool = tool({
             else if (service === "Sonarr") await sonarr.getSystemStatus();
             else if (service === "Plex") await plex.getSystemStatus();
             else if (service === "qBittorrent") await qbittorrent.getTorrents("all");
+            else if (service === "NZBGet") {
+                const nzbget = await import("../services/nzbget");
+                await nzbget.getVersion();
+            }
             else {
                 return {
                     online: false,
-                    message: `Service '${service}' is not currently configured or supported for health checks. Supported services are: Radarr, Sonarr, qBittorrent, and Plex.`
+                    message: `Service '${service}' is not currently configured or supported for health checks. Supported services are: Radarr, Sonarr, qBittorrent, Plex, and NZBGet.`
                 };
             }
             return { online: true, message: `${service} is online and responsive.` };

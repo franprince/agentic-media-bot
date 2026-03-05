@@ -103,6 +103,14 @@ export async function verifyConfig() {
             }
         },
         {
+            name: "NZBGet Connectivity",
+            fn: async () => {
+                const nzbget = await import("./services/nzbget");
+                const version = await nzbget.getVersion();
+                return `Success: Connected to NZBGet (Version: ${version}).`;
+            }
+        },
+        {
             name: "Plex Connectivity",
             fn: async () => {
                 const added = await plex.getRecentlyAdded();

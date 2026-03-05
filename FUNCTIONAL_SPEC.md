@@ -35,7 +35,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
 
 5. **System Health, Auditing & Commands**
    - User writes: `/status`
-   - Bot checks all services (Radarr, Sonarr, qBittorrent, Plex) and returns a consolidated report showing which are online or offline.
+   - Bot checks all services (Radarr, Sonarr, qBittorrent, Plex, NZBGet) and returns a consolidated report showing which are online or offline.
    - User writes: `/audit`
    - Bot performs a deep diagnostic audit, reading recent logs to identify errors, instance conflicts, and uptime stats (admin only).
    - User writes: `/restart`
