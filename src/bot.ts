@@ -803,7 +803,7 @@ async function sendPhotoSmart(ctx: any, userId: number | string, imageUrl: strin
                 const buffer = await response.arrayBuffer();
                 // Extract original filename or use default
                 const urlPart = imageUrl.split("?")[0].split("/").pop();
-                const extension = urlPart?.includes(".") ? urlPart.split(".").pop() : "jpg";
+                const extension = (urlPart?.includes(".") ? urlPart.split(".").pop() : "jpg") || "jpg";
                 const filename = `thumb.${extension}`;
 
                 return await ctx.api.sendPhoto(userId, new InputFile(Buffer.from(buffer), filename), options);
