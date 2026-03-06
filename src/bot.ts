@@ -793,7 +793,9 @@ bot.on("callback_query:data", async (ctx) => {
  * Handles sending a photo by checking if the URL is local (localhost)
  * and fetching it into an InputFile if necessary.
  */
-async function sendPhotoSmart(ctx: any, userId: number | string, imageUrl: string, options: any) {
+async function sendPhotoSmart(ctx: any, userId: number | string, imageUrl: string | undefined, options: any) {
+    if (!imageUrl) return;
+
     const isLocal = imageUrl.includes("localhost") || imageUrl.includes("127.0.0.1");
 
     if (isLocal) {
@@ -802,14 +804,14 @@ async function sendPhotoSmart(ctx: any, userId: number | string, imageUrl: strin
             if (response.ok) {
                 const buffer = await response.arrayBuffer();
                 // Extract original filename or use default
-                const urlPart = imageUrl.split("?")[0].split("/").pop();
-                const extension = (urlPart?.includes(".") ? urlPart.split(".").pop() : "jpg") || "jpg";
+                const urlPart = imageUrl.split("?")[0]?.split("/").pop() ?? "";
+                const extension = urlPart.includes(".") ? (urlPart.split(".").pop() ?? "jpg") : "jpg";
                 const filename = `thumb.${extension}`;
 
                 return await ctx.api.sendPhoto(userId, new InputFile(Buffer.from(buffer), filename), options);
             }
         } catch (err) {
-            console.warn(`⚠️ Failed to fetch local image: ${imageUrl}. Falling back to text if possible.`, (err as Error).message);
+            console.warn(`⚠️ Failed to fetch local image: ${imageUrl}. Falling back to remote or text.`, (err as Error).message);
         }
     }
 
