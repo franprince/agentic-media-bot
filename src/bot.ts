@@ -1,4 +1,4 @@
-import { Bot, InlineKeyboard } from "grammy";
+import { Bot, InlineKeyboard, InputFile } from "grammy";
 import { run } from "@grammyjs/runner";
 import { resolve, isAbsolute } from "node:path";
 import { processUserMessage } from "./agent/index.ts";
@@ -300,6 +300,14 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "fix: Implemented database persistence in Coolify by migrating bot_data.sqlite to a dedicated data/ directory.",
             "feat: Added automated data/ directory provisioning on startup.",
             "docs: Updated technical specifications with persistent volume mapping requirements.",
+        ],
+    },
+    {
+        version: "4.23.0",
+        changes: [
+            "fix: Implemented a smart image handler that fetches local images from Plex/internal addresses.",
+            "fix: Resolved 'Bad Request: wrong remote file identifier' errors when sending photos with localhost URLs.",
+            "perf: Improved filename and extension detection for uploaded media.",
         ],
     },
 ];
@@ -782,6 +790,34 @@ bot.on("callback_query:data", async (ctx) => {
 });
 
 /**
+ * Handles sending a photo by checking if the URL is local (localhost)
+ * and fetching it into an InputFile if necessary.
+ */
+async function sendPhotoSmart(ctx: any, userId: number | string, imageUrl: string, options: any) {
+    const isLocal = imageUrl.includes("localhost") || imageUrl.includes("127.0.0.1");
+
+    if (isLocal) {
+        try {
+            const response = await fetch(imageUrl);
+            if (response.ok) {
+                const buffer = await response.arrayBuffer();
+                // Extract original filename or use default
+                const urlPart = imageUrl.split("?")[0].split("/").pop();
+                const extension = urlPart?.includes(".") ? urlPart.split(".").pop() : "jpg";
+                const filename = `thumb.${extension}`;
+
+                return await ctx.api.sendPhoto(userId, new InputFile(Buffer.from(buffer), filename), options);
+            }
+        } catch (err) {
+            console.warn(`⚠️ Failed to fetch local image: ${imageUrl}. Falling back to text if possible.`, (err as Error).message);
+        }
+    }
+
+    // Default: Send as URL
+    return await ctx.api.sendPhoto(userId, imageUrl, options);
+}
+
+/**
  * Sends a message or photo with Markdown parsing, 
  * falling back to plain text if parsing fails.
  */
@@ -806,7 +842,7 @@ async function safeReply(
     try {
         if (imageUrl) {
             console.log(`🤖 Bot Reply Photo [@${user}]: ${imageUrl} - ${text.slice(0, 50)}...`);
-            await ctx.replyWithPhoto(imageUrl, {
+            await sendPhotoSmart(ctx, ctx.chat.id, imageUrl, {
                 caption: text,
                 parse_mode: "Markdown",
                 reply_markup: keyboard
@@ -822,7 +858,7 @@ async function safeReply(
         if (error.description && error.description.includes("can't parse entities")) {
             console.warn(`⚠️ Markdown parsing failed for [@${user}], retrying in plain text:`, error.description);
             if (imageUrl) {
-                await ctx.replyWithPhoto(imageUrl, {
+                await sendPhotoSmart(ctx, ctx.chat.id, imageUrl, {
                     caption: text,
                     reply_markup: keyboard
                 });
@@ -1055,13 +1091,13 @@ async function syncUnrepliedMessages() {
                 // Use the safeReply-like logic directly for the catch-up phase
                 try {
                     if (imageUrl) {
-                        await bot.api.sendPhoto(userId, imageUrl, { caption: text, parse_mode: "Markdown" });
+                        await sendPhotoSmart(bot, userId, imageUrl, { caption: text, parse_mode: "Markdown" });
                     } else {
                         await bot.api.sendMessage(userId, text, { parse_mode: "Markdown" });
                     }
                 } catch (e) {
                     if (imageUrl) {
-                        await bot.api.sendPhoto(userId, imageUrl, { caption: text });
+                        await sendPhotoSmart(bot, userId, imageUrl, { caption: text });
                     } else {
                         await bot.api.sendMessage(userId, text);
                     }
