@@ -1,29 +1,36 @@
 import { useState, useEffect } from 'react';
-import { Bell, Film, Tv, Save, Loader2, Check } from 'lucide-react';
+import { Bell, Film, Tv, PlaySquare, Save, Loader2, Check } from 'lucide-react';
 
 interface NotificationConfig {
     grab: boolean;
     download: boolean;
 }
 
+interface PlexConfig {
+    play: boolean;
+    resume: boolean;
+    scrobble: boolean;
+    library: boolean;
+}
+
 interface Settings {
     radarr: NotificationConfig;
     sonarr: NotificationConfig;
+    plex: PlexConfig;
 }
 
 export function NotificationSettings({ onSaveComplete }: { onSaveComplete?: () => void }) {
     const [settings, setSettings] = useState<Settings>({
         radarr: { grab: true, download: true },
-        sonarr: { grab: true, download: true }
+        sonarr: { grab: true, download: true },
+        plex: { play: true, resume: true, scrobble: true, library: true }
     });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const PROXY_URL = 'http://localhost:3001';
-
-    // Use an environment variable or dummy for dev
+    const BASE_URL = import.meta.env.DEV ? 'http://localhost:3001' : '';
     const PROXY_SECRET = import.meta.env.VITE_PROXY_SECRET_KEY || 'dev_secret_key';
 
     useEffect(() => {
@@ -33,7 +40,7 @@ export function NotificationSettings({ onSaveComplete }: { onSaveComplete?: () =
     const fetchSettings = async () => {
         try {
             setLoading(true);
-            const res = await fetch(`${PROXY_URL}/api/settings/notifications`);
+            const res = await fetch(`${BASE_URL}/api/settings/notifications`);
             if (!res.ok) throw new Error("Failed to fetch settings");
             const data = await res.json();
             setSettings(data);
@@ -48,7 +55,7 @@ export function NotificationSettings({ onSaveComplete }: { onSaveComplete?: () =
     const handleSave = async () => {
         try {
             setSaving(true);
-            const res = await fetch(`${PROXY_URL}/api/settings/notifications`, {
+            const res = await fetch(`${BASE_URL}/api/settings/notifications`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -73,12 +80,12 @@ export function NotificationSettings({ onSaveComplete }: { onSaveComplete?: () =
         }
     };
 
-    const toggleSetting = (service: 'radarr' | 'sonarr', action: 'grab' | 'download') => {
+    const toggleSetting = (service: keyof Settings, action: string) => {
         setSettings(prev => ({
             ...prev,
             [service]: {
                 ...prev[service],
-                [action]: !prev[service][action]
+                [action]: !((prev[service] as any)[action])
             }
         }));
     };
@@ -165,6 +172,62 @@ export function NotificationSettings({ onSaveComplete }: { onSaveComplete?: () =
                                 type="checkbox"
                                 checked={settings.sonarr.download}
                                 onChange={() => toggleSetting('sonarr', 'download')}
+                            />
+                            <span className="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                {/* Plex Settings */}
+                <div className="settings-group" style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '2rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                        <PlaySquare size={20} color="#e5a00d" />
+                        <h3 style={{ margin: 0 }}>Plex (Streaming)</h3>
+                    </div>
+
+                    <div className="toggle-row">
+                        <span>Notify on Play</span>
+                        <label className="toggle-switch">
+                            <input
+                                type="checkbox"
+                                checked={settings.plex.play}
+                                onChange={() => toggleSetting('plex', 'play')}
+                            />
+                            <span className="slider"></span>
+                        </label>
+                    </div>
+
+                    <div className="toggle-row">
+                        <span>Notify on Resume</span>
+                        <label className="toggle-switch">
+                            <input
+                                type="checkbox"
+                                checked={settings.plex.resume}
+                                onChange={() => toggleSetting('plex', 'resume')}
+                            />
+                            <span className="slider"></span>
+                        </label>
+                    </div>
+
+                    <div className="toggle-row">
+                        <span>Notify on Finish (Scrobble)</span>
+                        <label className="toggle-switch">
+                            <input
+                                type="checkbox"
+                                checked={settings.plex.scrobble}
+                                onChange={() => toggleSetting('plex', 'scrobble')}
+                            />
+                            <span className="slider"></span>
+                        </label>
+                    </div>
+
+                    <div className="toggle-row">
+                        <span>Notify when New Content is Added</span>
+                        <label className="toggle-switch">
+                            <input
+                                type="checkbox"
+                                checked={settings.plex.library}
+                                onChange={() => toggleSetting('plex', 'library')}
                             />
                             <span className="slider"></span>
                         </label>

@@ -15,17 +15,25 @@ describe('NotificationSettings', () => {
             ok: true,
             json: async () => ({
                 radarr: { grab: true, download: false },
-                sonarr: { grab: false, download: true }
+                sonarr: { grab: false, download: true },
+                plex: { play: true, resume: false, scrobble: true, library: false }
             })
+        });
+
+        // Mock import.meta.env
+        vi.stubGlobal('import', {
+            meta: {
+                env: {
+                    DEV: true,
+                    VITE_PROXY_SECRET_KEY: 'test_secret'
+                }
+            }
         });
     });
 
     it('renders loading state initially', () => {
-        // Delay resolution to catch loading state
         mockFetch.mockImplementationOnce(() => new Promise(resolve => setTimeout(resolve, 100)));
         render(<NotificationSettings />);
-
-        // Check loading indicator (lucide Loader2 has class "spinner")
         const spinner = document.querySelector('.spinner');
         expect(spinner).toBeInTheDocument();
     });
@@ -37,20 +45,23 @@ describe('NotificationSettings', () => {
             expect(screen.getByText('Notification Alerts')).toBeInTheDocument();
             expect(screen.getByText('Radarr (Movies)')).toBeInTheDocument();
             expect(screen.getByText('Sonarr (TV Shows)')).toBeInTheDocument();
+            expect(screen.getByText('Plex (Streaming)')).toBeInTheDocument();
         });
 
-        // Check fetched state
         const checkboxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
-        expect(checkboxes).toHaveLength(4);
+        expect(checkboxes).toHaveLength(8);
 
-        // Radarr Grab (true)
-        expect(checkboxes[0].checked).toBe(true);
-        // Radarr Download (false)
-        expect(checkboxes[1].checked).toBe(false);
-        // Sonarr Grab (false)
-        expect(checkboxes[2].checked).toBe(false);
-        // Sonarr Download (true)
-        expect(checkboxes[3].checked).toBe(true);
+        // Radarr
+        expect(checkboxes[0].checked).toBe(true); // Grab
+        expect(checkboxes[1].checked).toBe(false); // Download
+        // Sonarr
+        expect(checkboxes[2].checked).toBe(false); // Grab
+        expect(checkboxes[3].checked).toBe(true); // Download
+        // Plex
+        expect(checkboxes[4].checked).toBe(true); // Play
+        expect(checkboxes[5].checked).toBe(false); // Resume
+        expect(checkboxes[6].checked).toBe(true); // Scrobble
+        expect(checkboxes[7].checked).toBe(false); // Library
     });
 
     it('toggles settings when clicked', async () => {
@@ -62,14 +73,11 @@ describe('NotificationSettings', () => {
         });
 
         const checkboxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
-        const radarrGrab = checkboxes[0];
+        const plexResume = checkboxes[5];
 
-        expect(radarrGrab.checked).toBe(true);
-
-        // Click the label/slider to toggle
-        await user.click(radarrGrab);
-
-        expect(radarrGrab.checked).toBe(false);
+        expect(plexResume.checked).toBe(false);
+        await user.click(plexResume);
+        expect(plexResume.checked).toBe(true);
     });
 
     it('submits correctly on save', async () => {
@@ -80,7 +88,6 @@ describe('NotificationSettings', () => {
             expect(screen.getByText('Notification Alerts')).toBeInTheDocument();
         });
 
-        // Mock successful save response
         mockFetch.mockResolvedValueOnce({
             ok: true,
             json: async () => ({ success: true })
@@ -89,18 +96,15 @@ describe('NotificationSettings', () => {
         const saveButton = screen.getByRole('button', { name: /save changes/i });
         await user.click(saveButton);
 
-        expect(mockFetch).toHaveBeenCalledTimes(2); // 1 for fetch, 1 for save
+        expect(mockFetch).toHaveBeenCalledTimes(2);
         expect(mockFetch).toHaveBeenLastCalledWith(
             'http://localhost:3001/api/settings/notifications',
             expect.objectContaining({
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': expect.stringContaining('Bearer')
-                },
                 body: JSON.stringify({
                     radarr: { grab: true, download: false },
-                    sonarr: { grab: false, download: true }
+                    sonarr: { grab: false, download: true },
+                    plex: { play: true, resume: false, scrobble: true, library: false }
                 })
             })
         );

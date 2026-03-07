@@ -6,7 +6,7 @@ export function LogsViewer({ logs }: { logs: string[] }) {
     const endRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        endRef.current?.scrollIntoView({ behavior: 'smooth' });
+        endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, [logs]);
 
     return (

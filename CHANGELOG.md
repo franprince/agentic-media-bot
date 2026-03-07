@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.27.0] - 2026-03-07
+
+### Added
+- **Plex Notification Settings**: Granular toggles for `media.play`, `media.resume`, `media.scrobble`, and `library.new` events in the web dashboard.
+- **Dedicated Settings Page**: Refactored the proxy UI to move settings and preferences to a separate view.
+
+### Fixed
+- **Resilient Webhook Relay**: Updated the proxy to return `200 OK` to external services (like Sonarr/Plex) if the event is logged to the DB, even if the bot relay is temporarily offline.
+- **Loopback Connectivity**: Webhook relay now uses `127.0.0.1` explicitly to avoid local Nginx conflicts.
+- **Dashboard Autoscroll**: Fixed log list jumping by using `block: 'nearest'` for autoscroll.
+
 ## [4.26.0] - 2026-03-07
 
 ### Added

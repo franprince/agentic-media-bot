@@ -88,6 +88,8 @@
     - **Image Support**: If a thumbnail is specified, the service fetches it via local `fetch` and uploads it to Telegram as an `InputFile` to resolve `localhost` reachability issues.
     - **Toggle Persistence**: Notification preference is stored in the `metadata` table as `notifications_enabled` (string "true" or "false"), with granular event configuration managed by `proxy.ts`.
     - **Conditional Relay**: The server only forwards webhook payloads to the main bot instance if `BRAIN_WEBHOOK_URL` is set, otherwise natively processing them.
+    - **Loopback Resiliency**: Webhook relay uses `127.0.0.1` by default to avoid Nginx/Proxy conflicts on `localhost`.
+    - **Relay 200 Patch**: The proxy returns `200 OK` (with a bypass warning) if the event is logged to the local database, even if the relay to the bot fails, ensuring external services perceive success.
 
 ## Startup Verification & Specification Auditing
 - On every run, the bot MUST execute `src/verify-config.ts` (or equivalent) to audit its environment against `TECHNICAL_SPEC.md` and `FUNCTIONAL_SPEC.md`.

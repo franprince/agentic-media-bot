@@ -129,9 +129,11 @@ export async function handlePlexWebhook(request: Request, bot: Bot) {
         const message = formatWebhookMessage(payload, prevState);
 
         if (message) {
-            // Check if notifications are globally disabled
+            // Check if notifications are globally disabled or service-specific events are disabled
             if (!areNotificationsEnabled()) {
                 console.log(`Plex Webhook: Notifications are disabled, skipping alert for ${payload.event}`);
+            } else if (!getEventAlertConfig("plex", payload.event)) {
+                console.log(`Plex Webhook: Notifications for event ${payload.event} are disabled in settings.`);
             } else {
                 const PLEX_URL = process.env.PLEX_URL?.trim();
                 const PLEX_TOKEN = process.env.PLEX_TOKEN?.trim();

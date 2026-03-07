@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { LogsViewer } from '../LogsViewer';
 
 describe('LogsViewer', () => {
@@ -19,5 +19,17 @@ describe('LogsViewer', () => {
         sampleLogs.forEach(log => {
             expect(screen.getByText(log)).toBeInTheDocument();
         });
+    });
+
+    it('calls scrollIntoView on new logs with block: "nearest"', () => {
+        const scrollSpy = vi.fn();
+        window.HTMLElement.prototype.scrollIntoView = scrollSpy;
+
+        const { rerender } = render(<LogsViewer logs={["Log 1"]} />);
+        expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'nearest' });
+
+        rerender(<LogsViewer logs={["Log 1", "Log 2"]} />);
+        expect(scrollSpy).toHaveBeenCalledTimes(2);
+        expect(scrollSpy).toHaveBeenLastCalledWith({ behavior: 'smooth', block: 'nearest' });
     });
 });

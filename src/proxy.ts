@@ -6,7 +6,7 @@ import * as qbittorrent from "./services/qbittorrent";
 import * as nzbget from "./services/nzbget";
 import * as aiTools from "./agent/tools";
 import { checkAllServices } from "./services/health";
-import { getRecentMediaEvents, getEventAlertConfig, setEventAlertConfig } from "./services/database";
+import { areNotificationsEnabled, getPlaybackState, updatePlaybackState, saveMediaEvent, getEventAlertConfig, getRecentMediaEvents, setEventAlertConfig } from "./services/database";
 
 const PROXY_PORT = Number(process.env.PROXY_PORT) || 3001;
 const PROXY_SECRET_KEY = process.env.PROXY_SECRET_KEY;
@@ -88,12 +88,10 @@ serve({
 
         if (req.method === "GET" && url.pathname === "/api/dashboard/events") {
             try {
-                // Fetch events for Radarr, Sonarr, and Plex
                 const radarrEvents = getRecentMediaEvents("radarr", 10);
                 const sonarrEvents = getRecentMediaEvents("sonarr", 10);
                 const plexEvents = getRecentMediaEvents("plex", 10);
 
-                // Combine, sort by timestamp descending, and take the top 15
                 const allEvents = [...radarrEvents, ...sonarrEvents, ...plexEvents]
                     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
                     .slice(0, 15);
@@ -113,15 +111,19 @@ serve({
 
         if (req.method === "GET" && url.pathname === "/api/settings/notifications") {
             try {
-                // Fetch the current settings. We assume true if not set in DB
                 const radarrGrab = getEventAlertConfig("radarr", "grab");
                 const radarrDownload = getEventAlertConfig("radarr", "download");
                 const sonarrGrab = getEventAlertConfig("sonarr", "grab");
                 const sonarrDownload = getEventAlertConfig("sonarr", "download");
+                const plexPlay = getEventAlertConfig("plex", "media.play");
+                const plexResume = getEventAlertConfig("plex", "media.resume");
+                const plexScrobble = getEventAlertConfig("plex", "media.scrobble");
+                const plexLibrary = getEventAlertConfig("plex", "library.new");
 
                 return new Response(JSON.stringify({
                     radarr: { grab: radarrGrab, download: radarrDownload },
-                    sonarr: { grab: sonarrGrab, download: sonarrDownload }
+                    sonarr: { grab: sonarrGrab, download: sonarrDownload },
+                    plex: { play: plexPlay, resume: plexResume, scrobble: plexScrobble, library: plexLibrary }
                 }), {
                     status: 200,
                     headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
@@ -135,98 +137,49 @@ serve({
             }
         }
 
-        // Security check for API tool calls and POST requests
-        if (req.method === "POST" && (url.pathname === "/api/tool" || url.pathname === "/api/settings/notifications")) {
-            const authHeader = req.headers.get("Authorization");
-            if (authHeader !== `Bearer ${PROXY_SECRET_KEY}`) {
-                return new Response(JSON.stringify({ error: "Unauthorized" }), {
-                    status: 401,
-                    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
-                });
-            }
-
-            if (url.pathname === "/api/settings/notifications") {
-                try {
-                    const body = await req.json() as any;
-                    const { radarr, sonarr } = body;
-
-                    if (radarr) {
-                        if (typeof radarr.grab === "boolean") setEventAlertConfig("radarr", "grab", radarr.grab);
-                        if (typeof radarr.download === "boolean") setEventAlertConfig("radarr", "download", radarr.download);
-                    }
-                    if (sonarr) {
-                        if (typeof sonarr.grab === "boolean") setEventAlertConfig("sonarr", "grab", sonarr.grab);
-                        if (typeof sonarr.download === "boolean") setEventAlertConfig("sonarr", "download", sonarr.download);
-                    }
-
-                    return new Response(JSON.stringify({ success: true }), {
-                        status: 200,
-                        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
-                    });
-                } catch (error) {
-                    console.error("Error saving notification settings:", error);
-                    return new Response(JSON.stringify({ error: "Internal Error" }), { status: 500, headers: { "Access-Control-Allow-Origin": "*" } });
-                }
-            }
-
-            try {
-                const body = await req.json() as any;
-                const { service, method, args } = body;
-
-                if (!service || !method) {
-                    return new Response(JSON.stringify({ error: "Missing 'service' or 'method' in request payload." }), {
-                        status: 400,
-                        headers: { "Content-Type": "application/json" }
-                    });
-                }
-
-                const targetService = services[service];
-                if (!targetService) {
-                    return new Response(JSON.stringify({ error: `Service '${service}' not found on Proxy.` }), {
-                        status: 404,
-                        headers: { "Content-Type": "application/json" }
-                    });
-                }
-
-                let targetFunction = targetService[method];
-
-                // If the target is an AI SDK Tool, extract its execute function
-                if (targetFunction && typeof targetFunction === "object" && typeof targetFunction.execute === "function") {
-                    targetFunction = targetFunction.execute;
-                }
-
-                if (typeof targetFunction !== "function") {
-                    return new Response(JSON.stringify({ error: `Method '${method}' not found on service '${service}'.` }), {
-                        status: 404,
-                        headers: { "Content-Type": "application/json" }
-                    });
-                }
-
-                // Execute the function
-                const result = await targetFunction(...(args || []));
-
-                return new Response(JSON.stringify({ success: true, result }), {
-                    status: 200,
-                    headers: { "Content-Type": "application/json" }
-                });
-
-            } catch (error: any) {
-                console.error("Proxy execution error:", error);
-                return new Response(JSON.stringify({ error: error.message || "Internal Proxy Error" }), {
-                    status: 500,
-                    headers: { "Content-Type": "application/json" }
-                });
-            }
-        }
-
-        // Webhook Relay
+        // Webhook Relay (Needs streaming body, handled before JSON parsing)
         if (req.method === "POST" && url.pathname.endsWith("-webhook")) {
-            let brainUrl = process.env.BRAIN_WEBHOOK_URL; // e.g., https://bot.domain.com
-
+            let brainUrl = process.env.BRAIN_WEBHOOK_URL;
             if (!brainUrl) {
-                console.warn(`Received webhook on ${url.pathname} but BRAIN_WEBHOOK_URL is not configured. Acknowledging anyway.`);
-                return new Response("OK", { status: 200 });
+                console.warn(`Received webhook on ${url.pathname} but BRAIN_WEBHOOK_URL is not configured.`);
             }
+
+            // Clone the request so we can read the body for logging AND relay it
+            const clonedReq = req.clone();
+
+            // Background logging
+            (async () => {
+                try {
+                    let service = "";
+                    let event = "";
+                    let title = "";
+                    let message = "";
+
+                    if (url.pathname === "/plex-webhook") {
+                        service = "plex";
+                        const formData = await clonedReq.formData();
+                        const payload = JSON.parse(formData.get("payload") as string) as any;
+                        event = payload.event;
+                        title = payload.Metadata?.title || "Unknown Title";
+                        message = `Plex Event: ${event} - ${title}`;
+                    } else {
+                        service = url.pathname.includes("radarr") ? "radarr" : "sonarr";
+                        const payload = await clonedReq.json() as any;
+                        event = payload.eventType || "unknown";
+                        title = payload.movie?.title || payload.series?.title || "Unknown Title";
+                        message = `${service.charAt(0).toUpperCase() + service.slice(1)} Event: ${event} - ${title}`;
+                    }
+
+                    if (service && event) {
+                        saveMediaEvent(service, event, title, message);
+                        console.log(`✅ Logged ${service} event: ${event}`);
+                    }
+                } catch (e) {
+                    console.error("Failed to log event in proxy:", e);
+                }
+            })();
+
+            if (!brainUrl) return new Response("OK", { status: 200 });
 
             if (!brainUrl.startsWith("http")) {
                 brainUrl = `http://${brainUrl}`;
@@ -234,12 +187,8 @@ serve({
             }
 
             try {
-                // Forward the request exactly as received (headers, multipart form data, etc.)
                 const forwardUrl = `${brainUrl.replace(/\/$/, "")}${url.pathname}`;
-                console.log(`Forwarding webhook to ${forwardUrl}`);
-
                 const headers = new Headers(req.headers);
-                // Remove host to avoid conflicts during forwarding
                 headers.delete("host");
 
                 const response = await fetch(forwardUrl, {
@@ -250,12 +199,92 @@ serve({
 
                 return new Response(response.body, { status: response.status, headers: response.headers });
             } catch (error) {
-                console.error("Failed to forward webhook:", error);
-                return new Response("Webhook relay failed", { status: 500 });
+                console.error("Failed to forward webhook to brain (bot):", error);
+                // Since we already logged the event to the database in the background block,
+                // we can return 200 OK so Sonarr/Radarr/Plex don't think it failed completely.
+                return new Response(JSON.stringify({
+                    success: true,
+                    message: "Event logged locally, but relay to bot failed (bot may be offline)."
+                }), {
+                    status: 200,
+                    headers: { "Content-Type": "application/json" }
+                });
             }
         }
 
-        // Static file serving for proxy-ui
+        // Other POST requests (Settings and Tools)
+        if (req.method === "POST") {
+            let body: any = null;
+            try {
+                body = await req.json();
+            } catch (e) {
+                console.error("Failed to parse JSON body:", e);
+                return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400 });
+            }
+
+            // Notification Settings
+            if (url.pathname === "/api/settings/notifications") {
+                try {
+                    const { radarr, sonarr, plex } = body || {};
+                    if (radarr) {
+                        if (typeof radarr.grab === "boolean") setEventAlertConfig("radarr", "grab", radarr.grab);
+                        if (typeof radarr.download === "boolean") setEventAlertConfig("radarr", "download", radarr.download);
+                    }
+                    if (sonarr) {
+                        if (typeof sonarr.grab === "boolean") setEventAlertConfig("sonarr", "grab", sonarr.grab);
+                        if (typeof sonarr.download === "boolean") setEventAlertConfig("sonarr", "download", sonarr.download);
+                    }
+                    if (plex) {
+                        if (typeof plex.play === "boolean") setEventAlertConfig("plex", "media.play", plex.play);
+                        if (typeof plex.resume === "boolean") setEventAlertConfig("plex", "media.resume", plex.resume);
+                        if (typeof plex.scrobble === "boolean") setEventAlertConfig("plex", "media.scrobble", plex.scrobble);
+                        if (typeof plex.library === "boolean") setEventAlertConfig("plex", "library.new", plex.library);
+                    }
+                    return new Response(JSON.stringify({ success: true }), {
+                        status: 200,
+                        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+                    });
+                } catch (error) {
+                    console.error("Error saving notification settings:", error);
+                    return new Response(JSON.stringify({ error: "Internal Error" }), { status: 500 });
+                }
+            }
+
+            // AI Tool Calls
+            if (url.pathname === "/api/tool") {
+                const authHeader = req.headers.get("Authorization");
+                if (authHeader !== `Bearer ${PROXY_SECRET_KEY}`) {
+                    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+                }
+
+                try {
+                    const { service, method, args } = body || {};
+                    if (!service || !method) {
+                        return new Response(JSON.stringify({ error: "Missing 'service' or 'method'" }), { status: 400 });
+                    }
+
+                    const targetService = services[service];
+                    if (!targetService) {
+                        return new Response(JSON.stringify({ error: `Service '${service}' not found` }), { status: 404 });
+                    }
+
+                    let targetFunction = targetService[method];
+                    if (targetFunction?.execute) targetFunction = targetFunction.execute;
+
+                    if (typeof targetFunction !== "function") {
+                        return new Response(JSON.stringify({ error: `Method '${method}' not found` }), { status: 404 });
+                    }
+
+                    const result = await targetFunction(...(args || []));
+                    return new Response(JSON.stringify({ success: true, result }), { status: 200 });
+                } catch (error: any) {
+                    console.error("Proxy execution error:", error);
+                    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+                }
+            }
+        }
+
+        // Static file serving
         if (req.method === "GET") {
             let relativePath = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
             const absolutePath = `${import.meta.dir}/../proxy-ui/dist/${relativePath}`;
@@ -265,9 +294,7 @@ serve({
                 return new Response(file);
             } else if (!url.pathname.startsWith("/api/")) {
                 const indexFile = Bun.file(`${import.meta.dir}/../proxy-ui/dist/index.html`);
-                if (await indexFile.exists()) {
-                    return new Response(indexFile);
-                }
+                if (await indexFile.exists()) return new Response(indexFile);
             }
         }
 
