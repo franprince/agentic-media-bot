@@ -33,7 +33,7 @@ describe("Plex Webhooks", () => {
         }) as any;
     });
 
-    test("should NOT notify on library.new movie event but should clear cache", async () => {
+    test("should notify on library.new movie event and clear cache", async () => {
         const payload = {
             event: "library.new",
             Metadata: {
@@ -59,9 +59,49 @@ describe("Plex Webhooks", () => {
         const response = await handlePlexWebhook(request, mockBot as any);
 
         expect(response.status).toBe(200);
-        expect(sendPhotoSpy).not.toHaveBeenCalled();
+        expect(sendPhotoSpy).toHaveBeenCalled();
         expect(sendMessageSpy).not.toHaveBeenCalled();
         expect(clearCacheSpy).toHaveBeenCalled();
+
+        const args = sendPhotoSpy.mock.calls[0];
+        if (!args) throw new Error("sendPhoto was not called");
+        expect((args[2] as any).caption).toContain("New Movie added!");
+        expect((args[2] as any).caption).toContain("Inception");
+    });
+
+    test("should notify on library.new episode event", async () => {
+        const payload = {
+            event: "library.new",
+            Metadata: {
+                title: "The Bear",
+                type: "episode",
+                librarySectionType: "show",
+                grandparentTitle: "The Bear",
+                parentIndex: 1,
+                index: 1,
+                thumb: "/thumb.jpg"
+            }
+        };
+
+        const formData = new FormData();
+        formData.append("payload", JSON.stringify(payload));
+
+        const request = new Request("http://localhost/plex-webhook", {
+            method: "POST",
+            body: formData,
+        });
+
+        const sendPhotoSpy = spyOn(mockBot.api, "sendPhoto");
+
+        const response = await handlePlexWebhook(request, mockBot as any);
+
+        expect(response.status).toBe(200);
+        expect(sendPhotoSpy).toHaveBeenCalled();
+
+        const args = sendPhotoSpy.mock.calls[0];
+        if (!args) throw new Error("sendPhoto was not called");
+        expect((args[2] as any).caption).toContain("New Episode added!");
+        expect((args[2] as any).caption).toContain("The Bear - S01E01");
     });
 
     test("should parse media.play episode event", async () => {

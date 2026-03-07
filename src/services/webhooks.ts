@@ -355,6 +355,10 @@ function formatWebhookMessage(payload: PlexWebhookPayload, previousState: string
         case "media.scrobble":
             return `✅ *${user}* finished watching ${typeLabel} *${getFullTitle(Metadata)}*`;
 
+        case "library.new":
+            const itemType = Metadata?.type === 'episode' ? 'Episode' : 'Movie';
+            return `🆕 *New ${itemType} added!*\n\n*${getFullTitle(Metadata)}* is now ready to watch.`;
+
         default:
             console.log(`Plex Webhook: Ignored event ${event}`);
             return undefined;
