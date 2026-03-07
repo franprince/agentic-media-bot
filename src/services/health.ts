@@ -10,8 +10,21 @@ export type ServiceStatus = {
     message: string;
 };
 
+export async function pingBrain(): Promise<string> {
+    const isOllama = process.env.AI_PROVIDER === "ollama";
+    const start = performance.now();
+    const url = isOllama ? (process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434") : "https://generativelanguage.googleapis.com";
+
+    const res = await fetch(url, { method: "GET", signal: AbortSignal.timeout(5000) });
+    if (!res) throw new Error("No response");
+
+    const end = performance.now();
+    return `${Math.round(end - start)}ms`;
+}
+
 export async function checkAllServices(): Promise<ServiceStatus[]> {
     const services = [
+        { name: "Brain", check: pingBrain },
         { name: "Radarr", check: () => radarr.getSystemStatus() },
         { name: "Sonarr", check: () => sonarr.getSystemStatus() },
         { name: "Plex", check: () => plex.getSystemStatus() },
@@ -22,8 +35,12 @@ export async function checkAllServices(): Promise<ServiceStatus[]> {
     const results = await Promise.all(
         services.map(async (s) => {
             try {
-                await s.check();
-                return { service: s.name, online: true, message: "Online" };
+                const checkResult = await s.check();
+                let message = "Online";
+                if (s.name === "Brain" && typeof checkResult === "string") {
+                    message = `Online (${checkResult})`;
+                }
+                return { service: s.name, online: true, message };
             } catch (error) {
                 return { service: s.name, online: false, message: "Offline" };
             }

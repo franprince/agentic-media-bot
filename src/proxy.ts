@@ -5,6 +5,8 @@ import * as plex from "./services/plex";
 import * as qbittorrent from "./services/qbittorrent";
 import * as nzbget from "./services/nzbget";
 import * as aiTools from "./agent/tools";
+import { checkAllServices } from "./services/health";
+import { getRecentMediaEvents, getEventAlertConfig, setEventAlertConfig } from "./services/database";
 
 const PROXY_PORT = Number(process.env.PROXY_PORT) || 3001;
 const PROXY_SECRET_KEY = process.env.PROXY_SECRET_KEY;
@@ -31,6 +33,18 @@ serve({
     async fetch(req) {
         const url = new URL(req.url);
 
+        // CORS preflight requests
+        if (req.method === "OPTIONS") {
+            return new Response(null, {
+                status: 204,
+                headers: {
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                }
+            });
+        }
+
         // Health check endpoint
         if (req.method === "GET" && url.pathname === "/health") {
             return new Response(JSON.stringify({ status: "ok", timestamp: new Date().toISOString() }), {
@@ -39,14 +53,120 @@ serve({
             });
         }
 
-        // Security check for API tool calls
-        if (req.method === "POST" && url.pathname === "/api/tool") {
+        // Dashboard APIs
+        if (req.method === "GET" && url.pathname === "/api/dashboard/status") {
+            const status = await checkAllServices();
+            return new Response(JSON.stringify({ status }), {
+                status: 200,
+                headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+            });
+        }
+
+        if (req.method === "GET" && url.pathname === "/api/dashboard/logs") {
+            try {
+                const logFile = Bun.file("/tmp/agentic-media-bot-restart.log");
+                if (await logFile.exists()) {
+                    const text = await logFile.text();
+                    const lines = text.split("\n").filter(l => l.trim().length > 0);
+                    const recentLogs = lines.slice(-100);
+                    return new Response(JSON.stringify({ logs: recentLogs }), {
+                        status: 200,
+                        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+                    });
+                }
+                return new Response(JSON.stringify({ logs: ["No logs available."] }), {
+                    status: 200,
+                    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+                });
+            } catch (error) {
+                return new Response(JSON.stringify({ logs: ["Error reading logs."] }), {
+                    status: 500,
+                    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+                });
+            }
+        }
+
+        if (req.method === "GET" && url.pathname === "/api/dashboard/events") {
+            try {
+                // Fetch events for Radarr, Sonarr, and Plex
+                const radarrEvents = getRecentMediaEvents("radarr", 10);
+                const sonarrEvents = getRecentMediaEvents("sonarr", 10);
+                const plexEvents = getRecentMediaEvents("plex", 10);
+
+                // Combine, sort by timestamp descending, and take the top 15
+                const allEvents = [...radarrEvents, ...sonarrEvents, ...plexEvents]
+                    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                    .slice(0, 15);
+
+                return new Response(JSON.stringify({ events: allEvents }), {
+                    status: 200,
+                    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+                });
+            } catch (error) {
+                console.error("Failed to fetch events:", error);
+                return new Response(JSON.stringify({ error: "Failed to fetch events" }), {
+                    status: 500,
+                    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+                });
+            }
+        }
+
+        if (req.method === "GET" && url.pathname === "/api/settings/notifications") {
+            try {
+                // Fetch the current settings. We assume true if not set in DB
+                const radarrGrab = getEventAlertConfig("radarr", "grab");
+                const radarrDownload = getEventAlertConfig("radarr", "download");
+                const sonarrGrab = getEventAlertConfig("sonarr", "grab");
+                const sonarrDownload = getEventAlertConfig("sonarr", "download");
+
+                return new Response(JSON.stringify({
+                    radarr: { grab: radarrGrab, download: radarrDownload },
+                    sonarr: { grab: sonarrGrab, download: sonarrDownload }
+                }), {
+                    status: 200,
+                    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+                });
+            } catch (error) {
+                console.error("Failed to fetch notification settings:", error);
+                return new Response(JSON.stringify({ error: "Failed to fetch settings" }), {
+                    status: 500,
+                    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+                });
+            }
+        }
+
+        // Security check for API tool calls and POST requests
+        if (req.method === "POST" && (url.pathname === "/api/tool" || url.pathname === "/api/settings/notifications")) {
             const authHeader = req.headers.get("Authorization");
             if (authHeader !== `Bearer ${PROXY_SECRET_KEY}`) {
                 return new Response(JSON.stringify({ error: "Unauthorized" }), {
                     status: 401,
-                    headers: { "Content-Type": "application/json" }
+                    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
                 });
+            }
+
+            if (url.pathname === "/api/settings/notifications") {
+                try {
+                    const body = await req.json() as any;
+                    const { radarr, sonarr } = body;
+
+                    if (radarr) {
+                        if (typeof radarr.grab === "boolean") setEventAlertConfig("radarr", "grab", radarr.grab);
+                        if (typeof radarr.download === "boolean") setEventAlertConfig("radarr", "download", radarr.download);
+                    }
+                    if (sonarr) {
+                        if (typeof sonarr.grab === "boolean") setEventAlertConfig("sonarr", "grab", sonarr.grab);
+                        if (typeof sonarr.download === "boolean") setEventAlertConfig("sonarr", "download", sonarr.download);
+                    }
+
+                    return new Response(JSON.stringify({ success: true }), {
+                        status: 200,
+                        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+                    });
+                } catch (error) {
+                    console.error("Error saving notification settings:", error);
+                    return new Response(JSON.stringify({ error: "Internal Error" }), { status: 500, headers: { "Access-Control-Allow-Origin": "*" } });
+                }
             }
 
             try {
@@ -127,6 +247,22 @@ serve({
             } catch (error) {
                 console.error("Failed to forward webhook:", error);
                 return new Response("Webhook relay failed", { status: 500 });
+            }
+        }
+
+        // Static file serving for proxy-ui
+        if (req.method === "GET") {
+            let relativePath = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
+            const absolutePath = `${import.meta.dir}/../proxy-ui/dist/${relativePath}`;
+            const file = Bun.file(absolutePath);
+
+            if (await file.exists()) {
+                return new Response(file);
+            } else if (!url.pathname.startsWith("/api/")) {
+                const indexFile = Bun.file(`${import.meta.dir}/../proxy-ui/dist/index.html`);
+                if (await indexFile.exists()) {
+                    return new Response(indexFile);
+                }
             }
         }
 
