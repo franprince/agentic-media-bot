@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { CheckCircle2, XCircle, Activity } from 'lucide-react';
+import { Activity } from 'lucide-react';
 import type { ServiceStatus } from '../hooks/useDashboard';
 
 export function ServiceCard({ status }: { status: ServiceStatus }) {
@@ -12,12 +12,8 @@ export function ServiceCard({ status }: { status: ServiceStatus }) {
             className="glass-panel service-card"
         >
             <div className="service-header">
-                {online ? (
-                    <CheckCircle2 color="var(--success-color)" size={32} />
-                ) : (
-                    <XCircle color="var(--danger-color)" size={32} />
-                )}
                 <h3>{service}</h3>
+                {online && <div className="status-dot pulsing" role="status" aria-label="Online" />}
             </div>
 
             <div className="service-message">
@@ -25,13 +21,8 @@ export function ServiceCard({ status }: { status: ServiceStatus }) {
                 <span>{message}</span>
             </div>
 
-            <div className="service-bar-container">
-                <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: "100%" }}
-                    transition={{ repeat: Infinity, duration: online ? 2 : 0, ease: "linear" }}
-                    className={`service-bar ${online ? 'online' : 'offline'}`}
-                />
+            <div className={`status-pill ${online ? 'online' : 'offline'}`}>
+                {online ? 'System Active' : 'System Offline'}
             </div>
         </motion.div>
     );

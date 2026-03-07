@@ -1,4 +1,5 @@
 import { serve } from "bun";
+import { appendFileSync } from "node:fs";
 import * as radarr from "./services/radarr";
 import * as sonarr from "./services/sonarr";
 import * as plex from "./services/plex";
@@ -149,6 +150,7 @@ serve({
 
             // Background logging
             (async () => {
+                const timestamp = new Date().toISOString();
                 try {
                     let service = "";
                     let event = "";
@@ -172,9 +174,13 @@ serve({
 
                     if (service && event) {
                         saveMediaEvent(service, event, title, message);
+                        const logLine = `[${timestamp}] [WEBHOOK] Received ${service} event: ${event} (${title})\n`;
+                        appendFileSync("/tmp/agentic-media-bot-restart.log", logLine);
                         console.log(`✅ Logged ${service} event: ${event}`);
                     }
                 } catch (e) {
+                    const errorLine = `[${timestamp}] [WEBHOOK] [ERROR] Failed to process ${url.pathname}: ${e}\n`;
+                    appendFileSync("/tmp/agentic-media-bot-restart.log", errorLine);
                     console.error("Failed to log event in proxy:", e);
                 }
             })();
