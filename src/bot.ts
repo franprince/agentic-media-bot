@@ -310,6 +310,14 @@ const CHANGELOG_RELEASES: ChangelogRelease[] = [
             "perf: Improved filename and extension detection for uploaded media.",
         ],
     },
+    {
+        version: "4.24.0",
+        changes: [
+            "feat: Enabled Plex library notifications for new movies and episodes.",
+            "feat: Added comprehensive /help command listing all bot features and commands.",
+            "test: Updated webhook test suite to verify library.new notifications.",
+        ],
+    },
 ];
 
 function getAllowedUserIdSet(): Set<number> {
@@ -477,15 +485,43 @@ How can I help you today?
     waitingForName.set(userId, { waitingForName: true });
     await ctx.reply(`👋 Hello! I am your *Agentic Media Bot*.
     
-I help you manage your media library across:
-✅ *Radarr* (Movies)
-✅ *Sonarr* (TV Shows)
-✅ *Plex* (Streaming)
-✅ *qBittorrent* (Downloads)
+    I help you manage your media library across:
+    ✅ *Radarr* (Movies)
+    ✅ *Sonarr* (TV Shows)
+    ✅ *Plex* (Streaming)
+    ✅ *qBittorrent* (Downloads)
 
-_If you haven't configured the bot yet, please run \`bun src/setup.ts\` on your server._
+    _If you haven't configured the bot yet, please run \`bun src/setup.ts\` on your server._
 
-What should I call you?`, { parse_mode: "Markdown" });
+    What should I call you?`, { parse_mode: "Markdown" });
+});
+
+// Handle /help command
+bot.command("help", async (ctx) => {
+    const helpMessage = `🤖 *Agentic Media Bot - Help*
+
+I am an AI-powered media manager that understands natural language. You can talk to me normally to find, add, or manage your media.
+
+*Available Commands:*
+🚀 /start - Initial setup and welcome
+📡 /status - Check health of all connected services
+🎬 /radarr - View recent movie events & manage alerts
+📺 /sonarr - View recent series events & manage alerts
+🔔 /notifications <on/off> - Toggle Plex alerts
+🔄 /restart - Restart the bot (Admin only)
+🔍 /audit - Diagnostic logs (Admin only)
+❓ /help - Show this help message
+
+*Key Features:*
+• *Natural Language*: "Search for Action movies from Japan", "Add Inception to Radarr", "What are some good sci-fi shows?"
+• *Plex Discovery*: Search by genre, country, or duration across your libraries.
+• *Media Management*: Add or remove content from Radarr and Sonarr with interactive confirmations (Inline Buttons).
+• *Real-time Alerts*: Get notified when media is grabbed, downloaded, or when someone starts watching on Plex.
+• *Multilingual Support*: Handles non-Latin titles and translated metadata.
+
+_Tip: You can just ask me "Find me some short horror movies from the 90s" and I'll do the rest!_`;
+
+    await ctx.reply(helpMessage, { parse_mode: "Markdown" });
 });
 
 // Handle /status command
