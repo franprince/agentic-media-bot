@@ -70,6 +70,7 @@
 - **Cross-Service Alias Recovery**: When foreign-script titles still lack Latin aliases after Plex metadata enrichment (in browse results or webhook notifications), the bot performs best-effort Radarr/Sonarr lookup (title/year) to recover English aliases.
 - **Alias Fallback Rendering**: If `originalTitle` is missing, deterministic rendering can use enriched `aliasTitle`; if a non-Latin title still has no alias, output explicitly marks the English/Spanish alias as unavailable.
 - **Intent-Based Tool Gating**: For detail/info/synopsis user intent, add tools (`addMovie`, `addSeries`) are removed from the tool set unless explicit add intent is detected.
+- **Interactive Buttons Layer**: The agent logic includes a post-processing regex layer to extract `BUTTON: Label | callback_data` patterns from LLM responses, populating the Telegram `InlineKeyboard`.
 - **Error Diagnostics**: The `/audit` command provides a deep-dive into `/tmp/agentic-media-bot-restart.log` to identify root causes of crashes.
 
 ## Webhook Server

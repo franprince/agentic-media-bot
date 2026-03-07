@@ -97,7 +97,10 @@ A conversational Telegram bot that controls a user's home media server stack, ca
     - **AI Provider Selection**: Supports Google Gemini and Ollama (both local and cloud-hosted via `OLLAMA_BASE_URL`).
     - **Automated Service Discovery**: Automatically identifies Plex library sections to simplify environment variable configuration (`PLEX_MOVIE_SECTION_IDS`, `PLEX_SHOW_SECTION_IDS`).
     - **Launch on Startup (Linux)**: Offers to create and enable a systemd user service for automated bot execution on system boot.
-11. **Real-time Notifications (Plex Webhooks)**
+11. **Interactive Buttons**
+    - **Contextual Actions**: When asking questions or offering choices (e.g., adding media, selecting genres), the bot provides interactive buttons (Inline Keyboards) for a better user experience.
+    - **Automatic Parsing**: The bot's engine automatically extracts button definitions from AI-generated text to display them as clickable elements.
+12. **Real-time Notifications (Plex Webhooks)**
     - **Library Activity**: Internal cache is automatically invalidated when new media is added to Plex (`library.new`) to ensure data freshness. No user notification is sent for this event.
     - **Playback Activity**: Notifies when a user starts watching (`media.play`) or finishes watching (`media.scrobble`) media.
     - **Real-time Notifications**: Integrated Telegram notifications for:

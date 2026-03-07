@@ -31,294 +31,95 @@ type ChangelogRelease = {
     changes: string[];
 };
 
-const CHANGELOG_RELEASES: ChangelogRelease[] = [
-    {
-        version: "4.0.0",
-        changes: [
-            "feat: Added Plex search by duration - find movies shorter than, longer than, or between specific durations.",
-            "feat: Added multilingual Plex search fallback via Radarr/Sonarr for better international title matching.",
-            "fix: Fixed Plex country search limit parameter to be nullable.",
-            "chore: Updated agent system prompt to include new duration-based search capabilities.",
-        ],
-    },
-    {
-        version: "4.0.1",
-        changes: [
-            "fix: Add limit parameter extraction to searchPlexByDuration tool",
-            "fix(plex): Fix getPlexLibraryStats to return all items for filtering",
-            "docs: Clarify that country names must always be in English for tool calls",
-            "docs: Add movie details format and remove copyright disclaimer from system prompt",
-            "feat: Add getPosterData for fetching poster as base64 data URL",
-            "fix: Add undefined check in mapWithConcurrency worker",
-            "fix: Revert mapWithConcurrency return type to Promise<R[]>",
-            "fix: Correct Plex duration search to fetch all movies with pagination",
-            "fix: Improve repair prompt with explicit type rules for number parameters",
-            "fix: Correct searchPlexByDuration tool signature in system prompt",
-        ],
-    },
-    {
-        version: "4.1.0",
-        changes: [
-            "refactor: Centralized API fetch logic in src/services/api.ts for Radarr, Sonarr, and Plex.",
-            "refactor: Modularized agent core logic into separate src/agent/prompts.ts and src/agent/utils.ts files.",
-            "fix: Standardized error reporting for service API calls with detailed error messages.",
-            "test: Added comprehensive unit tests for the architectural refactor.",
-        ],
-    },
-    {
-        version: "4.2.0",
-        changes: [
-            "feat: Migrated complete testing suite to Mock Service Worker (MSW).",
-            "refactor: Replaced manual fetch mocks in Sonarr, Radarr, Plex, and qBittorrent tests with centralized MSW handlers.",
-            "test: Improved test reliability and network interception accuracy.",
-        ],
-    },
-    {
-        version: "4.2.1",
-        changes: [
-            "fix: Suppressed redundant changelog notifications on every restart.",
-            "fix: Optimized Spanish language detection for short user phrases.",
-            "fix: Removed redundant saveUserName tool to prevent LLM-based name hallucinations.",
-            "feat: Added strict rules to prevent mixing movies and series in recommendations.",
-        ],
-    },
-    {
-        version: "4.3.0",
-        changes: [
-            "feat: Added interactive CLI setup tool (src/setup.ts) for easy onboarding.",
-            "feat: Added automated dependency installation in the setup tool.",
-            "feat: Added automated Plex section discovery during setup.",
-            "docs: Updated README and created .env.example template.",
-            "refactor: Improved configuration verification logic to guide new users.",
-        ],
-    },
-    {
-        version: "4.3.1",
-        changes: [
-            "fix: Resolved tool-calling crash caused by dead reference to removed saveUserNameTool.",
-            "test: Added tool integrity test suite to prevent future mapping regressions.",
-        ],
-    },
-    {
-        version: "4.4.0",
-        changes: [
-            "feat: Standardized Plex search tool names to searchPlexByCountry, searchPlexByGenre, and searchPlexByDuration.",
-            "refactor: Updated system prompt and specifications to reflect standardized tool names.",
-            "feat: Improved history migration to automatically normalize legacy tool names to the new standard.",
-            "chore: Kept legacy tool names as aliases for backward compatibility.",
-        ],
-    },
-    {
-        version: "4.5.0",
-        changes: [
-            "fix: Improved Plex browsing to search across both movie and show libraries concurrently.",
-            "fix: Resolved issue where TV shows like 'The Bear' were not found during genre/country discovery.",
-            "refactor: Replaced hardcoded recommendations in discoverMediaTool with dynamic discovery logic.",
-            "docs: Clarified that duration searches are movie-specific.",
-        ],
-    },
-    {
-        version: "4.6.0",
-        changes: [
-            "feat: Integrated Plex webhooks for real-time notifications.",
-            "feat: Added automated notifications for new media and playback activity.",
-            "feat: Embedded lightweight web server using Bun.serve to handle webhook callbacks.",
-            "test: Added unit test suite for webhook payload parsing and notification formatting.",
-        ],
-    },
-    {
-        version: "4.7.0",
-        changes: [
-            "feat: Added /notifications <on/off> command to toggle Plex alerts.",
-            "feat: Persisted notification preferences in the database.",
-            "fix: Webhook service now respects user notification settings.",
-            "test: Added test case for skipped notifications in webhook service.",
-        ],
-    },
-    {
-        version: "4.8.0",
-        changes: [
-            "feat: Added optional Plex webhook setup in the CLI tool.",
-            "feat: Webhook server now only starts if explicitly enabled via USE_PLEX_WEBHOOK.",
-            "refactor: Updated configuration verification to handle disabled webhook status correctly.",
-        ],
-    },
-    {
-        version: "4.9.0",
-        changes: [
-            "feat: Added /audit command for admin-only log diagnostics and error reporting.",
-            "fix: Added defensive tool filtering to prevent 'undefined' tool crashes in the AI SDK.",
-            "fix: Improved process termination logic in restart supervisor to prevent 409 Conflict errors.",
-            "feat: Added startup instance detection to warn about multiple running bot processes.",
-        ],
-    },
-    {
-        version: "4.9.1",
-        changes: [
-            "feat: Added originalTitle field to PlexWebhookPayload.Metadata interface.",
-            "feat: Implemented isNonLatinTitle helper to detect non-Latin script titles (Japanese, Korean, Chinese, Arabic, etc.).",
-            "feat: Implemented withEnglishTitle helper to append English/original title in parentheses per Title Localization Protocol.",
-            "fix: Webhook notifications for library.new, media.play, and media.scrobble events now display English/original title alongside non-Latin titles.",
-            "test: Added 19 new tests covering isNonLatinTitle, withEnglishTitle, and webhook integration for foreign-language titles.",
-        ],
-    },
-    {
-        version: "4.9.2",
-        changes: [
-            "fix: Resolved tool integrity test mismatch by updating test to match current tool mapping with legacy aliases.",
-            "fix: Added timeout and retry logic to webhook image fetching to prevent hanging requests (10s timeout, 3 retries with exponential backoff).",
-            "fix: Enhanced process detection with more specific patterns and PID validation to prevent false positives.",
-            "feat: Implemented LRU cache management with 100-entry limit and automatic cleanup to prevent memory leaks.",
-            "feat: Added SQL input sanitization to prevent prototype pollution attacks in conversation history.",
-            "feat: Implemented cache invalidation on webhook library.new events to ensure fresh data.",
-            "feat: Added structured logging for webhook error scenarios with detailed diagnostic information.",
-            "refactor: Enhanced type safety by replacing 'any' types with proper TypeScript interfaces.",
-            "refactor: Standardized error handling patterns across all services with centralized error utilities.",
-            "test: Updated test expectations to match new standardized error message format.",
-        ],
-    },
-    {
-        version: "4.10.0",
-        changes: [
-            "feat: Implemented smart playback notifications for Plex webhooks.",
-            "feat: Added session state tracking in the database to filter out routine unpauses.",
-            "feat: Added notification for 'media.resume' only when not preceded by a pause (significant resume).",
-            "fix: Reduced notification noise by ignoring 'media.pause' events while maintaining session state.",
-        ],
-    },
-    {
-        version: "4.11.0",
-        changes: [
-            "feat: Improved search intelligence by guiding LLM to use specialized country-of-origin tools.",
-            "fix: Enhanced Spanish language detection signals with word-boundary checks to prevent false positives.",
-            "fix: Removed ambiguous 'series' and 'serie' keywords from language signals to improve accuracy.",
-            "test: Added E2E regression test suite for origin search and language consistency.",
-        ],
-    },
-    {
-        version: "4.12.0",
-        changes: [
-            "feat: Customized Plex webhook notification templates for movies and series.",
-            "feat: Implemented SxxExx format for series notifications.",
-            "refactor: Generalized title localization to show original title whenever it differs from the displayed title.",
-            "test: Added comprehensive test suite for new notification formats and localization logic.",
-        ],
-    },
-    {
-        version: "4.13.0",
-        changes: [
-            "feat: Implemented Cross-Service Alias Recovery for webhook notifications.",
-            "feat: Enhanced metadata enrichment to fallback to Radarr/Sonarr for foreign titles.",
-            "fix: Cleaned up notification format by removing colons and newlines for better readability.",
-            "fix: Improved metadata enrichment reliability for movies missing original titles in Plex.",
-        ],
-    },
-    {
-        version: "4.14.0",
-        changes: [
-            "feat: Added 'Launch on Startup' option in the setup script for Linux (systemd).",
-            "feat: Implemented IMDb ID prioritization and title validation for movie and series additions.",
-            "fix: Resolved strict TypeScript 'possibly undefined' error in Plex webhook service.",
-            "test: Added unit tests for IMDb validation and regression tests for webhook show enrichment.",
-        ],
-    },
-    {
-        version: "4.15.0",
-        changes: [
-            "feat: Restricted Plex webhook notifications to watching activity only (play, resume, scrobble).",
-            "chore: Library additions (library.new) no longer trigger Telegram alerts but still invalidate the internal cache.",
-        ],
-    },
-    {
-        version: "4.16.0",
-        changes: [
-            "feat: Added systemd user service management instructions to README.",
-            "feat: Updated setup script with explicit service management commands.",
-            "docs: Added 'Bot Logs' and 'How to Manage the Bot' sections to README.",
-        ],
-    },
-    {
-        version: "4.17.0",
-        changes: [
-            "feat: Implemented history trimming to prevent context 'stickiness'.",
-            "feat: Added interactive selection of quality profiles and root folders for media additions.",
-            "feat: Improved Anime support in Sonarr with automatic seriesType detection.",
-            "fix: Standardized success messages for Radarr and Sonarr tools.",
-            "test: Added unit tests for history management and Sonarr anime detection.",
-        ],
-    },
-    {
-        version: "4.18.0",
-        changes: [
-            "feat: Added support for cloud-hosted Ollama models via OLLAMA_BASE_URL env var.",
-            "refactor: Transitioned to @ai-sdk/openai bridge for Ollama to support custom hosts and better endpoint flexibility.",
-            "feat: Improved configuration verification with real AI generation tests for Ollama.",
-            "fix: Resolved pre-existing bug in OpenRouter/OpenAI verification connectivity check.",
-            "fix: Updated zod and zod-to-json-schema to resolve environment-specific module loading errors.",
-        ],
-    },
-    {
-        version: "4.19.0",
-        changes: [
-            "feat: Added NZBGet service integration.",
-            "feat: Implemented NZBGet health check in /status command.",
-        ],
-    },
-    {
-        version: "4.20.0",
-        changes: [
-            "feat: Added media deletion support for both movies and TV shows.",
-            "feat: Implemented removeMovieTool and removeSeriesTool for the agent.",
-        ],
-    },
-    {
-        version: "4.21.0",
-        changes: [
-            "feat: Added media type labeling ([Movie]/[Show]) to all search results.",
-            "feat: Broadened country search to include co-productions (e.g., Japan/USA).",
-            "feat: Improved library statistics to include all sections (including Anime) dynamically.",
-        ],
-    },
-    {
-        version: "4.21.1",
-        changes: [
-            "fix: Added mandatory interactive confirmation for media removal in Radarr and Sonarr.",
-            "fix: Bot now explicitly asks whether to keep or delete media files during removals.",
-            "fix: Resolved type definition missing fields for Radarr and Sonarr media objects.",
-        ],
-    },
-    {
-        version: "4.21.2",
-        changes: [
-            "feat: Added Telegram Inline Buttons for interactive confirmations and choices.",
-            "fix: Streamlined message handling to properly route callback queries through the agent.",
-        ],
-    },
-    {
-        version: "4.22.0",
-        changes: [
-            "fix: Implemented database persistence in Coolify by migrating bot_data.sqlite to a dedicated data/ directory.",
-            "feat: Added automated data/ directory provisioning on startup.",
-            "docs: Updated technical specifications with persistent volume mapping requirements.",
-        ],
-    },
-    {
-        version: "4.23.0",
-        changes: [
-            "fix: Implemented a smart image handler that fetches local images from Plex/internal addresses.",
-            "fix: Resolved 'Bad Request: wrong remote file identifier' errors when sending photos with localhost URLs.",
-            "perf: Improved filename and extension detection for uploaded media.",
-        ],
-    },
-    {
-        version: "4.24.0",
-        changes: [
-            "feat: Enabled Plex library notifications for new movies and episodes.",
-            "feat: Added comprehensive /help command listing all bot features and commands.",
-            "test: Updated webhook test suite to verify library.new notifications.",
-        ],
-    },
-];
+/**
+ * Parses CHANGELOG.md to extract version and changes.
+ * Single source of truth.
+ */
+async function getChangelogFromFile(): Promise<ChangelogRelease[]> {
+    try {
+        const changelogPath = resolve(projectRoot, "CHANGELOG.md");
+        const file = Bun.file(changelogPath);
+        if (!await file.exists()) return [];
+
+        const text = await file.text();
+        const releases: ChangelogRelease[] = [];
+        const sections = text.split(/^## \[/m).slice(1);
+
+        for (const section of sections) {
+            const versionMatch = section.match(/^([^\]]+)\]/);
+            if (!versionMatch) continue;
+
+            const version = versionMatch[1] as string;
+            const changes: string[] = [];
+
+            // Extract bullet points from the section
+            const lines = section.split("\n");
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed.startsWith("- ")) {
+                    changes.push(trimmed.substring(2));
+                }
+            }
+
+            if (changes.length > 0) {
+                releases.push({ version, changes });
+            }
+        }
+        return releases;
+    } catch (err) {
+        console.error("Failed to parse CHANGELOG.md:", err);
+        return [];
+    }
+}
+
+/**
+ * Robust semver comparison (v1 > v2)
+ */
+function isNewerVersion(v1: string, v2: string): boolean {
+    if (!v2) return true;
+    const p1 = v1.split(".").map(Number);
+    const p2 = v2.split(".").map(Number);
+
+    for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
+        const n1 = p1[i] || 0;
+        const n2 = p2[i] || 0;
+        if (n1 > n2) return true;
+        if (n1 < n2) return false;
+    }
+    return false;
+}
+
+/**
+ * Atomic instance check using database metadata.
+ * Returns true if this instance should become the leader.
+ */
+function acquireInstanceLock(): boolean {
+    const activePid = getMetadata("active_instance_pid");
+    const now = Date.now();
+    const heartbeat = Number(getMetadata("instance_heartbeat") || 0);
+
+    // If no active PID or heartbeat is older than 2 minutes, we can take over.
+    if (!activePid || (now - heartbeat > 120000)) {
+        setMetadata("active_instance_pid", String(process.pid));
+        setMetadata("instance_heartbeat", String(now));
+        return true;
+    }
+
+    // If it's already us, just update heartbeat
+    if (activePid === String(process.pid)) {
+        setMetadata("instance_heartbeat", String(now));
+        return true;
+    }
+
+    return false;
+}
+
+function startHeartbeat() {
+    setInterval(() => {
+        setMetadata("instance_heartbeat", String(Date.now()));
+    }, 30000); // Every 30 seconds
+}
+
 
 function getAllowedUserIdSet(): Set<number> {
     const raw = process.env.ALLOWED_USER_IDS?.split(",") || [];
@@ -446,10 +247,11 @@ function splitTelegramMessage(text: string, maxLength = TELEGRAM_MAX_MESSAGE_LEN
     return chunks;
 }
 
-function getLatestChangelogRelease(): ChangelogRelease {
-    const latest = CHANGELOG_RELEASES[CHANGELOG_RELEASES.length - 1];
+async function getLatestChangelogRelease(): Promise<ChangelogRelease> {
+    const releases = await getChangelogFromFile();
+    const latest = releases[0]; // Assuming newest is first in CHANGELOG.md
     if (!latest) {
-        throw new Error("No changelog releases defined");
+        throw new Error("No changelog releases found in CHANGELOG.md");
     }
     return latest;
 }
@@ -1054,10 +856,10 @@ bot.api.getMe().then(async (me) => {
     const adminIds = process.env.ALLOWED_USER_IDS?.split(",") || [];
 
     if (adminIds.length > 0) {
-        const latestRelease = getLatestChangelogRelease();
-        const lastSentVersion = getMetadata("last_sent_changelog_version");
+        const latestRelease = await getLatestChangelogRelease();
+        const lastSentVersion = getMetadata("last_sent_changelog_version") || "";
 
-        if (lastSentVersion !== latestRelease.version) {
+        if (isNewerVersion(latestRelease.version, lastSentVersion)) {
             const startupTitle = "🔄 Bot startup changelog";
             const startupText = `${startupTitle}\n${buildReleaseChangelogText(latestRelease)}`;
 
@@ -1085,6 +887,14 @@ bot.api.getMe().then(async (me) => {
         console.log("📥 Checking for unreplied messages...");
         await syncUnrepliedMessages();
     }
+
+    // Instance locking
+    if (!acquireInstanceLock()) {
+        const activePid = getMetadata("active_instance_pid");
+        console.warn(`⚠️ Another instance (PID ${activePid}) is already active. Exiting to prevent 409 Conflict.`);
+        process.exit(0);
+    }
+    startHeartbeat();
 
     // Use grammyjs/runner to handle graceful restarts and long-polling concurrently
     botRunner = run(bot);

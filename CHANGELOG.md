@@ -5,6 +5,118 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.25.0] - 2026-03-07
+
+### Added
+- **Interactive Buttons**: The bot now generates clickable buttons for questions and choices, improving the conversational flow.
+- **Improved UX**: Confirmation prompts and selections can now be handled via buttons instead of just text or numbers.
+
+### Changed
+- **System Prompt**: Updated to guide the AI in generating interactive button elements using a standardized syntax.
+
+### Fixed
+- **Prompt Escaping**: Resolved lint errors in the system prompt caused by unescaped backticks.
+
+
+## [4.24.0] - 2026-03-06
+
+### Added
+- **Plex Library Notifications**: Enabled notifications for library.new events for movies and episodes.
+- **/help Command**: Added a comprehensive listing of all bot features and commands.
+
+### Tests
+- **Webhook Test Suite**: Updated to verify library.new notifications.
+
+## [4.23.0] - 2026-03-06
+
+### Fixed
+- **Smart Image Handler**: Implemented fetching local images from Plex/internal addresses to resolve 'Bad Request: wrong remote file identifier' errors.
+- **Filename Detection**: Improved detection for uploaded media.
+
+## [4.22.0] - 2026-03-06
+
+### Fixed
+- **Intent-Based Tool Gating**: For detail/info/synopsis user intent, add tools (`addMovie`, `addSeries`) are removed from the tool set unless explicit add intent is detected.
+- **Interactive Buttons Layer**: The agent logic includes a post-processing regex layer to extract `BUTTON: Label | callback_data` patterns from LLM responses, populating the Telegram `InlineKeyboard`.
+- **Error Diagnostics**: The `/audit` command provides a deep-dive into `/tmp/agentic-media-bot-restart.log` to identify root causes of crashes.
+### Docs
+- **Technical Specs**: Updated with persistent volume mapping requirements.
+
+## [4.21.2] - 2026-03-06
+
+### Changed
+- **Telegram Inline Buttons**: Added support for interactive confirmations and choices.
+- **Callback Routing**: Improved message handling to properly route callback queries through the agent.
+
+## [4.21.1] - 2026-03-05
+
+### Fixed
+- **Interactive Confirmations**: Added mandatory confirmation for media removal in Radarr/Sonarr.
+- **Type Definitions**: Resolved missing fields for Radarr and Sonarr media objects.
+
+## [4.21.0] - 2026-03-05
+
+### Added
+- **Media Type Labeling**: Added [Movie]/[Show] labels to all search results.
+- **Broad Country Search**: Included co-productions (e.g., Japan/USA) in searches.
+- **Dynamic Library Stats**: Improved to include all sections (including Anime).
+
+## [4.20.0] - 2026-03-05
+
+### Added
+- **Media Deletion Support**: Implemented `removeMovieTool` and `removeSeriesTool` for both movies and TV shows.
+
+## [4.19.0] - 2026-03-05
+
+### Added
+- **NZBGet Integration**: Added service integration and health check in `/status`.
+
+## [4.18.0] - 2026-03-05
+
+### Added
+- **Cloud-hosted Ollama**: Added support via `OLLAMA_BASE_URL` and transitioned to `@ai-sdk/openai` bridge.
+- **Configuration Verification**: Improved with real AI generation tests.
+
+### Fixed
+- **Connectivity Checks**: Resolved bugs in OpenRouter/OpenAI verification.
+- **Dependency Issues**: Updated `zod` and `zod-to-json-schema` for environment-specific errors.
+
+## [4.17.0] - 2026-03-05
+
+### Added
+- **History Trimming**: Implemented to prevent context "stickiness".
+- **Interactive Selection**: Added quality profiles and root folders for media additions.
+- **Anime Support**: Improved Sonarr integration with automatic `seriesType` detection.
+
+### Fixed
+- **Success Messages**: Standardized format for Radarr and Sonarr tools.
+
+## [4.16.0] - 2026-03-04
+
+### Added
+- **Systemd Management**: Added user service management instructions and setup script support.
+
+### Docs
+- **README Updates**: Added "Bot Logs" and "How to Manage the Bot" sections.
+
+## [4.15.0] - 2026-03-03
+
+### Changed
+- **Plex Webhook Filters**: Restricted notifications to watching activity only (play, resume, scrobble).
+- **Library Alerts**: `library.new` events no longer trigger Telegram alerts but still invalidate the cache.
+
+## [4.14.0] - 2026-03-02
+
+### Added
+- **Startup Launch**: Added    - **Launch on Startup (Linux)**: Offers to create and enable a systemd user service for automated bot execution on system boot.
+- **Interactive Buttons**
+    - **Contextual Actions**: When asking questions or offering choices (e.g., adding media, selecting genres), the bot provides interactive buttons (Inline Keyboards) for a better user experience.
+    - **Automatic Parsing**: The bot's engine automatically extracts button definitions from AI-generated text to display them as clickable elements.
+- **Real-time Notifications (Plex Webhooks)**: Implemented IMDb ID prioritization and title validation.
+
+### Fixed
+- **TypeScript Errors**: Resolved 'possibly undefined' error in Plex webhook service.
+
 ## [4.13.0] - 2026-02-27
 
 ### Added
