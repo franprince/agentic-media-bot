@@ -73,15 +73,21 @@
 - **Interactive Buttons Layer**: The agent logic includes a post-processing regex layer to extract `BUTTON: Label | callback_data` patterns from LLM responses, populating the Telegram `InlineKeyboard`.
 - **Error Diagnostics**: The `/audit` command provides a deep-dive into `/tmp/agentic-media-bot-restart.log` to identify root causes of crashes.
 
-## Webhook Server
-- The bot includes an embedded web server powered by `Bun.serve`.
-- **Default Port**: `3000` (configurable via `WEBHOOK_PORT`).
-- **Endpoint**: `POST /plex-webhook`.
-- **Payload Handling**: Parses `multipart/form-data` from Plex and extracts JSON `payload`.
-- **Image Support**: If a thumbnail is specified, the service fetches it via local `fetch` and uploads it to Telegram as an `InputFile` to resolve `localhost` reachability issues.
-- **Notification Target**: Uses `WEBHOOK_NOTIFY_CHAT_ID` or defaults to the first ID in `ALLOWED_USER_IDS`.
-- **Toggle Persistence**: Notification preference is stored in the `metadata` table as `notifications_enabled` (string "true" or "false").
-- **Conditional Activation**: The server only starts if `USE_PLEX_WEBHOOK` is set to `true` in environment variables.
+## Proxy Gateway & Webhook Server
+- The bot includes an embedded web server running independently via `Bun.serve` in `src/proxy.ts`.
+- **Default Port**: `3001` (configurable via `PROXY_PORT`).
+- **Dashboard API**:
+    - `GET /api/dashboard/status`: Returns comprehensive health and LLM latency metrics.
+    - `GET /api/dashboard/logs`: Serves recent 100 lines of `agentic-media-bot-restart.log`.
+    - `GET /api/dashboard/events`: Aggregates the latest 15 media webhook events persisted in SQLite.
+    - `GET /api/settings/notifications` & `POST /api/settings/notifications`: Exposes endpoints to load and persist boolean toggle states for specific media events.
+- **Web Interface (SPA)**: Serves a pre-built React + Vite interface from `proxy-ui/dist/` for unmatched GET routes.
+- **Webhook Subsystems**:
+    - **Payload Handling**: Parses `multipart/form-data` from Plex and extracts JSON `payload`.
+    - **Persistence**: All webhooks consistently log events calling `saveMediaEvent` regardless of downstream notification logic.
+    - **Image Support**: If a thumbnail is specified, the service fetches it via local `fetch` and uploads it to Telegram as an `InputFile` to resolve `localhost` reachability issues.
+    - **Toggle Persistence**: Notification preference is stored in the `metadata` table as `notifications_enabled` (string "true" or "false"), with granular event configuration managed by `proxy.ts`.
+    - **Conditional Relay**: The server only forwards webhook payloads to the main bot instance if `BRAIN_WEBHOOK_URL` is set, otherwise natively processing them.
 
 ## Startup Verification & Specification Auditing
 - On every run, the bot MUST execute `src/verify-config.ts` (or equivalent) to audit its environment against `TECHNICAL_SPEC.md` and `FUNCTIONAL_SPEC.md`.

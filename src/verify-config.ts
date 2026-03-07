@@ -136,6 +136,17 @@ export async function verifyConfig(exitOnFailure: boolean = true) {
             }
         },
         {
+            name: "Proxy Configuration",
+            fn: async () => {
+                const proxyKey = process.env.PROXY_SECRET_KEY;
+                if (!proxyKey) {
+                    throw new Error("PROXY_SECRET_KEY is missing. The Proxy Gateway will refuse to start.");
+                }
+                const port = process.env.PROXY_PORT || 3001;
+                return `Success: Proxy configured with secret key on port ${port}.`;
+            }
+        },
+        {
             name: "Webhook Configuration",
             fn: async () => {
                 const enabled = process.env.USE_PLEX_WEBHOOK === "true";

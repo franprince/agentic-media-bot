@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.26.0] - 2026-03-07
+
+### Added
+- **Proxy Web Dashboard**: Created a modern React UI served by the proxy (`http://localhost:3001`) with real-time service health, server logs, and latest webhook events in a responsive layout.
+- **Event History & Settings UI**: Real-time webhook events are now natively displayed in the dashboard, alongside a new component for configuring Radarr and Sonarr webhook notification alerts directly from the browser.
+- **Brain Latency Metric**: Added native LLM API pinging to measure underlying provider latency, displayed via `/status` and the Proxy UI.
+
+### Changed
+- **Database Webhook Events**: The bot now unconditionally saves all incoming Plex, Radarr, and Sonarr events to the SQLite database (even if notifications are globally disabled) to provide complete history rendering on the dashboard.
+
 ## [4.25.0] - 2026-03-07
 
 ### Added

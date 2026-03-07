@@ -45,7 +45,13 @@ A conversational Telegram bot that controls a user's home media server stack, ca
    - Restart command skips one startup catch-up pass to avoid retroactive replies.
    - After startup, the bot sends a "back online" confirmation to the requester.
 
-6. **Advanced Search & Localization**
+6. **Proxy Web Dashboard & Event History**
+   - **Real-Time Health Status**: The Proxy web interface displays the aggregated health status of all hooked services (Radarr, Sonarr, Plex, qBittorrent, NZBGet, and the Brain/LLM latency ping).
+   - **Event History**: All incoming media webhooks (Plex playback, Radarr/Sonarr grabs and downloads) are recorded in the database and visible in a "Latest Events" UI pane, ensuring users have persistent visibility into bot triggers even if Telegram notifications are disabled.
+   - **Notification Settings**: The web dashboard contains an interactive panel to toggle Radarr and Sonarr specific notification triggers (e.g. notify on grabs, notify on downloads).
+   - **System Logs**: Live-tailing interface for the latest system audit logs directly from the browser.
+
+7. **Advanced Search & Localization**
    - **Origin Search (Plex)**: Supports queries like "Japanese movies" or "películas de Japón" via 'searchPlexByCountry' with fuzzy country tag matching.
    - **Country Noun Input**: Country searches normalize to noun form (e.g., "Germany", not "German") for tool calls and status output clarity.
    - **Canonical Country Normalization**: Demonyms (e.g., "Danish") are normalized to country nouns (e.g., "Denmark") consistently across tool execution and status logs.
