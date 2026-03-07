@@ -11,12 +11,20 @@ export type ServiceStatus = {
 };
 
 export async function pingBrain(): Promise<string> {
-    const isOllama = process.env.AI_PROVIDER === "ollama";
     const start = performance.now();
-    const url = isOllama ? (process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434") : "https://generativelanguage.googleapis.com";
+    let basePath = process.env.BRAIN_WEBHOOK_URL
+        ? process.env.BRAIN_WEBHOOK_URL.replace(/\/$/, "")
+        : `http://127.0.0.1:${process.env.WEBHOOK_PORT || 3000}`;
+
+    if (process.env.BRAIN_WEBHOOK_URL) {
+        if (!basePath.startsWith("http")) basePath = `http://${basePath}`;
+        if (!basePath.match(/:\d+$/)) basePath = `${basePath}:3000`;
+    }
+
+    const url = `${basePath}/health`;
 
     const res = await fetch(url, { method: "GET", signal: AbortSignal.timeout(5000) });
-    if (!res) throw new Error("No response");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const end = performance.now();
     return `${Math.round(end - start)}ms`;

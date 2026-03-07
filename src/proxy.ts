@@ -221,11 +221,16 @@ serve({
 
         // Webhook Relay
         if (req.method === "POST" && url.pathname.endsWith("-webhook")) {
-            const brainUrl = process.env.BRAIN_WEBHOOK_URL; // e.g., https://bot.domain.com
+            let brainUrl = process.env.BRAIN_WEBHOOK_URL; // e.g., https://bot.domain.com
 
             if (!brainUrl) {
                 console.warn(`Received webhook on ${url.pathname} but BRAIN_WEBHOOK_URL is not configured. Acknowledging anyway.`);
                 return new Response("OK", { status: 200 });
+            }
+
+            if (!brainUrl.startsWith("http")) {
+                brainUrl = `http://${brainUrl}`;
+                if (!brainUrl.match(/:\d+$/)) brainUrl = `${brainUrl}:3000`;
             }
 
             try {
