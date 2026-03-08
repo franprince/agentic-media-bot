@@ -222,15 +222,21 @@ export function setNotificationsEnabled(enabled: boolean) {
   setMetadata("notifications_enabled", String(enabled));
 }
 
+export function getRawTimezone(): string {
+  return getMetadata("timezone") || "UTC";
+}
+
 export function getTimezone(): string {
-  const tz = getMetadata("timezone");
-  if (!tz) return "UTC";
+  const tz = getRawTimezone();
 
   try {
     Intl.DateTimeFormat(undefined, { timeZone: tz });
     return tz;
   } catch (e) {
-    console.warn(`Invalid timezone set in database: "${tz}". Falling back to UTC.`);
+    // Only warn if it's actually invalid and not default
+    if (tz !== "UTC") {
+      console.warn(`Invalid timezone set in database: "${tz}". Internal features will fall back to UTC.`);
+    }
     return "UTC";
   }
 }

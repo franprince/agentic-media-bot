@@ -7,7 +7,7 @@ import * as qbittorrent from "./services/qbittorrent";
 import * as nzbget from "./services/nzbget";
 import * as aiTools from "./agent/tools";
 import { checkAllServices } from "./services/health";
-import { getMetadata, setMetadata, getAllConversations, getUserName, setUserName, areNotificationsEnabled, setNotificationsEnabled, getRecentMediaEvents, setEventAlertConfig, saveMediaEvent, getEventAlertConfig, getTimezone, setTimezone } from "./services/database.ts";
+import { getMetadata, setMetadata, getAllConversations, getUserName, setUserName, areNotificationsEnabled, setNotificationsEnabled, getRecentMediaEvents, setEventAlertConfig, saveMediaEvent, getEventAlertConfig, getTimezone, setTimezone, getRawTimezone } from "./services/database.ts";
 
 const PROXY_PORT = Number(process.env.PROXY_PORT) || 3001;
 const PROXY_SECRET_KEY = process.env.PROXY_SECRET_KEY;
@@ -121,7 +121,7 @@ serve({
                         scrobble: getEventAlertConfig("plex", "media.scrobble"),
                         library: getEventAlertConfig("plex", "library.new")
                     },
-                    timezone: getTimezone()
+                    timezone: getRawTimezone()
                 }), {
                     status: 200,
                     headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
@@ -235,14 +235,15 @@ serve({
             // Notification Settings
             if (url.pathname === "/api/settings/notifications") {
                 try {
-                    const { radarr, sonarr, plex } = body || {};
+                    console.log("📥 Received Settings Update:", JSON.stringify(body, null, 2));
+                    const { radarr, sonarr, plex, timezone } = body || {};
                     if (radarr) {
-                        if (typeof radarr.grab === "boolean") setEventAlertConfig("radarr", "grab", radarr.grab);
-                        if (typeof radarr.download === "boolean") setEventAlertConfig("radarr", "download", radarr.download);
+                        if (typeof radarr.grab === "boolean") setEventAlertConfig("radarr", "Grab", radarr.grab);
+                        if (typeof radarr.download === "boolean") setEventAlertConfig("radarr", "Download", radarr.download);
                     }
                     if (sonarr) {
-                        if (typeof sonarr.grab === "boolean") setEventAlertConfig("sonarr", "grab", sonarr.grab);
-                        if (typeof sonarr.download === "boolean") setEventAlertConfig("sonarr", "download", sonarr.download);
+                        if (typeof sonarr.grab === "boolean") setEventAlertConfig("sonarr", "Grab", sonarr.grab);
+                        if (typeof sonarr.download === "boolean") setEventAlertConfig("sonarr", "Download", sonarr.download);
                     }
                     if (plex) {
                         if (typeof plex.play === "boolean") setEventAlertConfig("plex", "media.play", plex.play);
@@ -250,8 +251,9 @@ serve({
                         if (typeof plex.scrobble === "boolean") setEventAlertConfig("plex", "media.scrobble", plex.scrobble);
                         if (typeof plex.library === "boolean") setEventAlertConfig("plex", "library.new", plex.library);
                     }
-                    if (body.timezone) {
-                        setTimezone(body.timezone);
+                    if (timezone !== undefined) {
+                        console.log(`📡 Saving Timezone: ${timezone}`);
+                        setTimezone(timezone);
                     }
                     return new Response(JSON.stringify({ success: true }), {
                         status: 200,
