@@ -7,7 +7,7 @@ import * as qbittorrent from "./services/qbittorrent";
 import * as nzbget from "./services/nzbget";
 import * as aiTools from "./agent/tools";
 import { checkAllServices } from "./services/health";
-import { areNotificationsEnabled, getPlaybackState, updatePlaybackState, saveMediaEvent, getEventAlertConfig, getRecentMediaEvents, setEventAlertConfig } from "./services/database";
+import { getMetadata, setMetadata, getAllConversations, getUserName, setUserName, areNotificationsEnabled, setNotificationsEnabled, getRecentMediaEvents, setEventAlertConfig, saveMediaEvent, getEventAlertConfig, getTimezone, setTimezone } from "./services/database.ts";
 
 const PROXY_PORT = Number(process.env.PROXY_PORT) || 3001;
 const PROXY_SECRET_KEY = process.env.PROXY_SECRET_KEY;
@@ -112,19 +112,16 @@ serve({
 
         if (req.method === "GET" && url.pathname === "/api/settings/notifications") {
             try {
-                const radarrGrab = getEventAlertConfig("radarr", "grab");
-                const radarrDownload = getEventAlertConfig("radarr", "download");
-                const sonarrGrab = getEventAlertConfig("sonarr", "grab");
-                const sonarrDownload = getEventAlertConfig("sonarr", "download");
-                const plexPlay = getEventAlertConfig("plex", "media.play");
-                const plexResume = getEventAlertConfig("plex", "media.resume");
-                const plexScrobble = getEventAlertConfig("plex", "media.scrobble");
-                const plexLibrary = getEventAlertConfig("plex", "library.new");
-
                 return new Response(JSON.stringify({
-                    radarr: { grab: radarrGrab, download: radarrDownload },
-                    sonarr: { grab: sonarrGrab, download: sonarrDownload },
-                    plex: { play: plexPlay, resume: plexResume, scrobble: plexScrobble, library: plexLibrary }
+                    radarr: { grab: getEventAlertConfig("radarr", "Grab"), download: getEventAlertConfig("radarr", "Download") },
+                    sonarr: { grab: getEventAlertConfig("sonarr", "Grab"), download: getEventAlertConfig("sonarr", "Download") },
+                    plex: {
+                        play: getEventAlertConfig("plex", "media.play"),
+                        resume: getEventAlertConfig("plex", "media.resume"),
+                        scrobble: getEventAlertConfig("plex", "media.scrobble"),
+                        library: getEventAlertConfig("plex", "library.new")
+                    },
+                    timezone: getTimezone()
                 }), {
                     status: 200,
                     headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
@@ -150,7 +147,8 @@ serve({
 
             // Background logging
             (async () => {
-                const timestamp = new Date().toISOString();
+                const tz = getTimezone();
+                const timestamp = new Date().toLocaleString("en-US", { timeZone: tz });
                 try {
                     let service = "";
                     let event = "";
@@ -245,6 +243,9 @@ serve({
                         if (typeof plex.resume === "boolean") setEventAlertConfig("plex", "media.resume", plex.resume);
                         if (typeof plex.scrobble === "boolean") setEventAlertConfig("plex", "media.scrobble", plex.scrobble);
                         if (typeof plex.library === "boolean") setEventAlertConfig("plex", "library.new", plex.library);
+                    }
+                    if (body.timezone) {
+                        setTimezone(body.timezone);
                     }
                     return new Response(JSON.stringify({ success: true }), {
                         status: 200,

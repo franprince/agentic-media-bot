@@ -222,6 +222,14 @@ export function setNotificationsEnabled(enabled: boolean) {
   setMetadata("notifications_enabled", String(enabled));
 }
 
+export function getTimezone(): string {
+  return getMetadata("timezone") || "UTC";
+}
+
+export function setTimezone(tz: string) {
+  setMetadata("timezone", tz);
+}
+
 export function getPlaybackState(sessionId: string): string | null {
   const row = db.query("SELECT last_event FROM playback_sessions WHERE id = ?").get(sessionId) as { last_event: string } | null;
   return row ? row.last_event : null;

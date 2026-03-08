@@ -6,6 +6,7 @@ import * as radarr from "./services/radarr";
 import * as sonarr from "./services/sonarr";
 import * as qbittorrent from "./services/qbittorrent";
 import * as plex from "./services/plex";
+import { getTimezone } from "./services/database";
 
 export async function verifyConfig(exitOnFailure: boolean = true) {
     console.log("🔍 Starting configuration verification (Specs Audit)... \n");
@@ -206,6 +207,13 @@ export async function verifyConfig(exitOnFailure: boolean = true) {
                 }
 
                 return `Success: ${msg}Only 1 instance detected.`;
+            }
+        },
+        {
+            name: "System Timezone",
+            fn: async () => {
+                const tz = getTimezone();
+                return `Success: Configured timezone is ${tz}.`;
             }
         }
     ];

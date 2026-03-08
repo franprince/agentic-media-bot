@@ -3,7 +3,7 @@ import { run } from "@grammyjs/runner";
 import { resolve, isAbsolute } from "node:path";
 import { processUserMessage } from "./agent/index.ts";
 import { detectStatusLanguage } from "./agent/status.ts";
-import { getMetadata, setMetadata, getAllConversations, getUserName, setUserName, areNotificationsEnabled, setNotificationsEnabled, getRecentMediaEvents, setEventAlertConfig } from "./services/database.ts";
+import { getMetadata, setMetadata, getAllConversations, getUserName, setUserName, areNotificationsEnabled, setNotificationsEnabled, getRecentMediaEvents, setEventAlertConfig, getTimezone } from "./services/database.ts";
 import cron from "node-cron";
 import { verifyConfig } from "./verify-config";
 import { checkAllServices } from "./services/health";
@@ -720,6 +720,8 @@ bot.catch((err: unknown) => {
 console.log("Starting the bot...");
 
 function startWeeklySummaryCron() {
+    const tz = getTimezone();
+    console.log(`⏰ Starting weekly summary cron with timezone: ${tz}`);
     cron.schedule("0 18 * * 5", async () => {
         const adminIds = getAllowedUserIdSet();
         if (adminIds.size === 0) return;
@@ -759,6 +761,8 @@ function startWeeklySummaryCron() {
                 console.error(`Failed to send weekly summary to ${adminId}:`, err);
             }
         }
+    }, {
+        timezone: tz
     });
 }
 

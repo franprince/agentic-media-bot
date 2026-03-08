@@ -17,20 +17,22 @@ interface Settings {
     radarr: NotificationConfig;
     sonarr: NotificationConfig;
     plex: PlexConfig;
+    timezone: string;
 }
 
 export function NotificationSettings({ onSaveComplete }: { onSaveComplete?: () => void }) {
     const [settings, setSettings] = useState<Settings>({
         radarr: { grab: true, download: true },
         sonarr: { grab: true, download: true },
-        plex: { play: true, resume: true, scrobble: true, library: true }
+        plex: { play: true, resume: true, scrobble: true, library: true },
+        timezone: 'UTC'
     });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const BASE_URL = import.meta.env.DEV ? 'http://localhost:3001' : '';
+    const BASE_URL = import.meta.env.DEV ? 'http://localhost:1111' : '';
     const PROXY_SECRET = import.meta.env.VITE_PROXY_SECRET_KEY || 'dev_secret_key';
 
     useEffect(() => {
@@ -81,10 +83,11 @@ export function NotificationSettings({ onSaveComplete }: { onSaveComplete?: () =
     };
 
     const toggleSetting = (service: keyof Settings, action: string) => {
+        if (service === 'timezone') return;
         setSettings(prev => ({
             ...prev,
             [service]: {
-                ...prev[service],
+                ...prev[service] as any,
                 [action]: !((prev[service] as any)[action])
             }
         }));
@@ -231,6 +234,45 @@ export function NotificationSettings({ onSaveComplete }: { onSaveComplete?: () =
                             />
                             <span className="slider"></span>
                         </label>
+                    </div>
+                </div>
+
+                {/* Timezone Settings */}
+                <div className="settings-group" style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '2rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                        <span style={{ fontSize: '1.25rem' }}>🕒</span>
+                        <h3 style={{ margin: 0 }}>System Timezone</h3>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                                IANA Timezone (e.g., America/Santiago)
+                            </span>
+                            <a
+                                href="https://en.wikipedia.org/wiki/List_of_tz_database_time_zones"
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{ fontSize: '0.75rem', color: 'var(--accent-color)', textDecoration: 'none' }}
+                            >
+                                List of timezones
+                            </a>
+                        </div>
+                        <input
+                            type="text"
+                            value={settings.timezone}
+                            onChange={(e) => setSettings(prev => ({ ...prev, timezone: e.target.value }))}
+                            placeholder="UTC"
+                            className="glass-panel"
+                            style={{
+                                padding: '0.75rem',
+                                background: 'rgba(255,255,255,0.02)',
+                                border: '1px solid var(--panel-border)',
+                                color: 'var(--text-primary)',
+                                borderRadius: '8px',
+                                outline: 'none'
+                            }}
+                        />
                     </div>
                 </div>
 
