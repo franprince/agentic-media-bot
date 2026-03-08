@@ -19,6 +19,7 @@ export function useDashboard() {
     const [statuses, setStatuses] = useState<ServiceStatus[]>([]);
     const [logs, setLogs] = useState<string[]>([]);
     const [events, setEvents] = useState<MediaEvent[]>([]);
+    const [systemTimezone, setSystemTimezone] = useState<string>('UTC');
     const [loading, setLoading] = useState(true);
 
     const fetchData = useCallback(async () => {
@@ -26,10 +27,11 @@ export function useDashboard() {
             // Use relative path which works in prod, or fallback to dev server proxy
             const baseUrl = import.meta.env.DEV ? 'http://localhost:3001' : '';
 
-            const [statusRes, logsRes, eventsRes] = await Promise.all([
+            const [statusRes, logsRes, eventsRes, settingsRes] = await Promise.all([
                 fetch(`${baseUrl}/api/dashboard/status`),
                 fetch(`${baseUrl}/api/dashboard/logs`),
-                fetch(`${baseUrl}/api/dashboard/events`)
+                fetch(`${baseUrl}/api/dashboard/events`),
+                fetch(`${baseUrl}/api/settings/notifications`)
             ]);
 
             if (statusRes.ok) {
@@ -44,6 +46,12 @@ export function useDashboard() {
                 const data = await eventsRes.json();
                 setEvents(data.events || []);
             }
+            if (settingsRes.ok) {
+                const data = await settingsRes.json();
+                if (data.timezone) {
+                    setSystemTimezone(data.timezone);
+                }
+            }
         } catch (error) {
             console.error("Failed to fetch dashboard data:", error);
         } finally {
@@ -57,5 +65,5 @@ export function useDashboard() {
         return () => clearInterval(interval);
     }, [fetchData]);
 
-    return { statuses, logs, events, loading, refresh: fetchData };
+    return { statuses, logs, events, systemTimezone, loading, refresh: fetchData };
 }

@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Film, Tv, PlaySquare, Clock, Maximize2, Minimize2 } from 'lucide-react';
 import type { MediaEvent } from '../hooks/useDashboard';
 
-export function EventsViewer({ events }: { events: MediaEvent[] }) {
+export function EventsViewer({ events, systemTimezone = 'UTC' }: { events: MediaEvent[], systemTimezone?: string }) {
     const [isExpanded, setIsExpanded] = useState(false);
     const getIcon = (service: string) => {
         switch (service.toLowerCase()) {
@@ -16,10 +16,21 @@ export function EventsViewer({ events }: { events: MediaEvent[] }) {
 
     const formatTime = (isoString: string) => {
         const date = new Date(isoString);
-        return date.toLocaleString(undefined, {
-            month: 'short', day: 'numeric',
-            hour: '2-digit', minute: '2-digit'
-        });
+        try {
+            return date.toLocaleString(undefined, {
+                month: 'short', day: 'numeric',
+                hour: '2-digit', minute: '2-digit',
+                hour12: false,
+                timeZone: systemTimezone
+            });
+        } catch (e) {
+            // Fallback to browser time if timezone is invalid
+            return date.toLocaleString(undefined, {
+                month: 'short', day: 'numeric',
+                hour: '2-digit', minute: '2-digit',
+                hour12: false
+            });
+        }
     };
 
     return (

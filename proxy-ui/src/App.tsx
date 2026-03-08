@@ -9,7 +9,7 @@ import { motion } from 'framer-motion';
 
 function App() {
   const [view, setView] = useState<'dashboard' | 'settings'>('dashboard');
-  const { statuses, logs, events, loading, refresh } = useDashboard();
+  const { statuses, logs, events, systemTimezone, loading, refresh } = useDashboard();
 
   return (
     <div className="app-container">
@@ -65,7 +65,7 @@ function App() {
 
             <div className="dashboard-grid">
               <section style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                <EventsViewer events={events} />
+                <EventsViewer events={events} systemTimezone={systemTimezone} />
               </section>
 
               <section>

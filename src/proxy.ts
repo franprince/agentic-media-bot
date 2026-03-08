@@ -150,7 +150,7 @@ serve({
                 let timestamp = new Date().toISOString(); // Default fallback
                 try {
                     const tz = getTimezone();
-                    timestamp = new Date().toLocaleString("en-US", { timeZone: tz });
+                    timestamp = new Date().toLocaleString("en-US", { timeZone: tz, hour12: false });
 
                     let service = "";
                     let event = "";
