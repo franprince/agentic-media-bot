@@ -247,22 +247,12 @@ export function NotificationSettings({ onSaveComplete }: { onSaveComplete?: () =
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                                IANA Timezone (e.g., America/Santiago)
+                                Select your local timezone
                             </span>
-                            <a
-                                href="https://en.wikipedia.org/wiki/List_of_tz_database_time_zones"
-                                target="_blank"
-                                rel="noreferrer"
-                                style={{ fontSize: '0.75rem', color: 'var(--accent-color)', textDecoration: 'none' }}
-                            >
-                                List of timezones
-                            </a>
                         </div>
-                        <input
-                            type="text"
+                        <select
                             value={settings.timezone}
                             onChange={(e) => setSettings(prev => ({ ...prev, timezone: e.target.value }))}
-                            placeholder="UTC"
                             className="glass-panel"
                             style={{
                                 padding: '0.75rem',
@@ -270,9 +260,18 @@ export function NotificationSettings({ onSaveComplete }: { onSaveComplete?: () =
                                 border: '1px solid var(--panel-border)',
                                 color: 'var(--text-primary)',
                                 borderRadius: '8px',
-                                outline: 'none'
+                                outline: 'none',
+                                cursor: 'pointer',
+                                width: '100%',
+                                appearance: 'none'
                             }}
-                        />
+                        >
+                            {Intl.supportedValuesOf('timeZone').map(tz => (
+                                <option key={tz} value={tz} style={{ background: '#1a1a1a', color: 'white' }}>
+                                    {tz.replace(/_/g, ' ')}
+                                </option>
+                            ))}
+                        </select>
                     </div>
                 </div>
 
