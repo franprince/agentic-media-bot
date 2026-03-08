@@ -169,13 +169,34 @@ serve({
                         }
                         const payload = JSON.parse(payloadRaw);
                         event = payload.event || "unknown";
-                        title = payload.Metadata?.title || "Unknown Title";
+
+                        const m = payload.Metadata || {};
+                        if (m.type === 'episode' && m.grandparentTitle) {
+                            title = `${m.grandparentTitle} - ${m.title}`;
+                        } else {
+                            title = m.title || "Unknown Title";
+                        }
+
                         message = `Plex Event: ${event} - ${title}`;
                     } else {
                         service = url.pathname.includes("radarr") ? "radarr" : "sonarr";
                         const payload = await clonedReq.json() as any;
                         event = payload.eventType || "unknown";
-                        title = payload.movie?.title || payload.series?.title || "Unknown Title";
+
+                        if (service === "sonarr" && payload.series) {
+                            const seriesName = payload.series.title;
+                            let epDetails = "";
+                            if (payload.episodes && payload.episodes.length > 0) {
+                                const ep = payload.episodes[0];
+                                epDetails = ` - S${String(ep.seasonNumber).padStart(2, '0')}E${String(ep.episodeNumber).padStart(2, '0')} - ${ep.title}`;
+                            }
+                            title = `${seriesName}${epDetails}`;
+                        } else if (service === "radarr" && payload.movie) {
+                            title = payload.movie.title;
+                        } else {
+                            title = payload.movie?.title || payload.series?.title || "Unknown Title";
+                        }
+
                         message = `${service.charAt(0).toUpperCase() + service.slice(1)} Event: ${event} - ${title}`;
                     }
 
