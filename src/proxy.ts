@@ -147,9 +147,11 @@ serve({
 
             // Background logging
             (async () => {
-                const tz = getTimezone();
-                const timestamp = new Date().toLocaleString("en-US", { timeZone: tz });
+                let timestamp = new Date().toISOString(); // Default fallback
                 try {
+                    const tz = getTimezone();
+                    timestamp = new Date().toLocaleString("en-US", { timeZone: tz });
+
                     let service = "";
                     let event = "";
                     let title = "";
@@ -158,8 +160,12 @@ serve({
                     if (url.pathname === "/plex-webhook") {
                         service = "plex";
                         const formData = await clonedReq.formData();
-                        const payload = JSON.parse(formData.get("payload") as string) as any;
-                        event = payload.event;
+                        const payloadRaw = formData.get("payload");
+                        if (!payloadRaw || typeof payloadRaw !== "string") {
+                            throw new Error("Missing 'payload' in Plex webhook");
+                        }
+                        const payload = JSON.parse(payloadRaw);
+                        event = payload.event || "unknown";
                         title = payload.Metadata?.title || "Unknown Title";
                         message = `Plex Event: ${event} - ${title}`;
                     } else {

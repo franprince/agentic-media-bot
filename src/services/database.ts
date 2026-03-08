@@ -223,7 +223,16 @@ export function setNotificationsEnabled(enabled: boolean) {
 }
 
 export function getTimezone(): string {
-  return getMetadata("timezone") || "UTC";
+  const tz = getMetadata("timezone");
+  if (!tz) return "UTC";
+
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: tz });
+    return tz;
+  } catch (e) {
+    console.warn(`Invalid timezone set in database: "${tz}". Falling back to UTC.`);
+    return "UTC";
+  }
 }
 
 export function setTimezone(tz: string) {
