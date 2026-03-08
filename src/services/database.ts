@@ -277,7 +277,7 @@ export interface MediaEvent {
 export function saveMediaEvent(service: string, eventType: string, title: string, message: string) {
   const id = crypto.randomUUID();
   db.run(
-    "INSERT INTO media_events (id, service, event_type, title, message) VALUES (?, ?, ?, ?, ?)",
+    "INSERT INTO media_events (id, service, event_type, title, message, timestamp) VALUES (?, ?, ?, ?, ?, datetime('now') || 'Z')",
     [id, service, eventType, title, message]
   );
 }

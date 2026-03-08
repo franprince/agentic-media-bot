@@ -27,7 +27,9 @@ const services: Record<string, any> = {
     tools: aiTools
 };
 
-console.log(`Starting Proxy Request Handler on port ${PROXY_PORT}...`);
+const VERSION = "4.29.1";
+console.log(`🚀 Starting Proxy Request Handler v${VERSION} on port ${PROXY_PORT}...`);
+console.log(`🕒 System Timezone: ${getTimezone()} (Raw: ${getRawTimezone()})`);
 
 serve({
     port: PROXY_PORT,
@@ -150,7 +152,8 @@ serve({
                 let timestamp = new Date().toISOString(); // Default fallback
                 try {
                     const tz = getTimezone();
-                    timestamp = new Date().toLocaleString("en-US", { timeZone: tz, hour12: false });
+                    // Explicitly use 'en-GB' for a clean YYYY-MM-DD HH:MM:SS format
+                    timestamp = new Date().toLocaleString("en-GB", { timeZone: tz, hour12: false }).replace(",", "");
 
                     let service = "";
                     let event = "";
