@@ -98,15 +98,45 @@ function acquireInstanceLock(): boolean {
     const now = Date.now();
     const heartbeat = Number(getMetadata("instance_heartbeat") || 0);
 
-    // If no active PID or heartbeat is older than 2 minutes, we can take over.
-    if (!activePid || (now - heartbeat > 120000)) {
+    // If no active PID, we can take over.
+    if (!activePid) {
         setMetadata("active_instance_pid", String(process.pid));
         setMetadata("instance_heartbeat", String(now));
         return true;
     }
 
-    // If it's already us, just update heartbeat
-    if (activePid === String(process.pid)) {
+    const pid = Number(activePid);
+    let running = false;
+    try {
+        // process.kill(pid, 0) checks if the process exists without killing it
+        running = process.kill(pid, 0);
+    } catch (e) {
+        running = false;
+    }
+
+    // If it's already us, just update heartbeat and return true
+    if (pid === process.pid) {
+        setMetadata("instance_heartbeat", String(now));
+        return true;
+    }
+
+    // If the process is not running, we can safely take over regardless of heartbeat
+    if (!running) {
+        console.log(`⚠️ Previous instance (PID ${pid}) is no longer running. Taking over lock.`);
+        setMetadata("active_instance_pid", String(process.pid));
+        setMetadata("instance_heartbeat", String(now));
+        return true;
+    }
+
+    // If process is running, check heartbeat.
+    // Allow 2 minutes of staleness (120000ms)
+    // Also handle future heartbeats (more than 5 mins in future) as stale/invalid
+    const isHeartbeatStale = (now - heartbeat > 120000);
+    const isHeartbeatInFuture = (heartbeat - now > 300000);
+
+    if (isHeartbeatStale || isHeartbeatInFuture) {
+        console.warn(`⚠️ Instance PID ${pid} is running but heartbeat is ${isHeartbeatInFuture ? 'in the future' : 'stale'}. Overriding lock.`);
+        setMetadata("active_instance_pid", String(process.pid));
         setMetadata("instance_heartbeat", String(now));
         return true;
     }
@@ -784,6 +814,15 @@ try {
     // Ignore pgrep failures
 }
 
+// Instance locking MUST happen before starting any servers to prevent 409 conflicts
+// and ensure only one service instance is active.
+if (!acquireInstanceLock()) {
+    const activePid = getMetadata("active_instance_pid");
+    console.error(`❌ Another instance (PID ${activePid}) is already active. Exiting to prevent 409 Conflict.`);
+    process.exit(1);
+}
+startHeartbeat();
+
 // Initialize HTTP Server for Healthchecks and Webhooks
 Bun.serve({
     port: Number(process.env.WEBHOOK_PORT) || 3000,
@@ -798,8 +837,8 @@ Bun.serve({
             });
         }
 
-        if (req.method === "POST" && process.env.USE_PLEX_WEBHOOK === "true") {
-            if (url.pathname === "/plex-webhook") {
+        if (req.method === "POST") {
+            if (url.pathname === "/plex-webhook" && process.env.USE_PLEX_WEBHOOK === "true") {
                 return handlePlexWebhook(req, bot);
             }
             if (url.pathname === "/radarr-webhook") {
@@ -892,13 +931,6 @@ bot.api.getMe().then(async (me) => {
         await syncUnrepliedMessages();
     }
 
-    // Instance locking
-    if (!acquireInstanceLock()) {
-        const activePid = getMetadata("active_instance_pid");
-        console.warn(`⚠️ Another instance (PID ${activePid}) is already active. Exiting to prevent 409 Conflict.`);
-        process.exit(0);
-    }
-    startHeartbeat();
 
     // Use grammyjs/runner to handle graceful restarts and long-polling concurrently
     botRunner = run(bot);

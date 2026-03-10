@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.30.0] - 2026-03-09
+
+### Added
+- **Resilient Instance Locking**: Implemented PID-based process verification and future heartbeat handling to prevent bot startup failures due to stale database locks.
+- **Fail-Fast Startup**: Moved lock checks to the very beginning of the startup sequence to prevent unnecessary resource usage and port conflicts.
+
+### Fixed
+- **Bot "Offline" States**: Resolved the issue where the bot would refuse to start if a previous instance crashed without clearing its lock.
+
+### Tests
+- **Instance Lock Tests**: Added a new unit test suite `src/services/__tests__/instance_lock.test.ts`.
+
 ## [4.27.0] - 2026-03-07
 
 ### Added
