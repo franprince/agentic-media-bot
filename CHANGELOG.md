@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [4.30.0] - 2026-03-09
 
 ### Added
+- **UUID-based Instance Takeover**: Bot instances now use unique IDs to detect when they have been superseded by a new deployment, automatically shutting down within 30 seconds to prevent "piling up".
+- **Graceful Shutdown**: Implemented `SIGTERM`/`SIGINT` handlers for clean process exits and database lock clearing.
+- **Proxy Systemd Service**: Dedicated user-level service for the proxy gateway to ensure dashboard and webhook reliability.
 - **Resilient Instance Locking**: Implemented PID-based process verification and future heartbeat handling to prevent bot startup failures due to stale database locks.
 - **Fail-Fast Startup**: Moved lock checks to the very beginning of the startup sequence to prevent unnecessary resource usage and port conflicts.
 

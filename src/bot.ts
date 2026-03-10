@@ -1,9 +1,10 @@
 import { Bot, InlineKeyboard, InputFile } from "grammy";
 import { run } from "@grammyjs/runner";
 import { resolve, isAbsolute } from "node:path";
+import { randomUUID } from "node:crypto";
 import { processUserMessage } from "./agent/index.ts";
 import { detectStatusLanguage } from "./agent/status.ts";
-import { getMetadata, setMetadata, getAllConversations, getUserName, setUserName, areNotificationsEnabled, setNotificationsEnabled, getRecentMediaEvents, setEventAlertConfig, getTimezone } from "./services/database.ts";
+import { getMetadata, setMetadata, deleteMetadata, getAllConversations, getUserName, setUserName, areNotificationsEnabled, setNotificationsEnabled, getRecentMediaEvents, setEventAlertConfig, getTimezone } from "./services/database.ts";
 import cron from "node-cron";
 import { verifyConfig } from "./verify-config";
 import { checkAllServices } from "./services/health";
@@ -19,6 +20,7 @@ if (!token) {
 const bot = new Bot(token);
 let botRunner: ReturnType<typeof run> | undefined;
 const projectRoot = resolve(import.meta.dir, "..");
+const INSTANCE_ID = randomUUID();
 const TELEGRAM_MAX_MESSAGE_LENGTH = 4096;
 const WEBHOOK_PORT = Number(process.env.WEBHOOK_PORT) || 3000;
 
@@ -95,11 +97,13 @@ function isNewerVersion(v1: string, v2: string): boolean {
  */
 function acquireInstanceLock(): boolean {
     const activePid = getMetadata("active_instance_pid");
+    const activeId = getMetadata("active_instance_id");
     const now = Date.now();
     const heartbeat = Number(getMetadata("instance_heartbeat") || 0);
 
     // If no active PID, we can take over.
-    if (!activePid) {
+    if (!activePid || !activeId) {
+        setMetadata("active_instance_id", INSTANCE_ID);
         setMetadata("active_instance_pid", String(process.pid));
         setMetadata("instance_heartbeat", String(now));
         return true;
@@ -115,14 +119,15 @@ function acquireInstanceLock(): boolean {
     }
 
     // If it's already us, just update heartbeat and return true
-    if (pid === process.pid) {
+    if (activeId === INSTANCE_ID) {
         setMetadata("instance_heartbeat", String(now));
         return true;
     }
 
     // If the process is not running, we can safely take over regardless of heartbeat
     if (!running) {
-        console.log(`⚠️ Previous instance (PID ${pid}) is no longer running. Taking over lock.`);
+        console.log(`⚠️ [${INSTANCE_ID}] Previous instance (PID ${pid}) is no longer running. Taking over lock.`);
+        setMetadata("active_instance_id", INSTANCE_ID);
         setMetadata("active_instance_pid", String(process.pid));
         setMetadata("instance_heartbeat", String(now));
         return true;
@@ -130,12 +135,13 @@ function acquireInstanceLock(): boolean {
 
     // If process is running, check heartbeat.
     // Allow 2 minutes of staleness (120000ms)
-    // Also handle future heartbeats (more than 5 mins in future) as stale/invalid
+    // Also handle heartbeats that are too far in the future
     const isHeartbeatStale = (now - heartbeat > 120000);
     const isHeartbeatInFuture = (heartbeat - now > 300000);
 
     if (isHeartbeatStale || isHeartbeatInFuture) {
-        console.warn(`⚠️ Instance PID ${pid} is running but heartbeat is ${isHeartbeatInFuture ? 'in the future' : 'stale'}. Overriding lock.`);
+        console.warn(`⚠️ [${INSTANCE_ID}] Instance PID ${pid} is running but heartbeat is ${isHeartbeatInFuture ? 'in the future' : 'stale'}. Overriding lock.`);
+        setMetadata("active_instance_id", INSTANCE_ID);
         setMetadata("active_instance_pid", String(process.pid));
         setMetadata("instance_heartbeat", String(now));
         return true;
@@ -146,8 +152,33 @@ function acquireInstanceLock(): boolean {
 
 function startHeartbeat() {
     setInterval(() => {
+        const currentActiveId = getMetadata("active_instance_id");
+
+        if (currentActiveId && currentActiveId !== INSTANCE_ID) {
+            console.error(`\n🛑 [${INSTANCE_ID}] Detected takeover by new instance (${currentActiveId}). Shutting down gracefully.`);
+            process.exit(0);
+        }
+
         setMetadata("instance_heartbeat", String(Date.now()));
     }, 30000); // Every 30 seconds
+}
+
+// Graceful shutdown handlers
+function setupSignalHandlers() {
+    const shutdown = () => {
+        console.log(`\n🛑 [${INSTANCE_ID}] Received shutdown signal. Cleaning up...`);
+        const currentActiveId = getMetadata("active_instance_id");
+        if (currentActiveId === INSTANCE_ID) {
+            deleteMetadata("active_instance_id");
+            deleteMetadata("active_instance_pid");
+            deleteMetadata("instance_heartbeat");
+            console.log("✅ Instance lock cleared.");
+        }
+        process.exit(0);
+    };
+
+    process.on("SIGINT", shutdown);
+    process.on("SIGTERM", shutdown);
 }
 
 
@@ -818,10 +849,11 @@ try {
 // and ensure only one service instance is active.
 if (!acquireInstanceLock()) {
     const activePid = getMetadata("active_instance_pid");
-    console.error(`❌ Another instance (PID ${activePid}) is already active. Exiting to prevent 409 Conflict.`);
+    console.error(`❌ [${INSTANCE_ID}] Another instance (PID ${activePid}) is already active. Exiting to prevent 409 Conflict.`);
     process.exit(1);
 }
 startHeartbeat();
+setupSignalHandlers();
 
 // Initialize HTTP Server for Healthchecks and Webhooks
 Bun.serve({

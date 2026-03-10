@@ -213,6 +213,10 @@ export function setMetadata(key: string, value: string) {
   db.run("INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)", [key, value]);
 }
 
+export function deleteMetadata(key: string) {
+  db.run("DELETE FROM metadata WHERE key = ?", [key]);
+}
+
 export function areNotificationsEnabled(): boolean {
   const value = getMetadata("notifications_enabled");
   return value !== "false"; // Default to true if not set
