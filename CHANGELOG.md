@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Tests
 - **Instance Lock Tests**: Added a new unit test suite `src/services/__tests__/instance_lock.test.ts`.
 
+## [4.27.1] - 2026-03-23
+
+### Fixed
+- **Telegram Buttons**: Fixed an issue where interactive buttons were missing from Telegram messages when adding media due to the AI model skipping the button syntax format. The `addMovie` and `addSeries` tools now explicitly return button definitions to ensure rendering reliability.
+
 ## [4.27.0] - 2026-03-07
 
 ### Added

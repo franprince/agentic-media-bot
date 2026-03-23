@@ -17,7 +17,8 @@ describe("Radarr Remove Movie", () => {
 
         const result = await removeMovieTool.execute({
             tmdbId: 99999,
-            deleteFiles: false
+            deleteFiles: false,
+            confirm: false
         }, {} as any) as any;
 
         expect(result.message).toContain("Could not find a movie");
@@ -35,7 +36,8 @@ describe("Radarr Remove Movie", () => {
 
         const result = await removeMovieTool.execute({
             tmdbId: 12345,
-            deleteFiles: true
+            deleteFiles: true,
+            confirm: true
         }, {} as any) as any;
 
         expect(result.success).toBe(true);

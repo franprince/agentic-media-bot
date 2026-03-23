@@ -341,7 +341,11 @@ export const addMovieTool = tool({
                         overview: match.overview,
                         posterUrl: match.images?.find(i => i.coverType === "poster")?.remoteUrl || match.images?.find(i => i.coverType === "poster")?.url,
                         tmdbId: match.tmdbId,
-                    }
+                    },
+                    buttons: [
+                        { text: "✅ Yes, Add Movie", data: `add movie ${match.tmdbId} ${profiles[0]?.id}` },
+                        { text: "❌ Cancel", data: "cancel add movie" }
+                    ]
                 } as any;
             }
 
@@ -543,7 +547,11 @@ export const addSeriesTool = tool({
                     network: exactSeries.network,
                     seasons: exactSeries.seasons?.length || 0,
                     genres: exactSeries.genres,
-                }
+                },
+                buttons: [
+                    { text: "✅ Yes, Add Series", data: `add series ${exactSeries.tvdbId} ${profiles[0]?.id}` },
+                    { text: "❌ Cancel", data: "cancel add series" }
+                ]
             } as any;
         }
 

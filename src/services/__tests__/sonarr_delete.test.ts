@@ -17,7 +17,8 @@ describe("Sonarr Remove Series", () => {
 
         const result = await removeSeriesTool.execute({
             tvdbId: 99999,
-            deleteFiles: false
+            deleteFiles: false,
+            confirm: false
         }, {} as any) as any;
 
         expect(result.message).toContain("Could not find a series");
@@ -35,7 +36,8 @@ describe("Sonarr Remove Series", () => {
 
         const result = await removeSeriesTool.execute({
             tvdbId: 12345,
-            deleteFiles: true
+            deleteFiles: true,
+            confirm: true
         }, {} as any) as any;
 
         expect(result.success).toBe(true);
