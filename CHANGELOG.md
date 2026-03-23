@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Tests
 - **Instance Lock Tests**: Added a new unit test suite `src/services/__tests__/instance_lock.test.ts`.
 
+## [4.27.2] - 2026-03-23
+
+### Changed
+- **System Prompt**: Enforced strict interactive button generation for any questions asked by the AI to improve conversation flow.
+
 ## [4.27.1] - 2026-03-23
 
 ### Fixed
