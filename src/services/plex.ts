@@ -390,3 +390,9 @@ export async function getItemsByDuration(sectionId: string): Promise<PlexContain
         Metadata: allMetadata,
     };
 }
+
+export async function getUnwatchedEpisodes(seriesRatingKey: string): Promise<any[]> {
+    if (isProxyEnabled()) return executeOnProxy("plex", "getUnwatchedEpisodes", [seriesRatingKey]);
+    const result = await fetchPlex<{ MediaContainer: PlexContainer }>(`/library/metadata/${seriesRatingKey}/allLeaves?viewCount=0`);
+    return result.MediaContainer?.Metadata || [];
+}

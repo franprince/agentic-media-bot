@@ -16,6 +16,11 @@ export interface PlexMetadata {
     // For shows/episodes
     parentTitle?: string;
     grandparentTitle?: string;
+    viewCount?: number;
+    leafCount?: number;
+    viewedLeafCount?: number;
+    index?: number; // Episode number
+    parentIndex?: number; // Season number
 }
 
 export interface PlexSearchResult {

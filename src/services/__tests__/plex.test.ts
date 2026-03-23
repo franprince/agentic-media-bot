@@ -95,4 +95,11 @@ describe("Plex Service", () => {
         expect(titles).toContain("The Big Lebowski");
         expect(titles).toContain("The Bear");
     });
+
+    test("getUnwatchedEpisodes should return episodes with viewCount=0 from mock", async () => {
+        const episodes = await plex.getUnwatchedEpisodes("123");
+        expect(episodes.length).toBe(2);
+        expect(episodes[0].title).toBe("Episode 1");
+        expect(episodes[1].title).toBe("Episode 2");
+    });
 });

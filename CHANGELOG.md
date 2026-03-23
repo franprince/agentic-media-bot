@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.31.0] - 2026-03-23
+
+### Added
+- **Unwatched Episodes Tool**: Implemented `getUnwatchedEpisodes` tool for Plex, allowing the bot to identify and list episodes the user hasn't watched yet for a specific series.
+- **Enhanced Plex Metadata**: Updated internal types to track playback progress and episode indexing.
+
+### Tests
+- **Plex Service Tests**: Added verification for the new `allLeaves` endpoint in `src/services/__tests__/plex.test.ts`.
+
 ## [4.30.0] - 2026-03-09
 
 ### Added

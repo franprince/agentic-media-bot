@@ -1183,3 +1183,30 @@ export const getPlexLibraryStatsTool = tool({
         };
     },
 });
+
+export const getUnwatchedEpisodesTool = tool({
+    description: "Get a list of unwatched episodes for a specific series in Plex. Requires the Plex 'ratingKey' of the series, which can be obtained by searching with 'searchPlexByTitleOnly'.",
+    parameters: z.object({
+        seriesRatingKey: z.string().describe("The Plex ratingKey of the series."),
+    }),
+    execute: async ({ seriesRatingKey }: { seriesRatingKey: string }) => {
+        try {
+            const episodes = await plex.getUnwatchedEpisodes(seriesRatingKey);
+            if (episodes.length === 0) {
+                return { message: "No unwatched episodes found for this series." };
+            }
+
+            return {
+                totalFound: episodes.length,
+                episodes: episodes.map(e => ({
+                    title: e.title,
+                    season: e.parentIndex,
+                    episode: e.index,
+                    summary: e.summary,
+                })),
+            };
+        } catch (error: any) {
+            return { message: `Failed to fetch unwatched episodes: ${error.message || "Unknown error"}` };
+        }
+    },
+});

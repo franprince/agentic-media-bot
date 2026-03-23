@@ -174,4 +174,21 @@ export const handlers = [
             },
         });
     }),
+    http.get("*/library/metadata/:ratingKey/allLeaves", ({ params, request }) => {
+        const url = new URL(request.url);
+        const viewCount = url.searchParams.get("viewCount");
+
+        if (params.ratingKey === "123" && viewCount === "0") {
+            return HttpResponse.json({
+                MediaContainer: {
+                    size: 2,
+                    Metadata: [
+                        { title: "Episode 1", index: 1, parentIndex: 1, summary: "Summary 1", type: "episode" },
+                        { title: "Episode 2", index: 2, parentIndex: 1, summary: "Summary 2", type: "episode" },
+                    ],
+                },
+            });
+        }
+        return HttpResponse.json({ MediaContainer: { size: 0, Metadata: [] } });
+    }),
 ];

@@ -131,6 +131,7 @@ export async function processUserMessage(
             getRecentlyAddedPlex: botTools.getRecentlyAddedPlexTool,
             getPlexLibraryStats: botTools.getPlexLibraryStatsTool,
             discoverMedia: botTools.discoverMediaTool,
+            getUnwatchedEpisodes: botTools.getUnwatchedEpisodesTool,
         };
 
         if (shouldDisableAddTools) {

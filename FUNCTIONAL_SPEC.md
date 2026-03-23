@@ -34,6 +34,8 @@ A conversational Telegram bot that controls a user's home media server stack, ca
     - Bot searches Plex by genre (translating to English if requested in Spanish) via 'searchPlexByGenre' and returns deduplicated results across all movie and show libraries.
    - User asks: "Am I missing any episodes?"
    - Bot provides high-level summary (e.g., "Maching 2 series") or granular detail (Season, Episode, Air Date) upon request.
+   - User asks: "Do I have any unwatched episodes for The Boys?"
+   - Bot searches Plex and returns a list of episodes yet to be watched.
 
 5. **System Health, Auditing & Commands**
    - User writes: `/status`
