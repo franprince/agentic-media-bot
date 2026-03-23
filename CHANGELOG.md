@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Unwatched Episodes Tool**: Implemented `getUnwatchedEpisodes` tool for Plex, allowing the bot to identify and list episodes the user hasn't watched yet for a specific series.
 - **Enhanced Plex Metadata**: Updated internal types to track playback progress and episode indexing.
 
+### Fixed
+- **Instance Lock Conflict**: Refined the `acquireInstanceLock` logic in `src/bot.ts` to allow immediate takeover if the PID matches the current process (fixing issues where "new deployments kill themselves" in container environments like Coolify/Docker).
+
 ### Tests
 - **Plex Service Tests**: Added verification for the new `allLeaves` endpoint in `src/services/__tests__/plex.test.ts`.
 

@@ -118,13 +118,23 @@ function acquireInstanceLock(): boolean {
         running = false;
     }
 
-    // If it's already us, just update heartbeat and return true
+    // If it's already us (same random ID), just update heartbeat and return true
     if (activeId === INSTANCE_ID) {
         setMetadata("instance_heartbeat", String(now));
         return true;
     }
 
-    // If the process is not running, we can safely take over regardless of heartbeat
+    // If the PID in the database matches our current PID, it means the previous
+    // instance used this same PID slot (common in containers where the bot is PID 1).
+    // Since we are running now, that previous instance is definitely gone.
+    if (pid === process.pid) {
+        console.warn(`⚠️ [${INSTANCE_ID}] Previous instance used the same PID (${pid}). Taking over lock.`);
+        setMetadata("active_instance_id", INSTANCE_ID);
+        setMetadata("instance_heartbeat", String(now));
+        return true;
+    }
+
+    // If the process is not running at all, we can safely take over
     if (!running) {
         console.log(`⚠️ [${INSTANCE_ID}] Previous instance (PID ${pid}) is no longer running. Taking over lock.`);
         setMetadata("active_instance_id", INSTANCE_ID);
@@ -135,7 +145,6 @@ function acquireInstanceLock(): boolean {
 
     // If process is running, check heartbeat.
     // Allow 2 minutes of staleness (120000ms)
-    // Also handle heartbeats that are too far in the future
     const isHeartbeatStale = (now - heartbeat > 120000);
     const isHeartbeatInFuture = (heartbeat - now > 300000);
 
