@@ -132,6 +132,7 @@ export async function processUserMessage(
             getPlexLibraryStats: botTools.getPlexLibraryStatsTool,
             discoverMedia: botTools.discoverMediaTool,
             getUnwatchedEpisodes: botTools.getUnwatchedEpisodesTool,
+            subscribeToDownload: botTools.subscribeToDownloadTool,
         };
 
         if (shouldDisableAddTools) {

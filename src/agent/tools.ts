@@ -4,6 +4,7 @@ import * as radarr from "../services/radarr";
 import * as sonarr from "../services/sonarr";
 import * as qbittorrent from "../services/qbittorrent";
 import * as plex from "../services/plex";
+import * as db from "../services/database";
 
 // --- Type Definitions --- //
 interface PlexMediaItem {
@@ -360,7 +361,9 @@ export const addMovieTool = tool({
             const result = await radarr.addMovie(normalizedTmdbId, match.title, match.year, finalFolderPath, finalProfileId);
             return {
                 success: true,
-                message: `Successfully added '${result.title}' to Radarr.`
+                message: `Successfully added '${result.title}' to Radarr.`,
+                tmdbId: normalizedTmdbId,
+                title: result.title
             };
         } catch (_error: any) {
             return {
@@ -578,7 +581,9 @@ export const addSeriesTool = tool({
 
         return {
             success: true,
-            message: `Successfully added '${exactSeries.title}' to Sonarr as ${seriesType} series.`
+            message: `Successfully added '${exactSeries.title}' to Sonarr as ${seriesType} series.`,
+            tvdbId: normalizedTvdbId,
+            title: exactSeries.title
         };
     },
 });
@@ -1207,6 +1212,27 @@ export const getUnwatchedEpisodesTool = tool({
             };
         } catch (error: any) {
             return { message: `Failed to fetch unwatched episodes: ${error.message || "Unknown error"}` };
+        }
+    },
+});
+
+export const subscribeToDownloadTool = tool({
+    description: "Subscribe a user to receive a Telegram notification when a specific movie or series download finishes. Use this ONLY after the user has confirmed they want to be notified.",
+    parameters: z.object({
+        userId: z.number().describe("The Telegram user ID of the person to notify."),
+        mediaType: z.enum(["movie", "series"]).describe("The type of media (movie or series)."),
+        mediaId: z.number().describe("The TMDB ID (for movies) or TVDB ID (for series)."),
+        title: z.string().describe("The title of the media item."),
+    }),
+    execute: async ({ userId, mediaType, mediaId, title }: { userId: number, mediaType: 'movie' | 'series', mediaId: number, title: string }) => {
+        try {
+            db.savePendingNotification(userId, mediaType, mediaId, title);
+            return {
+                success: true,
+                message: `Perfect! I'll send you a Telegram message as soon as '${title}' finishes downloading. 📡🎬`
+            };
+        } catch (error: any) {
+            return { message: `Failed to register notification request: ${error.message || "Unknown error"}` };
         }
     },
 });

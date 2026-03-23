@@ -60,6 +60,18 @@ db.run(`
   )
 `);
 
+db.run(`
+  CREATE TABLE IF NOT EXISTS pending_notifications (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    media_type TEXT NOT NULL,
+    media_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
 /**
  * Sanitize conversation history to prevent prototype pollution and injection attacks
  */
@@ -307,4 +319,20 @@ export function setEventAlertConfig(service: string, eventType: string, enabled:
     "INSERT OR REPLACE INTO alert_config (service, event_type, enabled) VALUES (?, ?, ?)",
     [service, eventType, enabled ? 1 : 0]
   );
+}
+
+export function savePendingNotification(userId: number, mediaType: 'movie' | 'series', mediaId: number, title: string) {
+  const id = crypto.randomUUID();
+  db.run(
+    "INSERT INTO pending_notifications (id, user_id, media_type, media_id, title) VALUES (?, ?, ?, ?, ?)",
+    [id, userId, mediaType, mediaId, title]
+  );
+}
+
+export function getPendingNotifications(mediaType: 'movie' | 'series', mediaId: number): { user_id: number, title: string, id: string }[] {
+  return db.query("SELECT id, user_id, title FROM pending_notifications WHERE media_type = ? AND media_id = ? AND status = 'pending'").all(mediaType, mediaId) as { id: string, user_id: number, title: string }[];
+}
+
+export function markNotificationSent(id: string) {
+  db.run("UPDATE pending_notifications SET status = 'sent' WHERE id = ?", [id]);
 }

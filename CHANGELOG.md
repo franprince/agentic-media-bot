@@ -10,11 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Unwatched Episodes Tool**: Implemented `getUnwatchedEpisodes` tool for Plex, allowing the bot to identify and list episodes the user hasn't watched yet for a specific series.
 - **Enhanced Plex Metadata**: Updated internal types to track playback progress and episode indexing.
+- **Download Notifications**: Added proactivity to the bot to ask users if they want notifications when a new movie or series finishes downloading. Webhooks now trigger personalized alerts when downloads are complete.
 
 ### Fixed
 - **Instance Lock Conflict**: Refined the `acquireInstanceLock` logic in `src/bot.ts` to allow immediate takeover if the PID matches the current process (fixing issues where "new deployments kill themselves" in container environments like Coolify/Docker).
 
-### Tests
+### Maintenance
+- **New Database Table**: Added `pending_notifications` to track user notification subscriptions.
+- **Improved Tools**: Updated `addMovie` and `addSeries` tools to return necessary IDs for automated follow-up actions.
 - **Plex Service Tests**: Added verification for the new `allLeaves` endpoint in `src/services/__tests__/plex.test.ts`.
 
 ## [4.30.0] - 2026-03-09

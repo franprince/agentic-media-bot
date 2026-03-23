@@ -1,4 +1,4 @@
-import { areNotificationsEnabled, getPlaybackState, updatePlaybackState, saveMediaEvent, getEventAlertConfig } from "./database";
+import { areNotificationsEnabled, getPlaybackState, updatePlaybackState, saveMediaEvent, getEventAlertConfig, getPendingNotifications, markNotificationSent } from "./database";
 import { getItemMetadata, getPosterUrl } from "./plex";
 import { searchMovie } from "./radarr";
 import { searchSeries } from "./sonarr";
@@ -248,6 +248,18 @@ export async function handleRadarrWebhook(request: Request, bot: Bot) {
             message = `✅ *Radarr*: Download complete for *${eventTitle}*\n\n`;
             message += `▫️ *Quality*: ${release.quality}\n`;
             if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
+
+            // Check for individual user notification subscriptions
+            try {
+                const pending = getPendingNotifications('movie', movie.tmdbId);
+                for (const sub of pending) {
+                    const personalMsg = `🔔 *Notification*: Your movie *${sub.title}* has finished downloading and is now available! 🍿`;
+                    await bot.api.sendMessage(sub.user_id, personalMsg, { parse_mode: "Markdown" });
+                    markNotificationSent(sub.id);
+                }
+            } catch (err) {
+                console.error("Failed to process pending Radarr notifications:", (err as Error).message);
+            }
         }
 
         // Always save the event to the DB, construct a plain fallback message if one wasn't generated above
@@ -292,6 +304,18 @@ export async function handleSonarrWebhook(request: Request, bot: Bot) {
             message = `✅ *Sonarr*: Download complete for *${eventTitle}*\n\n`;
             if (release) message += `▫️ *Quality*: ${release.quality}\n`;
             if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
+
+            // Check for individual user notification subscriptions
+            try {
+                const pending = getPendingNotifications('series', series.tvdbId);
+                for (const sub of pending) {
+                    const personalMsg = `🔔 *Notification*: The show *${sub.title}* has finished downloading and is now available! 📺`;
+                    await bot.api.sendMessage(sub.user_id, personalMsg, { parse_mode: "Markdown" });
+                    markNotificationSent(sub.id);
+                }
+            } catch (err) {
+                console.error("Failed to process pending Sonarr notifications:", (err as Error).message);
+            }
         } else if (eventType === "SeriesAdd") {
             message = `📺 *Sonarr*: Added new series *${eventTitle}*\n`;
         } // Handle SeriesAdd if received

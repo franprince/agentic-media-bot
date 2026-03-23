@@ -36,7 +36,8 @@
 - **Context Management**: Conversation history is stateless per-request but keeps a bounded history within the Telegram session. The `trimHistory` logic (in `src/services/database.ts`) prunes history to the last 20 messages to maintain model focus and avoid context "stickiness".
 - System prompt strongly guides the agent to use tools rather than answering based on local knowledge.
 - Recursive execution loop (`maxSteps: 5`) allows the agent to audit libraries across multiple sections (movies and shows).
-- **Auditing Intelligence**: Includes specialized tools for finding genre-specific content across multiple internal Plex IDs, identifying missing episodes, and **listing unwatched episodes** with granular metadata.
+- **Auditing Intelligence**: The bot can verify library consistency, identify missing media, and list unwatched episodes for series.
+- **Proactive Notifications**: Users can subscribe to download completion alerts, which are triggered by Radarr/Sonarr webhooks.
 - **Local Adaptation**: System prompt contains strict technical protocols to ensure reliable tool adherence on local LLMs.
 - **Tool-Argument Guardrails**: Tool schemas tolerate missing IDs, but execution returns a "search first" response with suggestions to avoid invalid tool calls and crashes.
 - **Radarr Search Resilience**: If Radarr lookup fails during a title-based add, return a user-facing error instead of crashing.
