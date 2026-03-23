@@ -326,18 +326,19 @@ export async function processUserMessage(
         }
 
         // Extract interactive buttons if present
-        const buttonMatches = text.matchAll(/^BUTTON:\s*(.*?)\s*\|\s*(.*?)\s*$/gim);
+        const buttonMatches = text.matchAll(/^\*?\*?BUTTON:\s*(.*?)\s*\|\s*(.*?)\s*\*?\*?$/gim);
         const extractedButtons: Array<{ text: string, data: string }> = [];
         for (const match of buttonMatches) {
             if (match[1] && match[2]) {
-                extractedButtons.push({ text: match[1].trim(), data: match[2].trim() });
+                const btnText = match[1].trim().replace(/\*?\*?$/, ""); // Clean any trailing bolding
+                extractedButtons.push({ text: btnText, data: match[2].trim().replace(/\*?\*?$/, "") });
             }
         }
 
         if (extractedButtons.length > 0) {
             buttons = buttons ? [...buttons, ...extractedButtons] : extractedButtons;
             // Remove button lines from text
-            text = text.replace(/^BUTTON:.*$/gim, "").trim();
+            text = text.replace(/^\*?\*?BUTTON:.*$/gim, "").trim();
         }
 
         if (text && shouldRewriteForTargetLanguage(text, statusLang)) {

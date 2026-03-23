@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Comprehensive Documentation**: Created `BOT_DOCUMENTATION.md` and detailed architectural diagrams.
 
 ### Fixed
+- **Button Rendering**: Enhanced the button extraction regex to correctly handle AI-generated bolding (`**BUTTON:**`), ensuring interactive options appear in Telegram.
+- **Proxy Connectivity**: Restored missing `subscribeToDownloadTool` access on the proxy gateway by ensuring a clean restart and proper export indexing.
 - **409 Conflict Resilience**: Restored the `restart-bot.sh` supervisor script and implemented a global error handler in the bot to gracefully manage long-polling conflicts.
 - **TypeScript Type Safety**: Resolved a type mismatch in `src/agent/index.ts` where environment-sourced model names could be `undefined`.
 - **Mermaid Syntax**: Fixed syntax errors in architectural diagrams within documentation.
