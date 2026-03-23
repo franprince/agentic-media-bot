@@ -98,7 +98,7 @@ describe('NotificationSettings', () => {
 
         expect(mockFetch).toHaveBeenCalledTimes(2);
         expect(mockFetch).toHaveBeenLastCalledWith(
-            'http://localhost:3001/api/settings/notifications',
+            'http://localhost:1111/api/settings/notifications',
             expect.objectContaining({
                 method: 'POST',
                 body: JSON.stringify({
