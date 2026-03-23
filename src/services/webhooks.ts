@@ -56,6 +56,14 @@ export interface PlexWebhookPayload {
     };
 }
 
+export interface NZBGetWebhookPayload {
+    event: string;
+    title: string;
+    speed?: number | string;
+    eta?: string;
+}
+
+
 export async function handlePlexWebhook(request: Request, bot: Bot) {
     try {
         const formData = await request.formData();
@@ -334,6 +342,40 @@ export async function handleSonarrWebhook(request: Request, bot: Bot) {
         return new Response("OK", { status: 200 });
     } catch (err) {
         console.error("Error processing Sonarr webhook:", (err as Error).message);
+        return new Response("Internal Server Error", { status: 500 });
+    }
+}
+
+export async function handleNZBGetWebhook(request: Request, bot: Bot) {
+    try {
+        const payload = (await request.json()) as NZBGetWebhookPayload;
+        const { event, title, speed, eta } = payload;
+
+        const eventType = event || "added";
+        let message = "";
+
+        if (eventType === "added") {
+            message = `📥 *NZBGet*: Added *${title}*\n\n`;
+            if (speed) message += `▫️ *Speed*: ${speed} MB/s\n`;
+            if (eta) message += `▫️ *Calculated ETA*: ${eta}`;
+        } else if (eventType === "success") {
+            message = `✅ *NZBGet*: Download finished *${title}*`;
+        }
+
+        // Always save to DB
+        const dbMessage = message ? message.replace(/[_*`]/g, "") : `NZBGet Event: ${eventType} - ${title}`;
+        saveMediaEvent("nzbget", eventType, title, dbMessage);
+
+        if (message) {
+            const notifyChatId = process.env.WEBHOOK_NOTIFY_CHAT_ID || process.env.ALLOWED_USER_IDS?.split(",")[0];
+            if (notifyChatId && areNotificationsEnabled() && getEventAlertConfig("nzbget", eventType)) {
+                await bot.api.sendMessage(notifyChatId, message, { parse_mode: "Markdown" });
+            }
+        }
+
+        return new Response("OK", { status: 200 });
+    } catch (err) {
+        console.error("Error processing NZBGet webhook:", (err as Error).message);
         return new Response("Internal Server Error", { status: 500 });
     }
 }

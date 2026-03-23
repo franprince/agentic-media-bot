@@ -9,6 +9,7 @@
     - `/plex-webhook`: Processes Plex Media Server events (Plex-specific multipart/form-data).
     - `/radarr-webhook`: Processes Radarr JSON notifications (Grab, Download).
     - `/sonarr-webhook`: Processes Sonarr JSON notifications (Grab, Download).
+    - `/nzbget-webhook`: Processes NZBGet JSON payloads (event, title, speed, eta).
 - **HTTP Client:** Native `fetch` API.
 - **Testing:** `bun:test` for unit/integration tests, using **Mock Service Worker (MSW)** for network interception and service mocking.
 
@@ -37,7 +38,7 @@
 - System prompt strongly guides the agent to use tools rather than answering based on local knowledge.
 - Recursive execution loop (`maxSteps: 5`) allows the agent to audit libraries across multiple sections (movies and shows).
 - **Auditing Intelligence**: The bot can verify library consistency, identify missing media, and list unwatched episodes for series.
-- **Proactive Notifications**: Users can subscribe to download completion alerts, which are triggered by Radarr/Sonarr webhooks.
+- **Proactive Notifications**: Users can subscribe to download completion alerts, which are triggered by Radarr/Sonarr/NZBGet webhooks.
 - **Local Adaptation**: System prompt contains strict technical protocols to ensure reliable tool adherence on local LLMs.
 - **Tool-Argument Guardrails**: Tool schemas tolerate missing IDs, but execution returns a "search first" response with suggestions to avoid invalid tool calls and crashes.
 - **Radarr Search Resilience**: If Radarr lookup fails during a title-based add, return a user-facing error instead of crashing.

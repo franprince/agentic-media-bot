@@ -1,4 +1,4 @@
-import { Bot, InlineKeyboard, InputFile } from "grammy";
+import { Api, Bot, Context, InlineKeyboard, InputFile, type RawApi } from "grammy";
 import { run } from "@grammyjs/runner";
 import { resolve, isAbsolute } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -8,7 +8,7 @@ import { getMetadata, setMetadata, deleteMetadata, getAllConversations, getUserN
 import cron from "node-cron";
 import { verifyConfig } from "./verify-config";
 import { checkAllServices } from "./services/health";
-import { handlePlexWebhook, handleRadarrWebhook, handleSonarrWebhook } from "./services/webhooks.ts";
+import { handlePlexWebhook, handleRadarrWebhook, handleSonarrWebhook, handleNZBGetWebhook } from "./services/webhooks.ts";
 import * as sonarr from "./services/sonarr";
 
 // Setup telegram bot using the token from environment variables
@@ -888,6 +888,9 @@ Bun.serve({
             if (url.pathname === "/sonarr-webhook") {
                 return handleSonarrWebhook(req, bot);
             }
+            if (url.pathname === "/nzbget-webhook") {
+                return handleNZBGetWebhook(req, bot);
+            }
         }
         return new Response("Not Found", { status: 404 });
     },
@@ -1033,3 +1036,4 @@ async function syncUnrepliedMessages() {
         }
     }
 }
+

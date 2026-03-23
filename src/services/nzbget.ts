@@ -1,27 +1,33 @@
 import { executeOnProxy, isProxyEnabled } from "../agent/proxyClient";
 
-export async function getVersion(): Promise<any> {
-    if (isProxyEnabled()) return executeOnProxy("nzbget", "getVersion");
+export async function getQueue(): Promise<any> {
+    if (isProxyEnabled()) return executeOnProxy("nzbget", "getQueue");
+    return callNZBGetRPC("listgroups", [0]); // 0 = all groups
+}
+
+export async function getStatus(): Promise<any> {
+    if (isProxyEnabled()) return executeOnProxy("nzbget", "getStatus");
+    return callNZBGetRPC("status");
+}
+
+async function callNZBGetRPC(method: string, params: any[] = []): Promise<any> {
     const baseUrl = process.env.NZBGET_URL?.trim() || "";
     const username = process.env.NZBGET_USERNAME?.trim() || "";
     const password = process.env.NZBGET_PASSWORD?.trim() || "";
 
-    // Check if configuration exists
     if (!baseUrl) {
         throw new Error("NZBGET_URL is not configured");
     }
 
     const auth = Buffer.from(`${username}:${password}`).toString("base64");
+    const rpcUrl = baseUrl.endsWith("/") ? `${baseUrl}jsonrpc` : `${baseUrl}/jsonrpc`;
 
-    // NZBGet uses JSON-RPC
     const rpcPayload = {
         version: "1.1",
-        method: "version",
+        method,
+        params,
         id: 1
     };
-
-    // Make sure we form the correct JSON-RPC URL: <url>/jsonrpc
-    const rpcUrl = baseUrl.endsWith("/") ? `${baseUrl}jsonrpc` : `${baseUrl}/jsonrpc`;
 
     const response = await fetch(rpcUrl, {
         method: "POST",
@@ -37,10 +43,14 @@ export async function getVersion(): Promise<any> {
     }
 
     const data = (await response.json()) as any;
-
     if (data.error) {
         throw new Error(`NZBGet error: ${data.error.message}`);
     }
 
     return data.result;
+}
+
+export async function getVersion(): Promise<any> {
+    if (isProxyEnabled()) return executeOnProxy("nzbget", "getVersion");
+    return callNZBGetRPC("version");
 }

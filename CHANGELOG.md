@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.32.0] - 2026-03-23
+
+### Added
+- **NZBGet Integration**: Enhanced the NZBGet service with RPC support for queue and status monitoring.
+- **NZBGet Webhook Support**: Implemented a new webhook handler in the bot and proxy to process real-time events with speed and ETA.
+- **Download Progress Tool**: Added `getNZBGetQueue` tool to the AI agent for natural language download status queries.
+- **Comprehensive Documentation**: Created `BOT_DOCUMENTATION.md` and detailed architectural diagrams.
+
+### Fixed
+- **Mermaid Syntax**: Fixed syntax errors in architectural diagrams within documentation.
+
 ## [4.31.0] - 2026-03-23
 
 ### Added

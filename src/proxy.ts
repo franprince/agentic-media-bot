@@ -178,6 +178,14 @@ serve({
                         }
 
                         message = `Plex Event: ${event} - ${title}`;
+                    } else if (url.pathname === "/api/nzbget-webhook") {
+                        service = "nzbget";
+                        const payload = await clonedReq.json() as any;
+                        event = payload.event || "added";
+                        title = payload.title || "Unknown NZB";
+                        const speed = payload.speed ? ` (${payload.speed} MB/s)` : "";
+                        const eta = payload.eta ? ` [ETA: ${payload.eta}]` : "";
+                        message = `NZBGet Event: ${event} - ${title}${speed}${eta}`;
                     } else {
                         service = url.pathname.includes("radarr") ? "radarr" : "sonarr";
                         const payload = await clonedReq.json() as any;

@@ -5,6 +5,7 @@ import * as sonarr from "../services/sonarr";
 import * as qbittorrent from "../services/qbittorrent";
 import * as plex from "../services/plex";
 import * as db from "../services/database";
+import * as nzbget from "../services/nzbget";
 
 // --- Type Definitions --- //
 interface PlexMediaItem {
@@ -688,6 +689,45 @@ export const resumeTorrentTool = tool({
     execute: async ({ hash }: { hash: string }) => {
         await qbittorrent.resumeTorrent(hash);
         return { message: `Successfully resumed torrent with hash ${hash}` };
+    },
+});
+
+// --- NZBGet Tools --- //
+
+export const getNZBGetQueueTool = tool({
+    description: "Get the current download queue from NZBGet, including speed and ETA for active downloads.",
+    parameters: z.object({}),
+    execute: async (_args: any) => {
+        try {
+            const [queue, status] = await Promise.all([
+                nzbget.getQueue(),
+                nzbget.getStatus()
+            ]);
+
+            if (queue && queue.length === 0) {
+                return { message: "The NZBGet queue is empty." };
+            }
+
+            const activeDownloads = queue.map((q: any) => ({
+                nzbName: q.NZBName,
+                fileSize: (q.FileSizeMB).toFixed(2) + " MB",
+                remainingSize: (q.RemainingSizeMB).toFixed(2) + " MB",
+                percentage: q.PercentageSuccess + "%",
+                status: q.Status
+            }));
+
+            return {
+                activeDownloads,
+                globalStatus: {
+                    downloadRate: (status.DownloadRate / 1024 / 1024).toFixed(2) + " MB/s",
+                    remainingSize: (status.RemainingSizeMB).toFixed(2) + " MB",
+                    eta: status.RemainingSizeMB > 0 ? status.ETA : "N/A",
+                    isPaused: status.DownloadPaused
+                }
+            };
+        } catch (error: any) {
+            return { message: `Failed to fetch NZBGet status: ${error.message}` };
+        }
     },
 });
 

@@ -122,6 +122,7 @@ export async function processUserMessage(
             getMissingMovies: botTools.getMissingMoviesTool,
             getMissingSeries: botTools.getMissingSeriesTool,
             getMissingEpisodes: botTools.getMissingEpisodesTool,
+            getNZBGetQueue: botTools.getNZBGetQueueTool,
             searchPlexByTitleOnly: botTools.searchPlexByTitleOnlyTool,
             searchPlexByGenre: botTools.browsePlexByGenreTool,
             browsePlexByGenre: botTools.browsePlexByGenreTool, // Legacy Alias

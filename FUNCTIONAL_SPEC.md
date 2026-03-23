@@ -23,11 +23,11 @@ A conversational Telegram bot that controls a user's home media server stack, ca
    - **Configuration Options**: Before adding, the bot displays available **Quality Profiles** and **Root Folders** from the service.
    - **User Confirmation**: The addition only proceeds once the user confirms the match and (optionally) specifies their preferred profile or folder.
 
-4. **Torrent Management (qBittorrent)**
-   - User asks: "Are there any torrents currently active?"
-   - Bot lists active torrents.
-   - User commands: "Pause all downloads" or "Resume downloads".
-   - Bot applies changes to qBittorrent.
+4. **Torrent & NZB Management (qBittorrent, NZBGet)**
+    - User asks: "Are there any torrents currently active?" or "How is my NZBGet download?"
+    - Bot lists active downloads with speed and ETA.
+    - User commands: "Pause all downloads" or "Resume downloads".
+    - Bot applies changes to qBittorrent or NZBGet.
 
 4. **Library Auditing & Browsing (Plex, Radarr, Sonarr)**
    - User asks: "Do I have any horror movies?"
@@ -38,7 +38,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
    - **Proactive Notifications**: After adding a movie, the bot asks "Would you like a notification?" and alerts the user once it's available.
    - Bot searches Plex and returns a list of episodes yet to be watched.
 
-5. **System Health, Auditing & Commands**
+6. **System Health, Auditing & Commands**
    - User writes: `/status`
    - Bot checks all services (Radarr, Sonarr, qBittorrent, Plex, NZBGet) and returns a consolidated report showing which are online or offline.
    - User writes: `/audit`
@@ -117,6 +117,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
     - **Plex**: Playback status (play, resume, finish) and library additions.
     - **Radarr**: Media grabbed and download completes.
     - **Sonarr**: Episode grabbed and download completes.
+    - **NZBGet**: NZB added (with speed/ETA) and download completes.
     - **Rich Notifications**: Fetches posters/thumbnails locally from Plex and uploads them as `InputFile` to ensure delivery even from internal/localhost addresses.
     - **Customized Playback Format**: Notifies starting/resuming/finishing media with user-specific templates:
         - Movies: `User started watching the movie Title (Original Title)`
