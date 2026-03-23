@@ -1,4 +1,4 @@
-import { Api, Bot, Context, InlineKeyboard, InputFile, type RawApi } from "grammy";
+import { Api, Bot, Context, InlineKeyboard, InputFile, GrammyError, type RawApi } from "grammy";
 import { run } from "@grammyjs/runner";
 import { resolve, isAbsolute } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -157,6 +157,26 @@ function acquireInstanceLock(): boolean {
     }
 
     return false;
+}
+
+/**
+ * Handle global 409 conflict errors specifically.
+ */
+function setupConflictHandling() {
+    bot.catch(async (err) => {
+        const error = err.error;
+        const msg = err.message;
+        if ((error instanceof GrammyError && error.error_code === 409) || (msg && msg.includes("409"))) {
+            console.error("⛔ [409 Conflict] Another bot instance is polling. This instance will exit to resolve the conflict.");
+            const activeId = getMetadata("active_instance_id");
+            if (activeId !== INSTANCE_ID) {
+                console.error(`Status: current ID ${INSTANCE_ID} does not match lock owner ${activeId}. Exit.`);
+                process.exit(1);
+            }
+            process.exit(1);
+        }
+        console.error("Error in bot:", err);
+    });
 }
 
 function startHeartbeat() {
@@ -859,10 +879,13 @@ try {
 if (!acquireInstanceLock()) {
     const activePid = getMetadata("active_instance_pid");
     console.error(`❌ [${INSTANCE_ID}] Another instance (PID ${activePid}) is already active. Exiting to prevent 409 Conflict.`);
+    // Wait a bit to avoid rapid restart loops in some environments
+    await new Promise(resolve => setTimeout(resolve, 5000));
     process.exit(1);
 }
 startHeartbeat();
 setupSignalHandlers();
+setupConflictHandling();
 
 // Initialize HTTP Server for Healthchecks and Webhooks
 Bun.serve({

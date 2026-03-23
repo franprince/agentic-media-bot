@@ -87,19 +87,19 @@ export async function processUserMessage(
         const statusLang: StatusLanguage = detectStatusLanguage(statusSeedText);
         const isOllama = process.env.AI_PROVIDER === "ollama";
         const ollamaBaseUrl = (process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
-        const modelFastName = process.env.AI_MODEL_FAST || process.env.AI_MODEL || "gemini-1.5-flash";
+        const modelFastName = process.env.AI_MODEL_FAST || process.env.AI_MODEL || "minimax-m2.7:cloud";
         const modelCapableName = process.env.AI_MODEL_CAPABLE || modelFastName;
 
         const ollamaProvider = isOllama
             ? createOpenAI({ baseURL: `${ollamaBaseUrl}/v1`, apiKey: "ollama" })
             : null;
 
-        const modelFast = isOllama
-            ? ollamaProvider!(modelFastName)
+        const modelFast = (isOllama && ollamaProvider)
+            ? ollamaProvider(modelFastName)
             : google(modelFastName);
 
-        const modelCapable = isOllama
-            ? ollamaProvider!(modelCapableName)
+        const modelCapable = (isOllama && ollamaProvider)
+            ? ollamaProvider(modelCapableName)
             : google(modelCapableName);
 
         const userName = getUserName(userId) || "Friend";
