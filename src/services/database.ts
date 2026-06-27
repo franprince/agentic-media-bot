@@ -76,41 +76,33 @@ db.run(`
  * Sanitize conversation history to prevent prototype pollution and injection attacks
  */
 function sanitizeConversationHistory(history: CoreMessage[]): CoreMessage[] {
-  return history.map(msg => {
+  const sanitized: CoreMessage[] = [];
+  
+  for (let i = 0; i < history.length; i++) {
+    const msg = history[i];
+    let sanitizedMsg = { ...msg };
+    
     if (msg.role === 'user') {
-      // Sanitize user messages to prevent injection
       if (typeof msg.content === 'string') {
-        // Remove potential prototype pollution patterns
-        const sanitized = msg.content
+        sanitizedMsg.content = msg.content
           .replace(/__proto__/g, '___proto___')
           .replace(/constructor/g, 'constructor_')
           .replace(/prototype/g, 'prototype_');
-
-        return { ...msg, content: sanitized };
       }
     } else if (msg.role === 'assistant' && Array.isArray(msg.content)) {
-      // Sanitize assistant tool calls and results
-      const sanitizedContent = msg.content.map(part => {
+      sanitizedMsg.content = msg.content.map(part => {
         if (part.type === 'tool-call') {
           return {
             ...part,
             args: sanitizeToolArgs(part.args as Record<string, any>)
           };
-        } else if (part.type === 'text') {
-          return part;
-        } else {
-          // Handle any other content types
-          return part;
         }
-      });
-      return { ...msg, content: sanitizedContent };
+        return part;
+      }) as any;
     } else if (msg.role === 'tool' && Array.isArray(msg.content)) {
-      // Sanitize tool messages
-      const sanitizedContent = msg.content.map(part => {
+      sanitizedMsg.content = msg.content.map(part => {
         if (part.type === 'tool-result') {
           let result = sanitizeToolResult(part.result as any);
-          // Google Gemini API requires the response in functionResponse to be an object.
-          // If the result is an array or a primitive, wrap it in an object.
           if (Array.isArray(result) || typeof result !== 'object' || result === null) {
             result = { result };
           }
@@ -118,17 +110,27 @@ function sanitizeConversationHistory(history: CoreMessage[]): CoreMessage[] {
             ...part,
             result
           };
-        } else if (part.type === 'text') {
-          return part;
-        } else {
-          // Handle any other content types
-          return part;
         }
-      });
-      return { ...msg, content: sanitizedContent };
+        return part;
+      }) as any;
     }
-    return msg;
-  });
+    
+    sanitized.push(sanitizedMsg);
+    
+    // If a tool message is followed by a user message, insert a dummy assistant message
+    // to preserve Gemini's strict alternating turn structure (User -> Model -> User -> Model).
+    if (msg.role === 'tool') {
+      const nextMsg = history[i + 1];
+      if (nextMsg && nextMsg.role === 'user') {
+        sanitized.push({
+          role: 'assistant',
+          content: 'I have processed the tool results.'
+        });
+      }
+    }
+  }
+  
+  return sanitized;
 }
 
 /**
