@@ -108,9 +108,15 @@ function sanitizeConversationHistory(history: CoreMessage[]): CoreMessage[] {
       // Sanitize tool messages
       const sanitizedContent = msg.content.map(part => {
         if (part.type === 'tool-result') {
+          let result = sanitizeToolResult(part.result as any);
+          // Google Gemini API requires the response in functionResponse to be an object.
+          // If the result is an array or a primitive, wrap it in an object.
+          if (Array.isArray(result) || typeof result !== 'object' || result === null) {
+            result = { result };
+          }
           return {
             ...part,
-            result: sanitizeToolResult(part.result as any)
+            result
           };
         } else if (part.type === 'text') {
           return part;
@@ -182,7 +188,13 @@ export function setUserName(userId: number, name: string) {
 export function getHistory(userId: number): CoreMessage[] {
   const row = db.query("SELECT history FROM conversations WHERE user_id = ?").get(userId) as { history: string } | null;
   if (row) {
-    return JSON.parse(row.history);
+    try {
+      const parsed = JSON.parse(row.history);
+      return sanitizeConversationHistory(parsed);
+    } catch (e) {
+      console.error("Failed to parse history", e);
+      return [];
+    }
   }
   return [];
 }
