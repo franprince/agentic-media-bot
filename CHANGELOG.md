@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.32.7] - 2026-06-27
+
+### Fixed
+- **Consecutive User Messages Merging**: Implemented dynamic merging of consecutive `user` messages in `src/services/database.ts` when loading/saving conversation history. This prevents protocol crashes with Google's strict alternating roles requirement when multiple user events (e.g. text message + button click callback) are received back-to-back without a model turn in between.
+- **History Unit Tests**: Updated `trimHistory` test data to realistic role alternation patterns to prevent role merging from skewing message count validations.
+
 ## [4.32.6] - 2026-06-27
 
 ### Fixed

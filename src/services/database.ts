@@ -115,6 +115,15 @@ function sanitizeConversationHistory(history: CoreMessage[]): CoreMessage[] {
       }) as any;
     }
     
+    // Merge consecutive user messages to maintain strict alternation
+    if (sanitizedMsg.role === 'user' && sanitized.length > 0 && sanitized[sanitized.length - 1].role === 'user') {
+      const lastMsg = sanitized[sanitized.length - 1];
+      if (typeof lastMsg.content === 'string' && typeof sanitizedMsg.content === 'string') {
+        lastMsg.content = `${lastMsg.content}\n${sanitizedMsg.content}`;
+        continue;
+      }
+    }
+
     sanitized.push(sanitizedMsg);
     
     // If a tool message is followed by a user message, insert a dummy assistant message

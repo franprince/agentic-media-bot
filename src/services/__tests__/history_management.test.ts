@@ -11,7 +11,7 @@ describe("History Management", () => {
 
     test("trimHistory should keep the last N messages", () => {
         const history: CoreMessage[] = Array.from({ length: 30 }, (_, i) => ({
-            role: "user",
+            role: i % 2 === 0 ? "user" : "assistant",
             content: `Message ${i}`,
         }));
 
