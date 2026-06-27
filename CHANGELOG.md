@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.32.5] - 2026-06-27
+
+### Fixed
+- **Gemini Chat Alternation (Synthesis Bug)**: Fixed a protocol violation in `src/agent/index.ts` where appending a synthesis prompt to the conversation messages created two consecutive `user` turns, throwing a 400 Bad Request error. Moved the synthesis instruction to the model's system prompt instead, ensuring strict user/model turn alternation.
+
+## [4.32.4] - 2026-06-27
+
+### Changed
+- **Gemini Model Upgrade to 3.5-Flash**: Configured both fast and capable model tiers to use `gemini-3.5-flash` (instead of 2.5-flash and 2.5-pro) to avoid the Pro model's 0-request free-tier quota limits and the temporary 503 "High Demand" overloads on `gemini-2.5-flash`.
+- **Config check model update**: Updated the verification model check in `src/verify-config.ts` to `gemini-3.5-flash`.
+
 ## [4.32.3] - 2026-06-27
 
 ### Fixed

@@ -31,7 +31,7 @@ export async function verifyConfig(exitOnFailure: boolean = true) {
                 const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
                 if (!key) throw new Error("GOOGLE_GENERATIVE_AI_API_KEY is missing.");
                 const response = await generateText({
-                    model: google("gemini-2.5-flash"),
+                    model: google("gemini-3.5-flash"),
                     prompt: "Hello, are you working?",
                     maxRetries: 1,
                 });

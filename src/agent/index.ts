@@ -250,14 +250,13 @@ export async function processUserMessage(
 
             const synthesis = await generateText({
                 model: modelCapable as any,
-                system: DEFAULT_SYSTEM_PROMPT
+                system: (DEFAULT_SYSTEM_PROMPT + "\n\nSynthesize the final response. REMEMBER: Never use 'Poster:' text placeholders. If poster URLs are present in the tool results above, include them internally using the POSTER: <url> format at the very end of your message.")
                     .replace("{{userId}}", userId.toString())
                     .replace("{{userName}}", userName)
                     .trim(),
                 messages: [
                     ...history,
                     ...firstPass.response.messages,
-                    { role: "user", content: "Synthesize the final response. REMEMBER: Never use 'Poster:' text placeholders. If poster URLs are present in the tool results above, include them internally using the POSTER: <url> format at the very end of your message." }
                 ],
             });
 
