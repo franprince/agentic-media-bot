@@ -174,7 +174,7 @@ describe("Plex Webhooks", () => {
 
         expect(response.status).toBe(200);
         const text = await response.text();
-        expect(text).toBe("Notifications disabled");
+        expect(text).toBe("OK");
         expect(sendPhotoSpy).not.toHaveBeenCalled();
         expect(sendMessageSpy).not.toHaveBeenCalled();
     });

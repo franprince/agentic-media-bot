@@ -378,15 +378,19 @@ export const getMovieQueueTool = tool({
     description: "Get the current queue of movies downloading in Radarr.",
     parameters: z.object({}),
     execute: async (_args: any) => {
-        const queue = await radarr.getMovieQueue();
-        if (queue.length === 0) {
-            return { message: "The Radarr download queue is currently empty." };
+        try {
+            const queue = await radarr.getMovieQueue();
+            if (queue.length === 0) {
+                return { message: "The Radarr download queue is currently empty." };
+            }
+            return queue.map(q => ({
+                title: q.title,
+                sizeTotal: q.size,
+                sizeLeft: q.sizeleft,
+            })) as any;
+        } catch (error: any) {
+            return { message: `Failed to fetch Radarr queue: ${error.message || "Unknown error"}` };
         }
-        return queue.map(q => ({
-            title: q.title,
-            sizeTotal: q.size,
-            sizeLeft: q.sizeleft,
-        })) as any;
     },
 });
 
@@ -593,15 +597,19 @@ export const getSeriesQueueTool = tool({
     description: "Get the current queue of TV shows downloading in Sonarr.",
     parameters: z.object({}),
     execute: async (_args: any) => {
-        const queue = await sonarr.getSeriesQueue();
-        if (queue.length === 0) {
-            return { message: "The Sonarr download queue is currently empty." };
+        try {
+            const queue = await sonarr.getSeriesQueue();
+            if (queue.length === 0) {
+                return { message: "The Sonarr download queue is currently empty." };
+            }
+            return queue.map(q => ({
+                title: q.title,
+                sizeTotal: q.size,
+                sizeLeft: q.sizeleft,
+            })) as any;
+        } catch (error: any) {
+            return { message: `Failed to fetch Sonarr queue: ${error.message || "Unknown error"}` };
         }
-        return queue.map(q => ({
-            title: q.title,
-            sizeTotal: q.size,
-            sizeLeft: q.sizeleft,
-        })) as any;
     },
 });
 
@@ -655,18 +663,22 @@ export const getTorrentsTool = tool({
         filter: z.enum(["all", "downloading", "seeding", "paused", "active"]).optional().describe("Filter for the list of torrents."),
     }),
     execute: async ({ filter = "downloading" }: { filter?: string }) => {
-        const torrents = await qbittorrent.getTorrents(filter);
-        if (torrents.length === 0) {
-            return { message: `No torrents found with filter: ${filter}` };
+        try {
+            const torrents = await qbittorrent.getTorrents(filter);
+            if (torrents.length === 0) {
+                return { message: `No torrents found with filter: ${filter}` };
+            }
+            return torrents.map(t => ({
+                name: t.name,
+                hash: t.hash,
+                progress: (t.progress * 100).toFixed(2) + "%",
+                etaSeconds: t.eta,
+                state: t.state,
+                dlspeed: (t.dlspeed / 1024 / 1024).toFixed(2) + " MB/s" // Convert bytes to MB/s
+            }));
+        } catch (error: any) {
+            return { message: `Failed to fetch torrents from qBittorrent: ${error.message || "Unknown error"}` };
         }
-        return torrents.map(t => ({
-            name: t.name,
-            hash: t.hash,
-            progress: (t.progress * 100).toFixed(2) + "%",
-            etaSeconds: t.eta,
-            state: t.state,
-            dlspeed: (t.dlspeed / 1024 / 1024).toFixed(2) + " MB/s" // Convert bytes to MB/s
-        }));
     },
 });
 
@@ -676,8 +688,12 @@ export const pauseTorrentTool = tool({
         hash: z.string().describe("The hash of the torrent to pause."),
     }),
     execute: async ({ hash }: { hash: string }) => {
-        await qbittorrent.pauseTorrent(hash);
-        return { message: `Successfully paused torrent with hash ${hash}` };
+        try {
+            await qbittorrent.pauseTorrent(hash);
+            return { message: `Successfully paused torrent with hash ${hash}` };
+        } catch (error: any) {
+            return { message: `Failed to pause torrent: ${error.message || "Unknown error"}` };
+        }
     },
 });
 
@@ -687,8 +703,12 @@ export const resumeTorrentTool = tool({
         hash: z.string().describe("The hash of the torrent to resume."),
     }),
     execute: async ({ hash }: { hash: string }) => {
-        await qbittorrent.resumeTorrent(hash);
-        return { message: `Successfully resumed torrent with hash ${hash}` };
+        try {
+            await qbittorrent.resumeTorrent(hash);
+            return { message: `Successfully resumed torrent with hash ${hash}` };
+        } catch (error: any) {
+            return { message: `Failed to resume torrent: ${error.message || "Unknown error"}` };
+        }
     },
 });
 

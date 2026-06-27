@@ -238,4 +238,7 @@ export async function verifyConfig(exitOnFailure: boolean = true) {
     console.log("\n✨ Verification complete.");
 }
 
-verifyConfig().catch(console.error);
+if (import.meta.main) {
+    verifyConfig().catch(console.error);
+}
+

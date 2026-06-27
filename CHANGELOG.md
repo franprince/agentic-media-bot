@@ -5,7 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.32.1] - 2026-06-27
+
+### Fixed
+- **Startup Crash**: Resolved a module side-effect in `src/verify-config.ts` where importing the configuration verification logic would immediately run the audit and call `process.exit(1)` on any offline services, causing the bot process to crash on startup. Wrapped the direct execution in `import.meta.main`.
+- **Robust Tool Error Handling**: Added `try/catch` error handlers to the queue and download action tools (`getMovieQueueTool`, `getSeriesQueueTool`, `getTorrentsTool`, `pauseTorrentTool`, and `resumeTorrentTool`) in `src/agent/tools.ts` to return user-friendly service offline warnings instead of throwing unhandled exceptions and crashing the entire AI conversation session.
+- **Plex Webhook Test**: Updated expectations in `src/services/__tests__/webhooks.test.ts` to align with the database event log return value change.
+- **Sonarr Test Leak**: Refactored `src/services/__tests__/sonarr_robustness.test.ts` to track and clean up all spies after each test, preventing mock pollution from failing downstream tests.
+
 ## [4.32.0] - 2026-03-23
+
 
 ### Added
 - **NZBGet Integration**: Enhanced the NZBGet service with RPC support for queue and status monitoring.
