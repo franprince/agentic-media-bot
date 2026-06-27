@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.32.6] - 2026-06-27
+
+### Fixed
+- **Gemini Chat History Role Alternation**: Fixed a 400 Bad Request error from the Gemini API when processing history containing orphaned tool execution results (caused by previous synthesis crashes). When loading history, the bot now automatically injects a placeholder assistant message if a tool result is directly followed by a user message, maintaining the strict alternate-turn protocol required by Google's API.
+
 ## [4.32.5] - 2026-06-27
 
 ### Fixed
