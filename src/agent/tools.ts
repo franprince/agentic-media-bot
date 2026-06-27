@@ -989,16 +989,45 @@ export const getMissingEpisodesTool = tool({
 });
 
 export const discoverMediaTool = tool({
-    description: "Discover critically acclaimed or top-rated movies and shows by searching the web. Useful for when the user asks for recommendations.",
+    description: "Discover critically acclaimed or top-rated movies and shows using TMDB. Useful for when the user asks for recommendations, especially recent releases.",
     parameters: z.object({
-        query: z.string().describe("The search query for discovery (e.g., 'critically acclaimed comedy movies 2024')."),
+        query: z.string().describe("The search query for discovery (e.g., 'comedy movies 2025', 'thriller series 2026', 'best drama 2025')."),
     }),
     execute: async ({ query }: { query: string }) => {
-        return {
-            message: `Searching for '${query}'...`,
-            suggestions: [],
-            note: "Use 'searchMovie' or 'searchSeries' with specific titles to see if they are available or can be added. I recommend you try searching for some recent award winners in that genre!"
-        } as any;
+        try {
+            const tmdb = await import("../services/tmdb");
+            const results = await tmdb.discoverMedia(query, 10);
+
+            if (results.length === 0) {
+                return {
+                    message: `No TMDB results found for '${query}'.`,
+                    suggestions: [],
+                    note: "Try broadening the query (e.g. remove year constraint) or use 'searchMovie'/'searchSeries' directly with a title you know.",
+                };
+            }
+
+            return {
+                message: `Found ${results.length} results from TMDB for '${query}'.`,
+                suggestions: results.map((r) => ({
+                    title: r.title,
+                    year: r.year,
+                    type: r.mediaType,
+                    rating: r.rating,
+                    voteCount: r.voteCount,
+                    genres: r.genres,
+                    overview: r.overview.slice(0, 200) + (r.overview.length > 200 ? "…" : ""),
+                    posterUrl: r.posterPath ? `https://image.tmdb.org/t/p/w500${r.posterPath}` : null,
+                })),
+                note: "Use 'searchMovie' or 'searchSeries' with the exact title to check availability or add to the download queue.",
+            };
+        } catch (err: any) {
+            console.error("discoverMediaTool TMDB error:", err?.message ?? err);
+            return {
+                message: `Could not reach TMDB for '${query}'.`,
+                suggestions: [],
+                note: err?.message ?? "Unknown error. Check TMDB_READ_ACCESS_TOKEN in your environment.",
+            };
+        }
     },
 });
 

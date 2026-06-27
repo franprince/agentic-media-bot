@@ -5,7 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.33.0] - 2026-06-27
+
+### Added
+- **TMDB-powered recommendations**: The `discoverMedia` tool is now wired to the TMDB Discover API. When users ask for movie/series recommendations (e.g. "comedy from 2025 I don't have"), the bot queries TMDB in real time and returns actual titles with ratings, genres, and overviews — instead of relying on the model's training data.
+- **TMDB service** (`src/services/tmdb.ts`): Thin client for TMDB's `/discover/movie` and `/discover/tv` endpoints. Parses genre keywords and year hints from free-text queries. Authenticates via `TMDB_READ_ACCESS_TOKEN` (Bearer) or falls back to `TMDB_READ_API_KEY`.
+- **TMDB verify-config check**: Startup verification now includes a soft TMDB connectivity check. Missing credentials produce a warning (not a fatal error).
+
 ## [4.32.8] - 2026-06-27
+
 
 ### Changed
 - **Provider Reverted to Ollama**: Switched the active AI model provider back to Ollama with `gemma4:31b-cloud` model to avoid Google Gemini's strict rate limits and quota restrictions on the standard free tier.

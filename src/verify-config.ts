@@ -215,7 +215,21 @@ export async function verifyConfig(exitOnFailure: boolean = true) {
                 const tz = getTimezone();
                 return `Success: Configured timezone is ${tz}.`;
             }
-        }
+        },
+        {
+            name: "TMDB API Connectivity",
+            fn: async () => {
+                const token = process.env.TMDB_READ_ACCESS_TOKEN;
+                const apiKey = process.env.TMDB_READ_API_KEY;
+                if (!token && !apiKey) {
+                    console.warn("⚠️  TMDB credentials not set. discoverMedia recommendations will be unavailable.");
+                    return "Warning: TMDB_READ_ACCESS_TOKEN / TMDB_READ_API_KEY not configured. Recommendations disabled.";
+                }
+                const tmdb = await import("./services/tmdb");
+                const results = await tmdb.discoverMedia("comedy movies 2025", 1);
+                return `Success: TMDB reachable — found ${results.length > 0 ? results[0].title : "results"}.`;
+            }
+        },
     ];
 
     for (const check of checks) {
