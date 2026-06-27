@@ -39,13 +39,13 @@ async function authenticate(): Promise<void> {
         throw new Error("qBittorrent authentication failed: No cookie received.");
     }
 
-    // Extract the SID cookie
-    const sidMatch = setCookieHeader.match(/SID=([^;]+)/);
+    // Extract the SID cookie (handling both legacy SID and modern QBT_SID_<port>)
+    const sidMatch = setCookieHeader.match(/((?:QBT_)?SID(?:_\d+)?)=([^;]+)/i);
     if (!sidMatch) {
         throw new Error("qBittorrent authentication failed: SID cookie not found.");
     }
 
-    _authCookie = `SID=${sidMatch[1]}`;
+    _authCookie = `${sidMatch[1]}=${sidMatch[2]}`;
 }
 
 async function fetchQbittorrent<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.32.2] - 2026-06-27
+
+### Fixed
+- **qBittorrent Modern Cookie Support**: Fixed an authentication bug in `src/services/qbittorrent.ts` where modern qBittorrent instances use a port-specific cookie name (e.g. `QBT_SID_8080`) instead of `SID`. Updated the regex to support both legacy and modern cookie formats.
+- **Gemini Verify Model**: Updated the verification model check in `src/verify-config.ts` from `gemini-1.5-flash` to `gemini-2.5-flash` to support newer GCP and Vertex-generated API keys which list modern models but not legacy 1.5 versions.
+
 ## [4.32.1] - 2026-06-27
 
 ### Fixed
