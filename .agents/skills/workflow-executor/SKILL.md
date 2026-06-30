@@ -15,8 +15,8 @@ Workflows are codified processes (usually in Markdown) that define recurring tas
 
 ### 1. Discovery
 Always check the following directories for relevant workflows at the start of a multi-step task:
-- `/home/fran/Documentos/agentic-media-bot/.agents/workflows`
-- `/home/fran/Documentos/agentic-media-bot/.agent/workflows`
+- `/home/fran/Documentos/repos/agentic-media-bot/.agents/workflows`
+- `/home/fran/Documentos/repos/agentic-media-bot/.agent/workflows`
 
 ### 2. Execution Protocol
 When a workflow is identified as relevant to the current user request (or if explicitly triggered via a slash command):
