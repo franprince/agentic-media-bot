@@ -39,9 +39,13 @@ type ChangelogRelease = {
  */
 async function getChangelogFromFile(): Promise<ChangelogRelease[]> {
     try {
-        const changelogPath = resolve(projectRoot, "CHANGELOG.md");
-        const file = Bun.file(changelogPath);
-        if (!await file.exists()) return [];
+        let changelogPath = resolve(import.meta.dir, "CHANGELOG.md");
+        let file = Bun.file(changelogPath);
+        if (!(await file.exists())) {
+            changelogPath = resolve(projectRoot, "CHANGELOG.md");
+            file = Bun.file(changelogPath);
+            if (!(await file.exists())) return [];
+        }
 
         const text = await file.text();
         const releases: ChangelogRelease[] = [];
@@ -966,25 +970,29 @@ bot.api.getMe().then(async (me) => {
     const adminIds = process.env.ALLOWED_USER_IDS?.split(",") || [];
 
     if (adminIds.length > 0) {
-        const latestRelease = await getLatestChangelogRelease();
-        const lastSentVersion = getMetadata("last_sent_changelog_version") || "";
+        try {
+            const latestRelease = await getLatestChangelogRelease();
+            const lastSentVersion = getMetadata("last_sent_changelog_version") || "";
 
-        if (isNewerVersion(latestRelease.version, lastSentVersion)) {
-            const startupTitle = "🔄 Bot startup changelog";
-            const startupText = `${startupTitle}\n${buildReleaseChangelogText(latestRelease)}`;
+            if (isNewerVersion(latestRelease.version, lastSentVersion)) {
+                const startupTitle = "🔄 Bot startup changelog";
+                const startupText = `${startupTitle}\n${buildReleaseChangelogText(latestRelease)}`;
 
-            for (const adminId of adminIds) {
-                try {
-                    const chunks = splitTelegramMessage(startupText);
-                    for (const chunk of chunks) {
-                        await bot.api.sendMessage(adminId, chunk);
+                for (const adminId of adminIds) {
+                    try {
+                        const chunks = splitTelegramMessage(startupText);
+                        for (const chunk of chunks) {
+                            await bot.api.sendMessage(adminId, chunk);
+                        }
+                    } catch (err) {
+                        console.error(`Failed to send startup message to ${adminId}:`, err);
                     }
-                } catch (err) {
-                    console.error(`Failed to send startup message to ${adminId}:`, err);
                 }
-            }
 
-            setMetadata("last_sent_changelog_version", latestRelease.version);
+                setMetadata("last_sent_changelog_version", latestRelease.version);
+            }
+        } catch (err: any) {
+            console.warn(`⚠️ Could not process changelog for startup notification: ${err.message}`);
         }
     }
 
