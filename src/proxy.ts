@@ -334,13 +334,17 @@ serve({
         // Static file serving
         if (req.method === "GET") {
             let relativePath = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
-            const absolutePath = `${import.meta.dir}/../proxy-ui/dist/${relativePath}`;
+            let uiDistPath = `${import.meta.dir}/proxy-ui/dist`;
+            if (!(await Bun.file(`${uiDistPath}/index.html`).exists())) {
+                uiDistPath = `${import.meta.dir}/../proxy-ui/dist`;
+            }
+            const absolutePath = `${uiDistPath}/${relativePath}`;
             const file = Bun.file(absolutePath);
 
             if (await file.exists()) {
                 return new Response(file);
             } else if (!url.pathname.startsWith("/api/")) {
-                const indexFile = Bun.file(`${import.meta.dir}/../proxy-ui/dist/index.html`);
+                const indexFile = Bun.file(`${uiDistPath}/index.html`);
                 if (await indexFile.exists()) return new Response(indexFile);
             }
         }
