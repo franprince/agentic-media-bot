@@ -66,4 +66,114 @@ describe("Radarr/Sonarr Webhook Notifications", () => {
         expect(chatId).toBe("12345");
         expect(text).toContain("Download complete for *The Office - S01E01*");
     });
+
+    it("should process Radarr Download event with movieFile quality", async () => {
+        const payload = {
+            eventType: "Download",
+            movie: { title: "The Sheep Detectives", year: 2026 },
+            movieFile: {
+                relativePath: "The.Sheep.Detectives.2026.1080p.mkv",
+                path: "/movies/The Sheep Detectives (2026)/The.Sheep.Detectives.2026.1080p.mkv",
+                quality: {
+                    quality: {
+                        id: 1,
+                        name: "Bluray-1080p"
+                    },
+                    revision: { version: 1, real: true }
+                }
+            },
+            downloadClient: "NZBGet"
+        };
+
+        const request = new Request("http://localhost/radarr-webhook", {
+            method: "POST",
+            body: JSON.stringify(payload),
+        });
+
+        const response = await handleRadarrWebhook(request, mockBot);
+        expect(response.status).toBe(200);
+
+        const [, text] = (sendMessageSpy as any).mock.calls[(sendMessageSpy as any).mock.calls.length - 1];
+        expect(text).toContain("Download complete for *The Sheep Detectives (2026)*");
+        expect(text).toContain("*Quality*: Bluray-1080p");
+        expect(text).toContain("*Client*: NZBGet");
+        expect(text).not.toContain("undefined");
+    });
+
+    it("should process Radarr Download event without movieFile/release quality and not output undefined", async () => {
+        const payload = {
+            eventType: "Download",
+            movie: { title: "The Sheep Detectives", year: 2026 },
+            downloadClient: "NZBGet"
+        };
+
+        const request = new Request("http://localhost/radarr-webhook", {
+            method: "POST",
+            body: JSON.stringify(payload),
+        });
+
+        const response = await handleRadarrWebhook(request, mockBot);
+        expect(response.status).toBe(200);
+
+        const [, text] = (sendMessageSpy as any).mock.calls[(sendMessageSpy as any).mock.calls.length - 1];
+        expect(text).toContain("Download complete for *The Sheep Detectives (2026)*");
+        expect(text).not.toContain("Quality");
+        expect(text).not.toContain("undefined");
+    });
+
+    it("should process Sonarr Download event with episodeFile quality", async () => {
+        const payload = {
+            eventType: "Download",
+            series: { title: "The Office" },
+            episodes: [{ seasonNumber: 1, episodeNumber: 1, title: "Pilot" }],
+            episodeFile: {
+                relativePath: "Season 01/The.Office.S01E01.mkv",
+                path: "/shows/The Office/Season 01/The.Office.S01E01.mkv",
+                quality: {
+                    quality: {
+                        id: 1,
+                        name: "WEBDL-1080p"
+                    },
+                    revision: { version: 1, real: true }
+                }
+            },
+            downloadClient: "NZBGet"
+        };
+
+        const request = new Request("http://localhost/sonarr-webhook", {
+            method: "POST",
+            body: JSON.stringify(payload),
+        });
+
+        const response = await handleSonarrWebhook(request, mockBot);
+        expect(response.status).toBe(200);
+
+        const [, text] = (sendMessageSpy as any).mock.calls[(sendMessageSpy as any).mock.calls.length - 1];
+        expect(text).toContain("Download complete for *The Office - S01E01*");
+        expect(text).toContain("*Quality*: WEBDL-1080p");
+        expect(text).toContain("*Client*: NZBGet");
+        expect(text).not.toContain("undefined");
+    });
+
+    it("should process Sonarr Download event without episodeFile/release quality and not output undefined", async () => {
+        const payload = {
+            eventType: "Download",
+            series: { title: "The Office" },
+            episodes: [{ seasonNumber: 1, episodeNumber: 1, title: "Pilot" }],
+            downloadClient: "NZBGet"
+        };
+
+        const request = new Request("http://localhost/sonarr-webhook", {
+            method: "POST",
+            body: JSON.stringify(payload),
+        });
+
+        const response = await handleSonarrWebhook(request, mockBot);
+        expect(response.status).toBe(200);
+
+        const [, text] = (sendMessageSpy as any).mock.calls[(sendMessageSpy as any).mock.calls.length - 1];
+        expect(text).toContain("Download complete for *The Office - S01E01*");
+        expect(text).not.toContain("Quality");
+        expect(text).not.toContain("undefined");
+    });
 });

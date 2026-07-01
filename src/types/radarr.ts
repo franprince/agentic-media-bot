@@ -44,19 +44,37 @@ export interface RadarrWebhookPayload {
         tmdbId: number;
         imdbId?: string;
     };
-    remoteMovie: {
+    remoteMovie?: {
         title: string;
         year: number;
         tmdbId: number;
         imdbId?: string;
     };
-    release: {
+    release?: {
         quality: string;
         qualityVersion: number;
         releaseGroup?: string;
         releaseTitle: string;
         indexer: string;
         size: number;
+    };
+    movieFile?: {
+        id: number;
+        relativePath: string;
+        path: string;
+        quality: {
+            quality: {
+                id: number;
+                name: string;
+                source?: string;
+                resolution?: number;
+            };
+            revision: {
+                version: number;
+                real: number | boolean;
+                isRepack?: boolean;
+            };
+        };
     };
     downloadClient?: string;
     downloadId?: string;

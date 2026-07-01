@@ -249,12 +249,13 @@ export async function handleRadarrWebhook(request: Request, bot: Bot) {
 
         if (eventType === "Grab") {
             message = `📥 *Radarr*: Grabbed *${eventTitle}*\n\n`;
-            message += `▫️ *Quality*: ${release.quality}\n`;
-            if (release.releaseTitle) message += `▫️ *Release*: \`${release.releaseTitle}\`\n`;
+            if (release?.quality) message += `▫️ *Quality*: ${release.quality}\n`;
+            if (release?.releaseTitle) message += `▫️ *Release*: \`${release.releaseTitle}\`\n`;
             if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
         } else if (eventType === "Download") {
             message = `✅ *Radarr*: Download complete for *${eventTitle}*\n\n`;
-            message += `▫️ *Quality*: ${release.quality}\n`;
+            const qualityName = payload.movieFile?.quality?.quality?.name || release?.quality;
+            if (qualityName) message += `▫️ *Quality*: ${qualityName}\n`;
             if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
 
             // Check for individual user notification subscriptions
@@ -305,12 +306,13 @@ export async function handleSonarrWebhook(request: Request, bot: Bot) {
 
         if (eventType === "Grab") {
             message = `📥 *Sonarr*: Grabbed *${eventTitle}*\n\n`;
-            if (release) message += `▫️ *Quality*: ${release.quality}\n`;
+            if (release?.quality) message += `▫️ *Quality*: ${release.quality}\n`;
             if (release?.releaseTitle) message += `▫️ *Release*: \`${release.releaseTitle}\`\n`;
             if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
         } else if (eventType === "Download") {
             message = `✅ *Sonarr*: Download complete for *${eventTitle}*\n\n`;
-            if (release) message += `▫️ *Quality*: ${release.quality}\n`;
+            const qualityName = payload.episodeFile?.quality?.quality?.name || release?.quality;
+            if (qualityName) message += `▫️ *Quality*: ${qualityName}\n`;
             if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
 
             // Check for individual user notification subscriptions

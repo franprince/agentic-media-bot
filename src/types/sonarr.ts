@@ -74,6 +74,24 @@ export interface SonarrWebhookPayload {
         indexer: string;
         size: number;
     };
+    episodeFile?: {
+        id: number;
+        relativePath: string;
+        path: string;
+        quality: {
+            quality: {
+                id: number;
+                name: string;
+                source?: string;
+                resolution?: number;
+            };
+            revision: {
+                version: number;
+                real: number | boolean;
+                isRepack?: boolean;
+            };
+        };
+    };
     downloadClient?: string;
     downloadId?: string;
 }
