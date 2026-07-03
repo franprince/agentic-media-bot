@@ -403,7 +403,8 @@ I am an AI-powered media manager that understands natural language. You can talk
 📡 /status - Check health of all connected services
 🎬 /radarr - View recent movie events & manage alerts
 📺 /sonarr - View recent series events & manage alerts
-🔔 /notifications <on/off> - Toggle Plex alerts
+🍿 /plex - View recent Plex events & manage alerts
+🔔 /notifications <on/off> - Toggle all alerts globally
 🔄 /restart - Restart the bot (Admin only)
 🔍 /audit - Diagnostic logs (Admin only)
 ❓ /help - Show this help message
@@ -540,6 +541,61 @@ bot.command("sonarr", async (ctx) => {
     }
 
     let report = "📺 *Recent Sonarr Events*\n\n";
+    for (const ev of events) {
+        const dateStr = new Date(ev.timestamp + "Z").toLocaleString();
+        report += `[${dateStr}] *${ev.event_type.toUpperCase()}* - ${ev.title}\n`;
+    }
+
+    await ctx.reply(report, { parse_mode: "Markdown" });
+});
+
+// Handle /plex command
+bot.command("plex", async (ctx) => {
+    const userId = ctx.from?.id;
+    if (typeof userId !== "number") {
+        await ctx.reply("Cannot determine requesting user for authorization.");
+        return;
+    }
+    const allowedUserIds = getAllowedUserIdSet();
+
+    if (allowedUserIds.size > 0 && !allowedUserIds.has(userId)) {
+        await ctx.reply("You are not authorized.");
+        return;
+    }
+
+    const args = ctx.match?.trim().toLowerCase().split(/\s+/);
+    if (args && args[0] === "alerts") {
+        const eventType = args[1];
+        const state = args[2];
+        
+        // Map shorthand names to actual Plex webhook events
+        const eventMapping: Record<string, string> = {
+            play: "media.play",
+            resume: "media.resume",
+            scrobble: "media.scrobble",
+            library: "library.new"
+        };
+        
+        const actualEvent = eventMapping[eventType] || eventType;
+
+        if (eventType && (actualEvent === "media.play" || actualEvent === "media.resume" || actualEvent === "media.scrobble" || actualEvent === "library.new") && (state === "on" || state === "off")) {
+            const enabled = state === "on";
+            setEventAlertConfig("plex", actualEvent, enabled);
+            await ctx.reply(`✅ Plex *${eventType}* alerts turned *${state}*.`, { parse_mode: "Markdown" });
+            return;
+        } else {
+            await ctx.reply("Usage: `/plex alerts <play|resume|scrobble|library> <on|off>`", { parse_mode: "Markdown" });
+            return;
+        }
+    }
+
+    const events = getRecentMediaEvents("plex", 10);
+    if (events.length === 0) {
+        await ctx.reply("No recent Plex events found.");
+        return;
+    }
+
+    let report = "🍿 *Recent Plex Events*\n\n";
     for (const ev of events) {
         const dateStr = new Date(ev.timestamp + "Z").toLocaleString();
         report += `[${dateStr}] *${ev.event_type.toUpperCase()}* - ${ev.title}\n`;

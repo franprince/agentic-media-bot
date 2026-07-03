@@ -270,4 +270,58 @@ describe("Plex Webhook Notifications V2", () => {
         expect(args[1]).toBe("🎬 *franp21* started watching the movie *ハウルの動く城 (Howl's Moving Castle)*");
         expect(searchMovieSpy).toHaveBeenCalledWith("ハウルの動く城");
     });
+
+    test("should skip notification if alert for event type is disabled in database", async () => {
+        database.setEventAlertConfig("plex", "media.play", false);
+
+        const payload = {
+            event: "media.play",
+            Account: { title: "Fran" },
+            Metadata: {
+                title: "Inception",
+                type: "movie",
+                librarySectionType: "movie",
+            }
+        };
+
+        const formData = new FormData();
+        formData.append("payload", JSON.stringify(payload));
+
+        const request = new Request("http://localhost/plex-webhook", {
+            method: "POST",
+            body: formData,
+        });
+
+        const sendMessageSpy = spyOn(mockBot.api, "sendMessage");
+        await handlePlexWebhook(request, mockBot as any);
+
+        expect(sendMessageSpy).not.toHaveBeenCalled();
+    });
+
+    test("should send notification if alert for event type is enabled in database", async () => {
+        database.setEventAlertConfig("plex", "media.play", true);
+
+        const payload = {
+            event: "media.play",
+            Account: { title: "Fran" },
+            Metadata: {
+                title: "Inception",
+                type: "movie",
+                librarySectionType: "movie",
+            }
+        };
+
+        const formData = new FormData();
+        formData.append("payload", JSON.stringify(payload));
+
+        const request = new Request("http://localhost/plex-webhook", {
+            method: "POST",
+            body: formData,
+        });
+
+        const sendMessageSpy = spyOn(mockBot.api, "sendMessage");
+        await handlePlexWebhook(request, mockBot as any);
+
+        expect(sendMessageSpy).toHaveBeenCalled();
+    });
 });

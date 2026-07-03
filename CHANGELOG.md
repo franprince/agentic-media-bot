@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.34.0] - 2026-07-03
+
+### Added
+- **Plex Alerts Management**: Added `/plex` Telegram bot command to view recent Plex events and turn specific alerts (play, resume, scrobble, library) on or off. Refined `/notifications` command description to clarify its global nature.
+
 ## [4.33.2] - 2026-07-03
 
 ### Changed
