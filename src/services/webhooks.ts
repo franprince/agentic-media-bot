@@ -254,7 +254,11 @@ export async function handleRadarrWebhook(request: Request, bot: Bot) {
 
         if (eventType === "Grab") {
             message = `📥 *Radarr*: Grabbed *${eventTitle}*\n\n`;
-            if (release?.quality) message += `▫️ *Quality*: ${release.quality}\n`;
+            const grabQualityObj = release?.quality;
+            const grabQualityName = typeof grabQualityObj === "object" && grabQualityObj !== null
+                ? (grabQualityObj as any)?.quality?.name
+                : grabQualityObj;
+            if (grabQualityName) message += `▫️ *Quality*: ${grabQualityName}\n`;
             if (release?.releaseTitle) message += `▫️ *Release*: \`${release.releaseTitle}\`\n`;
             if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
         } else if (eventType === "Download") {
@@ -319,7 +323,11 @@ export async function handleSonarrWebhook(request: Request, bot: Bot) {
 
         if (eventType === "Grab") {
             message = `📥 *Sonarr*: Grabbed *${eventTitle}*\n\n`;
-            if (release?.quality) message += `▫️ *Quality*: ${release.quality}\n`;
+            const grabQualityObj = release?.quality;
+            const grabQualityName = typeof grabQualityObj === "object" && grabQualityObj !== null
+                ? (grabQualityObj as any)?.quality?.name
+                : grabQualityObj;
+            if (grabQualityName) message += `▫️ *Quality*: ${grabQualityName}\n`;
             if (release?.releaseTitle) message += `▫️ *Release*: \`${release.releaseTitle}\`\n`;
             if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
         } else if (eventType === "Download") {

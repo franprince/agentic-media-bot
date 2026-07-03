@@ -5,7 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [4.34.1] - 2026-07-03
+## [4.35.0] - 2026-07-03
+
+### Fixed
+- **Invalid Date in /plex, /radarr, /sonarr commands**: `saveMediaEvent` was storing timestamps using `datetime('now') || 'Z'` (space-separated, double-Z format). `bot.ts` then appended another `'Z'`, producing an unparseable string. Timestamps are now stored as proper ISO-8601 (via `new Date().toISOString()`) and a robust `formatEventTimestamp` helper handles both old and new formats gracefully.
+- **Duplicate events in /plex (library.new x2)**: Plex fires `library.new` once per matching library section, causing the same movie to appear twice. `saveMediaEvent` now deduplicates: if the same `(service, event_type, title)` was already saved within the last 60 seconds, the duplicate is silently dropped.
+- **Quality: undefined on Radarr/Sonarr Grab events**: `release.quality` on `Grab` payloads can be a nested object `{ quality: { name } }` rather than a plain string. Applied the same nested-object unwrapping logic already in place for `Download` events to both Radarr and Sonarr `Grab` handlers.
+
+### Added
+- **BACKLOG.md**: Living feature backlog document tracking all P0/P1/P2 items from the product analysis.
+- **E2E tests**: Added `media_events.test.ts` covering timestamp validity, deduplication, and negative cases. Added two new tests to `radarr_sonarr_webhooks.test.ts` covering nested quality objects on Radarr and Sonarr Grab events.
 
 ### Fixed
 - **Webhook Quality Robustness**: Made webhook quality name extraction robust for both Radarr and Sonarr to handle cases where the quality property is a nested object or a string.

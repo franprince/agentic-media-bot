@@ -341,6 +341,21 @@ function splitTelegramMessage(text: string, maxLength = TELEGRAM_MAX_MESSAGE_LEN
     return chunks;
 }
 
+/**
+ * Robustly parse a DB timestamp string to a human-readable locale string.
+ * Handles both old format ("2026-07-03 19:00:00Z" — space-separated, trailing Z)
+ * and new proper ISO-8601 format ("2026-07-03T19:00:00.000Z").
+ */
+function formatEventTimestamp(timestamp: string): string {
+    // Normalise: replace space with 'T', strip any duplicate trailing Z before re-adding.
+    const normalised = timestamp.trim().replace(" ", "T").replace(/Z+$/, "") + "Z";
+    const date = new Date(normalised);
+    if (isNaN(date.getTime())) {
+        return timestamp; // Fallback: return raw string if parsing still fails
+    }
+    return date.toLocaleString();
+}
+
 async function getLatestChangelogRelease(): Promise<ChangelogRelease> {
     const releases = await getChangelogFromFile();
     const latest = releases[0]; // Assuming newest is first in CHANGELOG.md
@@ -498,7 +513,7 @@ bot.command("radarr", async (ctx) => {
 
     let report = "🎬 *Recent Radarr Events*\n\n";
     for (const ev of events) {
-        const dateStr = new Date(ev.timestamp + "Z").toLocaleString();
+        const dateStr = formatEventTimestamp(ev.timestamp);
         report += `[${dateStr}] *${ev.event_type.toUpperCase()}* - ${ev.title}\n`;
     }
 
@@ -542,7 +557,7 @@ bot.command("sonarr", async (ctx) => {
 
     let report = "📺 *Recent Sonarr Events*\n\n";
     for (const ev of events) {
-        const dateStr = new Date(ev.timestamp + "Z").toLocaleString();
+        const dateStr = formatEventTimestamp(ev.timestamp);
         report += `[${dateStr}] *${ev.event_type.toUpperCase()}* - ${ev.title}\n`;
     }
 
@@ -597,7 +612,7 @@ bot.command("plex", async (ctx) => {
 
     let report = "🍿 *Recent Plex Events*\n\n";
     for (const ev of events) {
-        const dateStr = new Date(ev.timestamp + "Z").toLocaleString();
+        const dateStr = formatEventTimestamp(ev.timestamp);
         report += `[${dateStr}] *${ev.event_type.toUpperCase()}* - ${ev.title}\n`;
     }
 

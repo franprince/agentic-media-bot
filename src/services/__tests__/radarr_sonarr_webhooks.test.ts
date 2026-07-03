@@ -247,6 +247,7 @@ describe("Radarr/Sonarr Webhook Notifications", () => {
         expect(response.status).toBe(200);
     });
 
+
     it("should handle Sonarr Webhook without series object gracefully", async () => {
         const payload = {
             eventType: "Download",
@@ -261,4 +262,62 @@ describe("Radarr/Sonarr Webhook Notifications", () => {
         const response = await handleSonarrWebhook(request, mockBot);
         expect(response.status).toBe(200);
     });
+
+    it("should extract quality name from nested object on Radarr Grab event", async () => {
+        const payload = {
+            eventType: "Grab",
+            movie: { title: "Azumi 2: Death or Love", year: 2005 },
+            release: {
+                quality: {
+                    quality: { id: 7, name: "Bluray-1080p" },
+                    revision: { version: 1, real: 0 }
+                },
+                releaseTitle: "Azumi.2.2005.1080p.BluRay.mkv"
+            },
+            downloadClient: "NZBGet"
+        };
+
+        const request = new Request("http://localhost/radarr-webhook", {
+            method: "POST",
+            body: JSON.stringify(payload),
+        });
+
+        const response = await handleRadarrWebhook(request, mockBot);
+        expect(response.status).toBe(200);
+
+        const calls = (sendMessageSpy as any).mock.calls;
+        const lastCall = calls[calls.length - 1];
+        expect(lastCall[1]).toContain("Bluray-1080p");
+        expect(lastCall[1]).not.toContain("undefined");
+    });
+
+    it("should extract quality name from nested object on Sonarr Grab event", async () => {
+        const payload = {
+            eventType: "Grab",
+            series: { title: "Attack on Titan", tvdbId: 267440 },
+            episodes: [{ seasonNumber: 4, episodeNumber: 1 }],
+            release: {
+                quality: {
+                    quality: { id: 4, name: "HDTV-1080p" },
+                    revision: { version: 1, real: 0 }
+                },
+                releaseTitle: "Attack.on.Titan.S04E01.1080p.mkv"
+            },
+            downloadClient: "qBittorrent"
+        };
+
+        const request = new Request("http://localhost/sonarr-webhook", {
+            method: "POST",
+            body: JSON.stringify(payload),
+        });
+
+        const response = await handleSonarrWebhook(request, mockBot);
+        expect(response.status).toBe(200);
+
+        const calls = (sendMessageSpy as any).mock.calls;
+        const lastCall = calls[calls.length - 1];
+        expect(lastCall[1]).toContain("HDTV-1080p");
+        expect(lastCall[1]).not.toContain("undefined");
+    });
 });
+
