@@ -7,6 +7,26 @@ import * as plex from "../services/plex";
 import * as db from "../services/database";
 import * as nzbget from "../services/nzbget";
 
+// Helper to find default quality profile matching "Full-HD or Better"
+function getDefaultQualityProfile(profiles: Array<{ id: number; name: string }>): { id: number; name: string } | undefined {
+    if (!profiles || profiles.length === 0) return undefined;
+    const preferred = profiles.find(p => {
+        const name = p.name.toLowerCase();
+        return name.includes("full-hd") || name.includes("full hd") || name.includes("fullhd");
+    }) || profiles.find(p => p.name.toLowerCase().includes("1080p"));
+    return preferred || profiles[0];
+}
+
+// Helper to find default language profile matching "Original" or "Original Language"
+function getDefaultLanguageProfile(languages: Array<{ id: number; name: string }>): { id: number; name: string } | undefined {
+    if (!languages || languages.length === 0) return undefined;
+    const preferred = languages.find(l => {
+        const name = l.name.toLowerCase();
+        return name.includes("original");
+    });
+    return preferred || languages[0];
+}
+
 // --- Type Definitions --- //
 interface PlexMediaItem {
     ratingKey?: string;
@@ -326,6 +346,8 @@ export const addMovieTool = tool({
 
             const titleMismatch = imdbMatch && stripDiacritics(match.title.toLowerCase()) !== stripDiacritics(title.toLowerCase());
 
+            const defaultProfile = getDefaultQualityProfile(profiles);
+
             if (!confirm || titleMismatch) {
                 let statusMessage = `I found "${match.title}" (${match.year}). Please confirm if I should add it and which settings to use:`;
                 if (titleMismatch) {
@@ -345,14 +367,14 @@ export const addMovieTool = tool({
                         tmdbId: match.tmdbId,
                     },
                     buttons: [
-                        { text: "✅ Yes, Add Movie", data: `add movie ${match.tmdbId} ${profiles[0]?.id}` },
+                        { text: "✅ Yes, Add Movie", data: `add movie ${match.tmdbId} ${defaultProfile?.id}` },
                         { text: "❌ Cancel", data: "cancel add movie" }
                     ]
                 } as any;
             }
 
             // Final addition using specified or default settings
-            const finalProfileId = qualityProfileId ?? profiles[0]?.id;
+            const finalProfileId = qualityProfileId ?? defaultProfile?.id;
             const finalFolderPath = rootFolderPath ?? folders[0]?.path;
 
             if (finalProfileId === undefined || finalFolderPath === undefined) {
@@ -534,6 +556,9 @@ export const addSeriesTool = tool({
 
         const titleMismatch = imdbMatch && stripDiacritics(exactSeries.title.toLowerCase()) !== stripDiacritics(title.toLowerCase());
 
+        const defaultProfile = getDefaultQualityProfile(profiles);
+        const defaultLanguage = getDefaultLanguageProfile(languageProfiles);
+
         if (!confirm || titleMismatch) {
             let statusMessage = `I found "${exactSeries.title}" (${exactSeries.year}). Please confirm if I should add it and which settings to use:`;
             if (titleMismatch) {
@@ -557,15 +582,15 @@ export const addSeriesTool = tool({
                     genres: exactSeries.genres,
                 },
                 buttons: [
-                    { text: "✅ Yes, Add Series", data: `add series ${exactSeries.tvdbId} ${profiles[0]?.id}` },
+                    { text: "✅ Yes, Add Series", data: `add series ${exactSeries.tvdbId} ${defaultProfile?.id}` },
                     { text: "❌ Cancel", data: "cancel add series" }
                 ]
             } as any;
         }
 
         // Use specified or default settings
-        const finalProfileId = qualityProfileId ?? profiles[0]?.id;
-        const finalLanguageId = languageProfileId ?? languageProfiles[0]?.id;
+        const finalProfileId = qualityProfileId ?? defaultProfile?.id;
+        const finalLanguageId = languageProfileId ?? defaultLanguage?.id;
         const finalFolderPath = rootFolderPath ?? folders[0]?.path;
 
         if (!finalProfileId || !finalLanguageId || !finalFolderPath) {

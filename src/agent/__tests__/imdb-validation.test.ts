@@ -1,10 +1,12 @@
 import { expect, test, describe, spyOn, beforeEach } from "bun:test";
-import { addMovieTool, addSeriesTool } from "../tools";
+import { addMovieTool, addSeriesTool, clearCache } from "../tools";
 import * as radarr from "../../services/radarr";
 import * as sonarr from "../../services/sonarr";
 
 describe("IMDb Validation", () => {
     beforeEach(() => {
+        // Clear config cache to prevent test-to-test pollution
+        clearCache();
         // Mock profiles and folders
         spyOn(radarr, "getQualityProfiles").mockImplementation(async () => [{ id: 1, name: "HD" }]);
         spyOn(radarr, "getRootFolders").mockImplementation(async () => [{ id: 1, path: "/movies", freeSpace: 1000 }]);
@@ -66,6 +68,45 @@ describe("IMDb Validation", () => {
             expect(result.message).not.toContain("Title Mismatch");
             expect(result.message).toContain("Inception");
         });
+
+        test("should default to Full-HD or Better profile if available", async () => {
+            spyOn(radarr, "getQualityProfiles").mockImplementation(async () => [
+                { id: 1, name: "Any" },
+                { id: 7, name: "Full-HD or Better (NO REMUX)" }
+            ]);
+            spyOn(radarr, "searchMovie").mockImplementation(async () => [{
+                title: "Inception",
+                tmdbId: 27205,
+                year: 2010,
+                genres: ["Action"],
+                overview: "Overview...",
+                images: []
+            }] as any);
+
+            const result = await addMovieTool.execute({
+                title: "Inception",
+                year: 2010,
+                tmdbId: 27205,
+                imdbId: "tt1375666",
+                confirm: false
+            }, { abortSignal: undefined as any });
+
+            expect(result.confirmationRequired).toBe(true);
+            const addBtn = result.buttons?.find((b: any) => b.text.includes("Yes"));
+            expect(addBtn?.data).toBe("add movie 27205 7");
+
+            const addMovieSpy = spyOn(radarr, "addMovie").mockImplementation(async () => ({ title: "Inception" } as any));
+            const confirmResult = await addMovieTool.execute({
+                title: "Inception",
+                year: 2010,
+                tmdbId: 27205,
+                imdbId: "tt1375666",
+                confirm: true
+            }, { abortSignal: undefined as any });
+
+            expect(addMovieSpy).toHaveBeenCalledWith(27205, "Inception", 2010, "/movies", 7);
+            expect(confirmResult.success).toBe(true);
+        });
     });
 
     describe("addSeriesTool", () => {
@@ -107,6 +148,56 @@ describe("IMDb Validation", () => {
             expect(result.message).toContain("Title Mismatch");
             expect(result.message).toContain("Breaking Bad");
             expect(result.mediaDetails.tvdbId).toBe(81189);
+        });
+
+        test("should default to Full HD or Better profile and Original language profile if available", async () => {
+            spyOn(sonarr, "getQualityProfiles").mockImplementation(async () => [
+                { id: 1, name: "Any" },
+                { id: 7, name: "Full HD or Better" }
+            ]);
+            spyOn(sonarr, "getLanguageProfiles").mockImplementation(async () => [
+                { id: 1, name: "English" },
+                { id: 2, name: "Original Language" }
+            ]);
+            spyOn(sonarr, "searchSeries").mockImplementation(async () => [{
+                title: "Breaking Bad",
+                tvdbId: 81189,
+                year: 2008,
+                genres: ["Drama"],
+                overview: "Overview...",
+                images: [],
+                seasons: [1]
+            }] as any);
+            spyOn(sonarr, "getSeriesByTvdbId").mockImplementation(async () => ({
+                title: "Breaking Bad",
+                tvdbId: 81189,
+                year: 2008,
+                overview: "Overview...",
+                images: [],
+                seasons: [{ seasonNumber: 1, monitored: true }]
+            } as any));
+
+            const result = await addSeriesTool.execute({
+                title: "Breaking Bad",
+                tvdbId: 81189,
+                imdbId: "tt0903747",
+                confirm: false
+            }, { abortSignal: undefined as any });
+
+            expect(result.confirmationRequired).toBe(true);
+            const addBtn = result.buttons?.find((b: any) => b.text.includes("Yes"));
+            expect(addBtn?.data).toBe("add series 81189 7");
+
+            const addSeriesSpy = spyOn(sonarr, "addSeries").mockImplementation(async () => ({ title: "Breaking Bad" } as any));
+            const confirmResult = await addSeriesTool.execute({
+                title: "Breaking Bad",
+                tvdbId: 81189,
+                imdbId: "tt0903747",
+                confirm: true
+            }, { abortSignal: undefined as any });
+
+            expect(addSeriesSpy).toHaveBeenCalledWith(81189, "Breaking Bad", 7, 2, "/tv", [{ seasonNumber: 1, monitored: true }], "standard");
+            expect(confirmResult.success).toBe(true);
         });
     });
 });
