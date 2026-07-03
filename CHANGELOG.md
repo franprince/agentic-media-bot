@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.34.1] - 2026-07-03
+
+### Fixed
+- **Webhook Quality Robustness**: Made webhook quality name extraction robust for both Radarr and Sonarr to handle cases where the quality property is a nested object or a string.
+- **Webhook Payload Safety**: Guarded Radarr and Sonarr webhooks against empty/missing movie or series payload objects (e.g. system health notifications).
+
 ## [4.34.0] - 2026-07-03
 
 ### Added

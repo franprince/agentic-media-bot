@@ -176,4 +176,89 @@ describe("Radarr/Sonarr Webhook Notifications", () => {
         expect(text).not.toContain("Quality");
         expect(text).not.toContain("undefined");
     });
+
+    it("should process Radarr Download event with string movieFile quality", async () => {
+        const payload = {
+            eventType: "Download",
+            movie: { title: "Azumi 2: Death or Love", year: 2005 },
+            movieFile: {
+                relativePath: "Azumi.2.2005.1080p.mkv",
+                path: "/movies/Azumi 2 (2005)/Azumi.2.2005.1080p.mkv",
+                quality: "WEBDL-1080p"
+            },
+            downloadClient: "NZBGet"
+        };
+
+        const request = new Request("http://localhost/radarr-webhook", {
+            method: "POST",
+            body: JSON.stringify(payload),
+        });
+
+        const response = await handleRadarrWebhook(request, mockBot);
+        expect(response.status).toBe(200);
+
+        const [, text] = (sendMessageSpy as any).mock.calls[(sendMessageSpy as any).mock.calls.length - 1];
+        expect(text).toContain("Download complete for *Azumi 2: Death or Love (2005)*");
+        expect(text).toContain("*Quality*: WEBDL-1080p");
+        expect(text).toContain("*Client*: NZBGet");
+        expect(text).not.toContain("undefined");
+    });
+
+    it("should process Sonarr Download event with string episodeFile quality", async () => {
+        const payload = {
+            eventType: "Download",
+            series: { title: "The Office" },
+            episodes: [{ seasonNumber: 1, episodeNumber: 1, title: "Pilot" }],
+            episodeFile: {
+                relativePath: "Season 01/The.Office.S01E01.mkv",
+                path: "/shows/The Office/Season 01/The.Office.S01E01.mkv",
+                quality: "HDTV-720p"
+            },
+            downloadClient: "NZBGet"
+        };
+
+        const request = new Request("http://localhost/sonarr-webhook", {
+            method: "POST",
+            body: JSON.stringify(payload),
+        });
+
+        const response = await handleSonarrWebhook(request, mockBot);
+        expect(response.status).toBe(200);
+
+        const [, text] = (sendMessageSpy as any).mock.calls[(sendMessageSpy as any).mock.calls.length - 1];
+        expect(text).toContain("Download complete for *The Office - S01E01*");
+        expect(text).toContain("*Quality*: HDTV-720p");
+        expect(text).toContain("*Client*: NZBGet");
+        expect(text).not.toContain("undefined");
+    });
+
+    it("should handle Radarr Webhook without movie object gracefully", async () => {
+        const payload = {
+            eventType: "Download",
+            downloadClient: "NZBGet"
+        };
+
+        const request = new Request("http://localhost/radarr-webhook", {
+            method: "POST",
+            body: JSON.stringify(payload),
+        });
+
+        const response = await handleRadarrWebhook(request, mockBot);
+        expect(response.status).toBe(200);
+    });
+
+    it("should handle Sonarr Webhook without series object gracefully", async () => {
+        const payload = {
+            eventType: "Download",
+            downloadClient: "NZBGet"
+        };
+
+        const request = new Request("http://localhost/sonarr-webhook", {
+            method: "POST",
+            body: JSON.stringify(payload),
+        });
+
+        const response = await handleSonarrWebhook(request, mockBot);
+        expect(response.status).toBe(200);
+    });
 });

@@ -62,7 +62,7 @@ export interface RadarrWebhookPayload {
         id: number;
         relativePath: string;
         path: string;
-        quality: {
+        quality: string | {
             quality: {
                 id: number;
                 name: string;

@@ -244,6 +244,11 @@ export async function handleRadarrWebhook(request: Request, bot: Bot) {
             return new Response("OK", { status: 200 });
         }
 
+        if (!movie) {
+            console.warn(`Radarr Webhook: Received payload without movie object for event: ${eventType}`);
+            return new Response("OK", { status: 200 });
+        }
+
         let message = "";
         let eventTitle = `${movie.title} (${movie.year})`;
 
@@ -254,7 +259,10 @@ export async function handleRadarrWebhook(request: Request, bot: Bot) {
             if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
         } else if (eventType === "Download") {
             message = `✅ *Radarr*: Download complete for *${eventTitle}*\n\n`;
-            const qualityName = payload.movieFile?.quality?.quality?.name || release?.quality;
+            const qualityObj = payload.movieFile?.quality;
+            const qualityName = typeof qualityObj === "object" && qualityObj !== null
+                ? (qualityObj.quality?.name || release?.quality)
+                : (qualityObj || release?.quality);
             if (qualityName) message += `▫️ *Quality*: ${qualityName}\n`;
             if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
 
@@ -298,6 +306,11 @@ export async function handleSonarrWebhook(request: Request, bot: Bot) {
             return new Response("OK", { status: 200 });
         }
 
+        if (!series) {
+            console.warn(`Sonarr Webhook: Received payload without series object for event: ${eventType}`);
+            return new Response("OK", { status: 200 });
+        }
+
         let message = "";
         const episodesLabel = episodes && episodes.length > 0
             ? episodes.map(e => `S${e.seasonNumber.toString().padStart(2, '0')}E${e.episodeNumber.toString().padStart(2, '0')}`).join(", ")
@@ -311,7 +324,10 @@ export async function handleSonarrWebhook(request: Request, bot: Bot) {
             if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
         } else if (eventType === "Download") {
             message = `✅ *Sonarr*: Download complete for *${eventTitle}*\n\n`;
-            const qualityName = payload.episodeFile?.quality?.quality?.name || release?.quality;
+            const qualityObj = payload.episodeFile?.quality;
+            const qualityName = typeof qualityObj === "object" && qualityObj !== null
+                ? (qualityObj.quality?.name || release?.quality)
+                : (qualityObj || release?.quality);
             if (qualityName) message += `▫️ *Quality*: ${qualityName}\n`;
             if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
 
