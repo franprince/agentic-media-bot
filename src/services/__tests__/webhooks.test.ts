@@ -1,10 +1,11 @@
-import { expect, test, describe, spyOn, beforeEach, mock } from "bun:test";
+import { expect, test, describe, spyOn, beforeEach, afterEach, mock } from "bun:test";
 import { handlePlexWebhook, isNonLatinTitle, withEnglishTitle } from "../webhooks";
 import * as database from "../database";
 import { Bot, InputFile } from "grammy";
 
 describe("Plex Webhooks", () => {
     let mockBot: any;
+    let spies: any[] = [];
 
     beforeEach(() => {
         mockBot = {
@@ -18,7 +19,10 @@ describe("Plex Webhooks", () => {
         process.env.PLEX_URL = "http://plex.local";
         process.env.PLEX_TOKEN = "token123";
         // Reset notification state
-        spyOn(database, "areNotificationsEnabled").mockImplementation(() => true);
+        spies = [
+            spyOn(database, "areNotificationsEnabled").mockImplementation(() => true),
+            spyOn(database, "saveMediaEvent").mockImplementation(() => true),
+        ];
 
         // Mock global fetch for image download
         global.fetch = mock((url: string) => {
@@ -31,6 +35,12 @@ describe("Plex Webhooks", () => {
             }
             return Promise.resolve(new Response(null, { status: 404 }));
         }) as any;
+    });
+
+    afterEach(() => {
+        for (const s of spies) {
+            if (s && s.mockRestore) s.mockRestore();
+        }
     });
 
     test("should notify on library.new movie event and clear cache", async () => {

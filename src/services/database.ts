@@ -313,7 +313,7 @@ export interface MediaEvent {
   timestamp: string;
 }
 
-export function saveMediaEvent(service: string, eventType: string, title: string, message: string) {
+export function saveMediaEvent(service: string, eventType: string, title: string, message: string): boolean {
   // Deduplicate: skip if the same (service, event_type, title) was saved in the last 60 seconds.
   // This prevents Plex from logging the same library.new event twice (once per matching section).
   const recentDuplicate = db.query(
@@ -324,7 +324,7 @@ export function saveMediaEvent(service: string, eventType: string, title: string
   ).get(service, eventType, title);
 
   if (recentDuplicate) {
-    return;
+    return false;
   }
 
   const id = crypto.randomUUID();
@@ -334,6 +334,7 @@ export function saveMediaEvent(service: string, eventType: string, title: string
     "INSERT INTO media_events (id, service, event_type, title, message, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
     [id, service, eventType, title, message, isoNow]
   );
+  return true;
 }
 
 export function getRecentMediaEvents(service: string, limit: number = 10, sinceDate?: Date): MediaEvent[] {

@@ -1,4 +1,4 @@
-import { expect, test, describe, spyOn, beforeEach, mock } from "bun:test";
+import { expect, test, describe, spyOn, beforeEach, afterEach, mock } from "bun:test";
 import { handlePlexWebhook } from "../webhooks";
 import * as database from "../database";
 import * as plex from "../plex";
@@ -7,6 +7,7 @@ import { Bot } from "grammy";
 
 describe("Plex Webhook Notifications V2", () => {
     let mockBot: any;
+    let spies: any[] = [];
 
     beforeEach(() => {
         mockBot = {
@@ -19,7 +20,16 @@ describe("Plex Webhook Notifications V2", () => {
         process.env.WEBHOOK_NOTIFY_CHAT_ID = "12345";
         process.env.PLEX_URL = "http://plex.local";
         process.env.PLEX_TOKEN = "token123";
-        spyOn(database, "areNotificationsEnabled").mockImplementation(() => true);
+        spies = [
+            spyOn(database, "areNotificationsEnabled").mockImplementation(() => true),
+            spyOn(database, "saveMediaEvent").mockImplementation(() => true),
+        ];
+    });
+
+    afterEach(() => {
+        for (const s of spies) {
+            if (s && s.mockRestore) s.mockRestore();
+        }
     });
 
     test("should use the new movie format: The user {user} started watching the movie {title}", async () => {

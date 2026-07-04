@@ -1,16 +1,31 @@
-import { describe, expect, it, spyOn, mock } from "bun:test";
-import { handleRadarrWebhook, handleSonarrWebhook } from "../webhooks";
+import { describe, expect, it, spyOn, mock, beforeAll, afterAll } from "bun:test";
 import { Bot } from "grammy";
+import * as database from "../database";
 
-mock.module("../database", () => ({
-    getPlaybackState: () => null,
-    updatePlaybackState: () => { },
-    areNotificationsEnabled: () => true,
-    saveMediaEvent: mock(() => { }),
-    getEventAlertConfig: mock(() => true)
-}));
+let handleRadarrWebhook: any;
+let handleSonarrWebhook: any;
+let spies: any[] = [];
 
 describe("Radarr/Sonarr Webhook Notifications", () => {
+    beforeAll(async () => {
+        spies = [
+            spyOn(database, "getPlaybackState").mockImplementation(() => null),
+            spyOn(database, "updatePlaybackState").mockImplementation(() => {}),
+            spyOn(database, "areNotificationsEnabled").mockImplementation(() => true),
+            spyOn(database, "saveMediaEvent").mockImplementation(() => true),
+            spyOn(database, "getEventAlertConfig").mockImplementation(() => true)
+        ];
+
+        const webhooks = await import("../webhooks");
+        handleRadarrWebhook = webhooks.handleRadarrWebhook;
+        handleSonarrWebhook = webhooks.handleSonarrWebhook;
+    });
+
+    afterAll(() => {
+        for (const s of spies) {
+            if (s && s.mockRestore) s.mockRestore();
+        }
+    });
     const mockBotData = {
         api: {
             sendMessage: async (chatId: string, text: string, options: any) => ({ message_id: 1 }),
@@ -318,6 +333,41 @@ describe("Radarr/Sonarr Webhook Notifications", () => {
         const lastCall = calls[calls.length - 1];
         expect(lastCall[1]).toContain("HDTV-1080p");
         expect(lastCall[1]).not.toContain("undefined");
+    });
+
+    it("should not send duplicate notifications for duplicate Sonarr webhook events", async () => {
+        const saveMediaEventMock = database.saveMediaEvent as any;
+        saveMediaEventMock.mockImplementationOnce(() => true);
+        saveMediaEventMock.mockImplementationOnce(() => false);
+
+        const payload = {
+            eventType: "Download",
+            series: { title: "Deduplication Test" },
+            episodes: [{ seasonNumber: 1, episodeNumber: 1, title: "Pilot" }],
+            release: { quality: "720p" }
+        };
+
+        const req1 = new Request("http://localhost/sonarr-webhook", {
+            method: "POST",
+            body: JSON.stringify(payload),
+        });
+        const req2 = new Request("http://localhost/sonarr-webhook", {
+            method: "POST",
+            body: JSON.stringify(payload),
+        });
+
+        const startCalls = sendMessageSpy.mock.calls.length;
+
+        // Send first webhook (should notify)
+        const res1 = await handleSonarrWebhook(req1, mockBot);
+        expect(res1.status).toBe(200);
+
+        // Send second webhook (should not notify)
+        const res2 = await handleSonarrWebhook(req2, mockBot);
+        expect(res2.status).toBe(200);
+
+        const endCalls = sendMessageSpy.mock.calls.length;
+        expect(endCalls - startCalls).toBe(1);
     });
 });
 

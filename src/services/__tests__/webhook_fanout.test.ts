@@ -1,4 +1,4 @@
-import { expect, test, describe, spyOn, beforeEach, mock } from "bun:test";
+import { expect, test, describe, spyOn, beforeEach, afterEach, mock } from "bun:test";
 import * as database from "../database";
 
 // --- Multi-user notification fan-out tests ---
@@ -8,6 +8,7 @@ import * as database from "../database";
 describe("Multi-user webhook notification fan-out", () => {
     let sendMessageSpy: ReturnType<typeof spyOn>;
     let mockBot: any;
+    let spies: any[] = [];
 
     beforeEach(() => {
         sendMessageSpy = spyOn({ fn: async () => {} }, "fn");
@@ -19,12 +20,20 @@ describe("Multi-user webhook notification fan-out", () => {
         };
         sendMessageSpy = spyOn(mockBot.api, "sendMessage");
 
-        spyOn(database, "areNotificationsEnabled").mockImplementation(() => true);
-        spyOn(database, "getEventAlertConfig").mockImplementation(() => true);
-        spyOn(database, "saveMediaEvent").mockImplementation(() => true);
-        spyOn(database, "getPlaybackState").mockImplementation(() => null);
-        spyOn(database, "updatePlaybackState").mockImplementation(() => undefined);
-        spyOn(database, "getPendingNotifications").mockImplementation(() => []);
+        spies = [
+            spyOn(database, "areNotificationsEnabled").mockImplementation(() => true),
+            spyOn(database, "getEventAlertConfig").mockImplementation(() => true),
+            spyOn(database, "saveMediaEvent").mockImplementation(() => true),
+            spyOn(database, "getPlaybackState").mockImplementation(() => null),
+            spyOn(database, "updatePlaybackState").mockImplementation(() => undefined),
+            spyOn(database, "getPendingNotifications").mockImplementation(() => []),
+        ];
+    });
+
+    afterEach(() => {
+        for (const s of spies) {
+            if (s && s.mockRestore) s.mockRestore();
+        }
     });
 
     test("should send Radarr notification to ALL users when WEBHOOK_NOTIFY_CHAT_ID is not set", async () => {
