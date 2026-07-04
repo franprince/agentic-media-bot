@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import { apiFetch } from '../lib/apiFetch';
+
 
 export type ServiceStatus = {
     service: string;
@@ -28,11 +30,12 @@ export function useDashboard() {
             const baseUrl = import.meta.env.DEV ? 'http://localhost:3001' : '';
 
             const [statusRes, logsRes, eventsRes, settingsRes] = await Promise.all([
-                fetch(`${baseUrl}/api/dashboard/status`),
-                fetch(`${baseUrl}/api/dashboard/logs`),
-                fetch(`${baseUrl}/api/dashboard/events`),
-                fetch(`${baseUrl}/api/settings/notifications`)
+                apiFetch(`${baseUrl}/api/dashboard/status`),
+                apiFetch(`${baseUrl}/api/dashboard/logs`),
+                apiFetch(`${baseUrl}/api/dashboard/events`),
+                apiFetch(`${baseUrl}/api/settings/notifications`)
             ]);
+
 
             if (statusRes.ok) {
                 const data = await statusRes.json();

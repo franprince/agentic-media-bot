@@ -737,7 +737,34 @@ export const resumeTorrentTool = tool({
     },
 });
 
+export const pauseAllTorrentsTool = tool({
+    description: "Pause ALL active torrents in qBittorrent at once. Use when the user says 'pause everything', 'stop all downloads', or similar broad commands.",
+    parameters: z.object({}),
+    execute: async (_args: any) => {
+        try {
+            await qbittorrent.pauseAllTorrents();
+            return { message: "✅ All torrents have been paused successfully." };
+        } catch (error: any) {
+            return { message: `Failed to pause all torrents: ${error.message || "Unknown error"}` };
+        }
+    },
+});
+
+export const resumeAllTorrentsTool = tool({
+    description: "Resume ALL paused torrents in qBittorrent at once. Use when the user says 'resume everything', 'start all downloads', or similar broad commands.",
+    parameters: z.object({}),
+    execute: async (_args: any) => {
+        try {
+            await qbittorrent.resumeAllTorrents();
+            return { message: "✅ All torrents have been resumed successfully." };
+        } catch (error: any) {
+            return { message: `Failed to resume all torrents: ${error.message || "Unknown error"}` };
+        }
+    },
+});
+
 // --- NZBGet Tools --- //
+
 
 export const getNZBGetQueueTool = tool({
     description: "Get the current download queue from NZBGet, including speed and ETA for active downloads.",

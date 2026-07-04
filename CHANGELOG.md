@@ -5,7 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.36.0] - 2026-07-04
+
+### Added
+- **Multi-user notification fan-out**: Webhook notifications (Plex, Radarr, Sonarr, NZBGet) now fan out to **every user** in `ALLOWED_USER_IDS` instead of only the first. `WEBHOOK_NOTIFY_CHAT_ID` still overrides to a single explicit target for backward compatibility. Each recipient gets their own try/catch so one bad Telegram ID can't prevent others from receiving the notification. Plex thumbnail images are fetched once and sent to all targets.
+- **Bulk torrent pause/resume**: New `pauseAllTorrentsTool` and `resumeAllTorrentsTool` agent tools. Use the `hashes=all` qBittorrent API shortcut — no per-torrent loop required. Agent responds correctly to "pause everything" / "stop all downloads" commands.
+- **Dashboard authentication (`DASHBOARD_TOKEN`)**: All `/api/*` proxy endpoints now support opt-in bearer-token authentication. Set `DASHBOARD_TOKEN=<secret>` in the proxy environment to require `Authorization: Bearer <token>` on every dashboard API call. Set `VITE_DASHBOARD_TOKEN=<secret>` in the UI build to have the frontend attach it automatically. The `/health` endpoint and `/api/tool` (AI proxy, uses `PROXY_SECRET_KEY`) are excluded. Deployments without `DASHBOARD_TOKEN` continue working with no change.
+
+### Changed
+- `proxy-ui` fetch calls now use a shared `apiFetch()` helper that auto-attaches the `Authorization` header from `VITE_DASHBOARD_TOKEN`.
+- `verify-config.ts` now checks for `DASHBOARD_TOKEN` and warns (non-fatal) when it is not set.
+
 ## [4.35.0] - 2026-07-03
+
 
 ### Fixed
 - **Invalid Date in /plex, /radarr, /sonarr commands**: `saveMediaEvent` was storing timestamps using `datetime('now') || 'Z'` (space-separated, double-Z format). `bot.ts` then appended another `'Z'`, producing an unparseable string. Timestamps are now stored as proper ISO-8601 (via `new Date().toISOString()`) and a robust `formatEventTimestamp` helper handles both old and new formats gracefully.

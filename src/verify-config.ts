@@ -148,6 +148,18 @@ export async function verifyConfig(exitOnFailure: boolean = true) {
             }
         },
         {
+            name: "Dashboard Auth (DASHBOARD_TOKEN)",
+            fn: async () => {
+                const token = process.env.DASHBOARD_TOKEN?.trim();
+                if (!token) {
+                    console.warn("⚠️  DASHBOARD_TOKEN is not set. The web dashboard /api/* routes are publicly accessible. Set DASHBOARD_TOKEN to enable authentication.");
+                    return "Warning: Dashboard is open (no DASHBOARD_TOKEN set). Acceptable for local/trusted networks only.";
+                }
+                return `Success: Dashboard authentication enabled with DASHBOARD_TOKEN.`;
+            }
+        },
+
+        {
             name: "Webhook Configuration",
             fn: async () => {
                 const enabled = process.env.USE_PLEX_WEBHOOK === "true";

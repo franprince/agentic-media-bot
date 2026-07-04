@@ -30,15 +30,15 @@
 
 ### Multi-user notification scoping
 **Problem:** All webhooks notify `WEBHOOK_NOTIFY_CHAT_ID` — a single hardcoded target.  
-**Fix:** Fan out webhook notifications to all subscribers.  
-**Status:** 📋 Backlog
+**Fix:** Fan out webhook notifications to all subscribers (`ALLOWED_USER_IDS`). `WEBHOOK_NOTIFY_CHAT_ID` still overrides to a single target for backward compatibility.  
+**Status:** ✅ Shipped in v4.36.0
 
 ---
 
 ### Bulk torrent pause/resume
 **Problem:** "Pause everything" loops one tool call per torrent.  
-**Fix:** Add `pauseAllTorrentsTool` / `resumeAllTorrentsTool`.  
-**Status:** 📋 Backlog
+**Fix:** Added `pauseAllTorrentsTool` / `resumeAllTorrentsTool` using qBittorrent `hashes=all` API.  
+**Status:** ✅ Shipped in v4.36.0
 
 ---
 
@@ -104,8 +104,8 @@
 
 ### Web dashboard authentication
 **Problem:** Proxy dashboard has no auth — security risk in VPS/cloud deployments.  
-**Fix:** Static `DASHBOARD_TOKEN` bearer-token auth on proxy API endpoints.  
-**Status:** 📋 Backlog
+**Fix:** Opt-in `DASHBOARD_TOKEN` bearer-token auth on all `/api/*` proxy endpoints. Set `VITE_DASHBOARD_TOKEN` in the UI build to pass the token automatically.  
+**Status:** ✅ Shipped in v4.36.0
 
 ---
 

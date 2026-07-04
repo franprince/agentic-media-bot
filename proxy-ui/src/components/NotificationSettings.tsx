@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Bell, Film, Tv, PlaySquare, Save, Loader2, Check } from 'lucide-react';
+import { apiFetch } from '../lib/apiFetch';
+
 
 interface NotificationConfig {
     grab: boolean;
@@ -33,7 +35,7 @@ export function NotificationSettings({ onSaveComplete }: { onSaveComplete?: () =
     const [error, setError] = useState<string | null>(null);
 
     const BASE_URL = import.meta.env.DEV ? 'http://localhost:1111' : '';
-    const PROXY_SECRET = import.meta.env.VITE_PROXY_SECRET_KEY || 'dev_secret_key';
+
 
     useEffect(() => {
         fetchSettings();
@@ -42,7 +44,8 @@ export function NotificationSettings({ onSaveComplete }: { onSaveComplete?: () =
     const fetchSettings = async () => {
         try {
             setLoading(true);
-            const res = await fetch(`${BASE_URL}/api/settings/notifications`);
+            const res = await apiFetch(`${BASE_URL}/api/settings/notifications`);
+
             if (!res.ok) throw new Error("Failed to fetch settings");
             const data = await res.json();
             setSettings(data);
@@ -57,14 +60,12 @@ export function NotificationSettings({ onSaveComplete }: { onSaveComplete?: () =
     const handleSave = async () => {
         try {
             setSaving(true);
-            const res = await fetch(`${BASE_URL}/api/settings/notifications`, {
+            const res = await apiFetch(`${BASE_URL}/api/settings/notifications`, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${PROXY_SECRET}`
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(settings)
             });
+
 
             if (!res.ok) throw new Error("Failed to save settings");
 

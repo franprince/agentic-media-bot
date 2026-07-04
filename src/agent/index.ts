@@ -118,6 +118,8 @@ export async function processUserMessage(
             getTorrents: botTools.getTorrentsTool,
             pauseTorrent: botTools.pauseTorrentTool,
             resumeTorrent: botTools.resumeTorrentTool,
+            pauseAllTorrents: botTools.pauseAllTorrentsTool,
+            resumeAllTorrents: botTools.resumeAllTorrentsTool,
             checkServiceHealth: botTools.checkServiceHealthTool,
             getMissingMovies: botTools.getMissingMoviesTool,
             getMissingSeries: botTools.getMissingSeriesTool,

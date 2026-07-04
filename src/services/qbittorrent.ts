@@ -116,3 +116,29 @@ export async function resumeTorrent(hash: string): Promise<void> {
         },
     });
 }
+
+/**
+ * Pause ALL torrents in qBittorrent at once.
+ * Uses the `hashes=all` shortcut supported by the qBittorrent Web API.
+ */
+export async function pauseAllTorrents(): Promise<void> {
+    if (isProxyEnabled()) return executeOnProxy("qbittorrent", "pauseAllTorrents", []);
+    await fetchQbittorrent("/torrents/pause", {
+        method: "POST",
+        body: new URLSearchParams({ hashes: "all" }),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    });
+}
+
+/**
+ * Resume ALL paused torrents in qBittorrent at once.
+ * Uses the `hashes=all` shortcut supported by the qBittorrent Web API.
+ */
+export async function resumeAllTorrents(): Promise<void> {
+    if (isProxyEnabled()) return executeOnProxy("qbittorrent", "resumeAllTorrents", []);
+    await fetchQbittorrent("/torrents/resume", {
+        method: "POST",
+        body: new URLSearchParams({ hashes: "all" }),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    });
+}

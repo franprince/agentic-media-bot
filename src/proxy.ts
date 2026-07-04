@@ -48,12 +48,26 @@ serve({
             });
         }
 
-        // Health check endpoint
+        // Health check endpoint — no auth required (used for uptime monitoring)
         if (req.method === "GET" && url.pathname === "/health") {
             return new Response(JSON.stringify({ status: "ok", timestamp: new Date().toISOString() }), {
                 status: 200,
                 headers: { "Content-Type": "application/json" }
             });
+        }
+
+        // Dashboard API authentication
+        // If DASHBOARD_TOKEN is configured, all /api/* requests (except the AI tool endpoint
+        // which uses PROXY_SECRET_KEY) must carry: Authorization: Bearer <DASHBOARD_TOKEN>
+        const DASHBOARD_TOKEN = process.env.DASHBOARD_TOKEN?.trim();
+        if (DASHBOARD_TOKEN && url.pathname.startsWith("/api/") && url.pathname !== "/api/tool") {
+            const authHeader = req.headers.get("Authorization");
+            if (authHeader !== `Bearer ${DASHBOARD_TOKEN}`) {
+                return new Response(JSON.stringify({ error: "Unauthorized" }), {
+                    status: 401,
+                    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+                });
+            }
         }
 
         // Dashboard APIs
