@@ -4,7 +4,7 @@ import { resolve, isAbsolute } from "node:path";
 import { randomUUID } from "node:crypto";
 import { processUserMessage } from "./agent/index.ts";
 import { detectStatusLanguage } from "./agent/status.ts";
-import { getMetadata, setMetadata, deleteMetadata, getAllConversations, getUserName, setUserName, areNotificationsEnabled, setNotificationsEnabled, getRecentMediaEvents, setEventAlertConfig, getTimezone } from "./services/database.ts";
+import { getMetadata, setMetadata, deleteMetadata, getAllConversations, getUserName, setUserName, areNotificationsEnabled, setNotificationsEnabled, getRecentMediaEvents, setEventAlertConfig, getTimezone, formatEventTimestamp } from "./services/database.ts";
 import cron from "node-cron";
 import { verifyConfig } from "./verify-config";
 import { checkAllServices } from "./services/health";
@@ -339,21 +339,6 @@ function splitTelegramMessage(text: string, maxLength = TELEGRAM_MAX_MESSAGE_LEN
 
     if (current) chunks.push(current);
     return chunks;
-}
-
-/**
- * Robustly parse a DB timestamp string to a human-readable locale string.
- * Handles both old format ("2026-07-03 19:00:00Z" — space-separated, trailing Z)
- * and new proper ISO-8601 format ("2026-07-03T19:00:00.000Z").
- */
-function formatEventTimestamp(timestamp: string): string {
-    // Normalise: replace space with 'T', strip any duplicate trailing Z before re-adding.
-    const normalised = timestamp.trim().replace(" ", "T").replace(/Z+$/, "") + "Z";
-    const date = new Date(normalised);
-    if (isNaN(date.getTime())) {
-        return timestamp; // Fallback: return raw string if parsing still fails
-    }
-    return date.toLocaleString();
 }
 
 async function getLatestChangelogRelease(): Promise<ChangelogRelease> {

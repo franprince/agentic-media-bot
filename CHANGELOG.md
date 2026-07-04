@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.37.0] - 2026-07-04
+
+### Added
+- **Pre-computed download progress** (`tools`): `getMovieQueueTool` (Radarr), `getSeriesQueueTool` (Sonarr), `getTorrentsTool` (qBittorrent), and `getNZBGetQueueTool` now output rich human-readable download details:
+  - Download progress percentage (e.g. `45.20%`).
+  - Human-readable byte formatting (e.g. `1.2 GB` / `500 MB`).
+  - Pre-calculated ETA combined with timezone-aware wall-clock completion time (e.g. `2h 15m (est. 18:45:12)`).
+- **Timezone-aware date/time formatting**: Stored database timezone is now applied to all printed event dates (such as `/plex`, `/radarr`, and `/sonarr` commands) and wall-clock queue completion times.
+- **Plex search cross-check enrichment**: Radarr (`searchMovieTool`) and Sonarr (`searchSeriesTool`) search results are now automatically cross-checked against the local Plex library. Results include an `alreadyInPlex: true/false` flag, preventing the LLM from having to execute separate search steps.
+
 ## [4.36.1] - 2026-07-04
 
 ### Fixed

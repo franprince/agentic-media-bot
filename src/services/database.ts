@@ -284,6 +284,26 @@ export function setTimezone(tz: string) {
   setMetadata("timezone", tz);
 }
 
+/**
+ * Robustly parse a DB timestamp string to a human-readable locale string.
+ * Handles both old format ("2026-07-03 19:00:00Z" — space-separated, trailing Z)
+ * and new proper ISO-8601 format ("2026-07-03T19:00:00.000Z").
+ */
+export function formatEventTimestamp(timestamp: string): string {
+  const normalised = timestamp.trim().replace(" ", "T").replace(/Z+$/, "") + "Z";
+  const date = new Date(normalised);
+  if (isNaN(date.getTime())) {
+    return timestamp; // Fallback: return raw string if parsing still fails
+  }
+  try {
+    const tz = getTimezone();
+    return date.toLocaleString("en-GB", { timeZone: tz, hour12: false }).replace(",", "");
+  } catch (err) {
+    return date.toLocaleString();
+  }
+}
+
+
 export function getPlaybackState(sessionId: string): string | null {
   const row = db.query("SELECT last_event FROM playback_sessions WHERE id = ?").get(sessionId) as { last_event: string } | null;
   return row ? row.last_event : null;

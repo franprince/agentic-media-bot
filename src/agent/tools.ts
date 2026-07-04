@@ -27,6 +27,63 @@ function getDefaultLanguageProfile(languages: Array<{ id: number; name: string }
     return preferred || languages[0];
 }
 
+// Helper to format bytes to human-readable size
+export function formatBytes(bytes: number): string {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+}
+
+// Helper to format duration in seconds to human-readable format
+export function formatDuration(seconds: number): string {
+    if (seconds <= 0 || seconds >= 8640000) return "N/A";
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    const remainingSecs = seconds % 60;
+    if (minutes < 60) {
+        return `${minutes}m ${remainingSecs}s`;
+    }
+    const hours = Math.floor(minutes / 60);
+    const remainingMins = minutes % 60;
+    if (hours < 24) {
+        return `${hours}h ${remainingMins}m`;
+    }
+    const days = Math.floor(hours / 24);
+    const remainingHours = hours % 24;
+    return `${days}d ${remainingHours}h`;
+}
+
+// Helper to get local wall clock completion time from remaining seconds
+export function getCompletionWallClock(seconds: number, tz: string): string {
+    if (seconds <= 0 || seconds >= 8640000) return "";
+    const completionDate = new Date(Date.now() + seconds * 1000);
+    try {
+        return completionDate.toLocaleTimeString("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    } catch {
+        return completionDate.toLocaleTimeString();
+    }
+}
+
+// Helper to parse estimated completion time and build a timezone-aware ETA string
+export function formatEstimatedCompletion(estimatedCompletionTime: string | undefined, tz: string): string {
+    if (!estimatedCompletionTime) return "N/A";
+    const date = new Date(estimatedCompletionTime);
+    if (isNaN(date.getTime())) return "N/A";
+    const diffMs = date.getTime() - Date.now();
+    if (diffMs <= 0) return "Completed";
+    const seconds = Math.ceil(diffMs / 1000);
+    const duration = formatDuration(seconds);
+    try {
+        const wallClock = date.toLocaleTimeString("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        return `${duration} (est. ${wallClock})`;
+    } catch {
+        return duration;
+    }
+}
+
+
 // --- Type Definitions --- //
 interface PlexMediaItem {
     ratingKey?: string;
@@ -252,21 +309,42 @@ export const searchMovieTool = tool({
 
         try {
             const results = await radarr.searchMovie(normalizedTerm);
+            const plexResults = await plex.searchPlex(normalizedTerm).catch(() => ({ Metadata: [] }));
+            const plexMetadata = plexResults?.Metadata || [];
+
             // Limit results to avoid massive context payloads
-            return results.slice(0, 5).map(m => ({
-                title: m.title,
-                mediaType: "[Movie]",
-                originalTitle: m.originalTitle,
-                year: m.year,
-                genres: m.genres,
-                tmdbId: m.tmdbId,
-                imdbId: m.imdbId,
-                overview: m.overview,
-                posterUrl: m.images?.find(i => i.coverType === "poster")?.remoteUrl || m.images?.find(i => i.coverType === "poster")?.url,
-                hasFile: m.hasFile,
-                monitored: m.monitored,
-                ratings: m.ratings,
-            })) as any;
+            return results.slice(0, 5).map(m => {
+                const alreadyInPlex = plexMetadata.some((pm: any) => {
+                    const imdbMatch = pm.guid?.match(/imdb:\/\/(tt\d+)/);
+                    const tmdbMatch = pm.guid?.match(/tmdb:\/\/(\d+)/);
+                    const pmImdbId = imdbMatch ? imdbMatch[1] : undefined;
+                    const pmTmdbId = tmdbMatch ? tmdbMatch[1] : undefined;
+
+                    if (m.imdbId && pmImdbId && m.imdbId === pmImdbId) return true;
+                    if (m.tmdbId && pmTmdbId && String(m.tmdbId) === pmTmdbId) return true;
+
+                    const titleMatch = pm.title?.toLowerCase() === m.title?.toLowerCase() ||
+                                       pm.title?.toLowerCase() === m.originalTitle?.toLowerCase();
+                    const yearMatch = pm.year && m.year && Math.abs(pm.year - m.year) <= 1;
+                    return titleMatch && yearMatch;
+                });
+
+                return {
+                    title: m.title,
+                    mediaType: "[Movie]",
+                    originalTitle: m.originalTitle,
+                    year: m.year,
+                    genres: m.genres,
+                    tmdbId: m.tmdbId,
+                    imdbId: m.imdbId,
+                    overview: m.overview,
+                    posterUrl: m.images?.find(i => i.coverType === "poster")?.remoteUrl || m.images?.find(i => i.coverType === "poster")?.url,
+                    hasFile: m.hasFile,
+                    monitored: m.monitored,
+                    ratings: m.ratings,
+                    alreadyInPlex,
+                };
+            }) as any;
         } catch (_error: any) {
             return { message: "I couldn't query Radarr right now. Please try again in a moment." } as any;
         }
@@ -405,11 +483,22 @@ export const getMovieQueueTool = tool({
             if (queue.length === 0) {
                 return { message: "The Radarr download queue is currently empty." };
             }
-            return queue.map(q => ({
-                title: q.title,
-                sizeTotal: q.size,
-                sizeLeft: q.sizeleft,
-            })) as any;
+            const tz = db.getTimezone();
+            return queue.map((q: any) => {
+                const size = q.size || 0;
+                const sizeLeft = q.sizeleft || 0;
+                const downloaded = Math.max(0, size - sizeLeft);
+                const progress = size > 0 ? ((downloaded / size) * 100).toFixed(2) + "%" : "0.00%";
+                return {
+                    title: q.title,
+                    status: q.status,
+                    progress,
+                    downloaded: formatBytes(downloaded),
+                    sizeTotal: formatBytes(size),
+                    sizeLeft: formatBytes(sizeLeft),
+                    eta: formatEstimatedCompletion(q.estimatedCompletionTime || q.timeleft, tz),
+                };
+            }) as any;
         } catch (error: any) {
             return { message: `Failed to fetch Radarr queue: ${error.message || "Unknown error"}` };
         }
@@ -468,20 +557,41 @@ export const searchSeriesTool = tool({
     }),
     execute: async ({ term }: any) => {
         const results = await sonarr.searchSeries(term);
-        return results.slice(0, 5).map(s => ({
-            title: s.title,
-            mediaType: "[Show]",
-            originalTitle: s.originalTitle,
-            year: s.year,
-            genres: s.genres,
-            tvdbId: s.tvdbId,
-            imdbId: s.imdbId,
-            overview: s.overview,
-            posterUrl: s.images?.find(i => i.coverType === "poster")?.remoteUrl || s.images?.find(i => i.coverType === "poster")?.url,
-            network: s.network,
-            monitored: s.monitored,
-            ratings: s.ratings,
-        })) as any;
+        const plexResults = await plex.searchPlex(term).catch(() => ({ Metadata: [] }));
+        const plexMetadata = plexResults?.Metadata || [];
+
+        return results.slice(0, 5).map(s => {
+            const alreadyInPlex = plexMetadata.some((pm: any) => {
+                const imdbMatch = pm.guid?.match(/imdb:\/\/(tt\d+)/);
+                const tvdbMatch = pm.guid?.match(/tvdb:\/\/(\d+)/);
+                const pmImdbId = imdbMatch ? imdbMatch[1] : undefined;
+                const pmTvdbId = tvdbMatch ? tvdbMatch[1] : undefined;
+
+                if (s.imdbId && pmImdbId && s.imdbId === pmImdbId) return true;
+                if (s.tvdbId && pmTvdbId && String(s.tvdbId) === pmTvdbId) return true;
+
+                const titleMatch = pm.title?.toLowerCase() === s.title?.toLowerCase() ||
+                                   pm.title?.toLowerCase() === s.originalTitle?.toLowerCase();
+                const yearMatch = pm.year && s.year && Math.abs(pm.year - s.year) <= 1;
+                return titleMatch && yearMatch;
+            });
+
+            return {
+                title: s.title,
+                mediaType: "[Show]",
+                originalTitle: s.originalTitle,
+                year: s.year,
+                genres: s.genres,
+                tvdbId: s.tvdbId,
+                imdbId: s.imdbId,
+                overview: s.overview,
+                posterUrl: s.images?.find(i => i.coverType === "poster")?.remoteUrl || s.images?.find(i => i.coverType === "poster")?.url,
+                network: s.network,
+                monitored: s.monitored,
+                ratings: s.ratings,
+                alreadyInPlex,
+            };
+        }) as any;
     },
 });
 
@@ -627,11 +737,22 @@ export const getSeriesQueueTool = tool({
             if (queue.length === 0) {
                 return { message: "The Sonarr download queue is currently empty." };
             }
-            return queue.map(q => ({
-                title: q.title,
-                sizeTotal: q.size,
-                sizeLeft: q.sizeleft,
-            })) as any;
+            const tz = db.getTimezone();
+            return queue.map((q: any) => {
+                const size = q.size || 0;
+                const sizeLeft = q.sizeleft || 0;
+                const downloaded = Math.max(0, size - sizeLeft);
+                const progress = size > 0 ? ((downloaded / size) * 100).toFixed(2) + "%" : "0.00%";
+                return {
+                    title: q.title,
+                    status: q.status,
+                    progress,
+                    downloaded: formatBytes(downloaded),
+                    sizeTotal: formatBytes(size),
+                    sizeLeft: formatBytes(sizeLeft),
+                    eta: formatEstimatedCompletion(q.estimatedCompletionTime || q.timeleft, tz),
+                };
+            }) as any;
         } catch (error: any) {
             return { message: `Failed to fetch Sonarr queue: ${error.message || "Unknown error"}` };
         }
@@ -693,14 +814,22 @@ export const getTorrentsTool = tool({
             if (torrents.length === 0) {
                 return { message: `No torrents found with filter: ${filter}` };
             }
-            return torrents.map(t => ({
-                name: t.name,
-                hash: t.hash,
-                progress: (t.progress * 100).toFixed(2) + "%",
-                etaSeconds: t.eta,
-                state: t.state,
-                dlspeed: (t.dlspeed / 1024 / 1024).toFixed(2) + " MB/s" // Convert bytes to MB/s
-            }));
+            const tz = db.getTimezone();
+            return torrents.map(t => {
+                const etaSeconds = typeof t.eta === "number" ? t.eta : 0;
+                const etaHuman = etaSeconds > 0 && etaSeconds < 8640000
+                    ? `${formatDuration(etaSeconds)} (est. ${getCompletionWallClock(etaSeconds, tz)})`
+                    : "N/A";
+                return {
+                    name: t.name,
+                    hash: t.hash,
+                    progress: (t.progress * 100).toFixed(2) + "%",
+                    etaSeconds: t.eta,
+                    etaHuman,
+                    state: t.state,
+                    dlspeed: (t.dlspeed / 1024 / 1024).toFixed(2) + " MB/s" // Convert bytes to MB/s
+                };
+            });
         } catch (error: any) {
             return { message: `Failed to fetch torrents from qBittorrent: ${error.message || "Unknown error"}` };
         }
@@ -780,20 +909,32 @@ export const getNZBGetQueueTool = tool({
                 return { message: "The NZBGet queue is empty." };
             }
 
-            const activeDownloads = queue.map((q: any) => ({
-                nzbName: q.NZBName,
-                fileSize: (q.FileSizeMB).toFixed(2) + " MB",
-                remainingSize: (q.RemainingSizeMB).toFixed(2) + " MB",
-                percentage: q.PercentageSuccess + "%",
-                status: q.Status
-            }));
+            const activeDownloads = queue.map((q: any) => {
+                const fileSize = (q.FileSizeMB || 0) * 1024 * 1024;
+                const remainingSize = (q.RemainingSizeMB || 0) * 1024 * 1024;
+                const downloaded = Math.max(0, fileSize - remainingSize);
+                return {
+                    nzbName: q.NZBName,
+                    fileSize: formatBytes(fileSize),
+                    remainingSize: formatBytes(remainingSize),
+                    downloaded: formatBytes(downloaded),
+                    percentage: q.PercentageSuccess + "%",
+                    status: q.Status
+                };
+            });
+
+            const tz = db.getTimezone();
+            const etaSeconds = status.ETA || 0;
+            const etaHuman = etaSeconds > 0 && etaSeconds < 8640000
+                ? `${formatDuration(etaSeconds)} (est. ${getCompletionWallClock(etaSeconds, tz)})`
+                : "N/A";
 
             return {
                 activeDownloads,
                 globalStatus: {
                     downloadRate: (status.DownloadRate / 1024 / 1024).toFixed(2) + " MB/s",
-                    remainingSize: (status.RemainingSizeMB).toFixed(2) + " MB",
-                    eta: status.RemainingSizeMB > 0 ? status.ETA : "N/A",
+                    remainingSize: formatBytes((status.RemainingSizeMB || 0) * 1024 * 1024),
+                    eta: etaHuman,
                     isPaused: status.DownloadPaused
                 }
             };
