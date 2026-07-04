@@ -140,6 +140,8 @@ export async function processUserMessage(
             addToWatchlist: botTools.addToWatchlistTool,
             removeFromWatchlist: botTools.removeFromWatchlistTool,
             syncWatchlist: botTools.syncWatchlistTool,
+            getPlexSessions: botTools.getPlexSessionsTool,
+            getDiskSpace: botTools.getDiskSpaceTool,
         };
 
         if (shouldDisableAddTools) {

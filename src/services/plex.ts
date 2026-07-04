@@ -1,4 +1,4 @@
-import type { PlexSearchResult, PlexContainer } from "../types/plex";
+import type { PlexSearchResult, PlexContainer, PlexSession } from "../types/plex";
 import { fetchService } from "./api";
 import { executeOnProxy, isProxyEnabled } from "../agent/proxyClient";
 import { addToLocalWatchlist, getLocalWatchlist, removeFromLocalWatchlist } from "./database";
@@ -551,4 +551,41 @@ export async function syncWatchlist(): Promise<{ added: number, removed: number 
 
     return { added, removed };
 }
+
+export async function getPlexSessions(): Promise<PlexSession[]> {
+    if (isProxyEnabled()) return executeOnProxy("plex", "getPlexSessions", []);
+    
+    const result = await fetchPlex<{ MediaContainer: { size: number; Metadata?: any[] } }>("/status/sessions");
+    const metadata = result.MediaContainer?.Metadata || [];
+    
+    return metadata.map(item => {
+        let displayTitle = item.title || "Unknown Title";
+        if (item.type === "episode") {
+            const show = item.grandparentTitle || "Unknown Show";
+            const season = item.parentIndex !== undefined ? `S${item.parentIndex.toString().padStart(2, "0")}` : "";
+            const episode = item.index !== undefined ? `E${item.index.toString().padStart(2, "0")}` : "";
+            const epTitle = item.title ? ` - ${item.title}` : "";
+            displayTitle = `${show} - ${season}${episode}${epTitle}`;
+        } else if (item.type === "movie" && item.year) {
+            displayTitle = `${item.title} (${item.year})`;
+        }
+        
+        const viewOffset = item.viewOffset || 0;
+        const duration = item.duration || 0;
+        const progressPercent = duration > 0 ? parseFloat(((viewOffset / duration) * 100).toFixed(1)) : 0;
+        
+        return {
+            sessionKey: item.sessionKey || item.ratingKey || "",
+            title: displayTitle,
+            type: item.type || "unknown",
+            state: item.Player?.state || "unknown",
+            user: item.User?.title || "Unknown User",
+            player: item.Player?.title || "Unknown Device",
+            viewOffset,
+            duration,
+            progressPercent
+        };
+    });
+}
+
 

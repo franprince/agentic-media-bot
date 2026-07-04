@@ -44,3 +44,16 @@ export interface PlexContainer {
     Metadata?: PlexMetadata[];
     Directory?: PlexDirectory[];
 }
+
+export interface PlexSession {
+    sessionKey: string;
+    title: string;
+    type: string;
+    state: string;
+    user: string;
+    player: string;
+    viewOffset: number;
+    duration: number;
+    progressPercent: number;
+}
+

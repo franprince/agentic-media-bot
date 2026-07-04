@@ -41,9 +41,10 @@ export async function addSeries(
     languageProfileId: number,
     rootFolderPath: string,
     seasons: Array<{ seasonNumber: number; monitored: boolean }>,
-    seriesType: "standard" | "daily" | "anime" = "standard"
+    seriesType: "standard" | "daily" | "anime" = "standard",
+    tags?: number[]
 ): Promise<SonarrSeries> {
-    if (isProxyEnabled()) return executeOnProxy("sonarr", "addSeries", [tvdbId, title, qualityProfileId, languageProfileId, rootFolderPath, seasons, seriesType]);
+    if (isProxyEnabled()) return executeOnProxy("sonarr", "addSeries", [tvdbId, title, qualityProfileId, languageProfileId, rootFolderPath, seasons, seriesType, tags]);
     const allSeries = await fetchSonarr<SonarrSeries[]>("/series");
     const existing = allSeries.find(s => s.tvdbId === tvdbId);
     if (existing) {
@@ -64,6 +65,7 @@ export async function addSeries(
             ignoreEpisodesWithoutFiles: false,
             searchForMissingEpisodes: true,
         },
+        tags: tags || [],
     };
 
     return fetchSonarr<SonarrSeries>("/series", {
@@ -127,6 +129,45 @@ export async function restartSonarrService(): Promise<void> {
     } catch (error) {
         console.error("❌ Failed to restart Sonarr service:", error);
     }
+}
+
+export async function getTags(): Promise<Array<{ id: number, label: string }>> {
+    if (isProxyEnabled()) return executeOnProxy("sonarr", "getTags", []);
+    return fetchSonarr<Array<{ id: number, label: string }>>("/tag");
+}
+
+export async function createTag(label: string): Promise<{ id: number, label: string }> {
+    if (isProxyEnabled()) return executeOnProxy("sonarr", "createTag", [label]);
+    return fetchSonarr<{ id: number, label: string }>("/tag", {
+        method: "POST",
+        body: JSON.stringify({ label }),
+    });
+}
+
+export async function resolveTagIds(labels: string[]): Promise<number[]> {
+    if (isProxyEnabled()) return executeOnProxy("sonarr", "resolveTagIds", [labels]);
+    if (!labels || labels.length === 0) return [];
+    
+    const existingTags = await getTags();
+    const tagIds: number[] = [];
+
+    for (const label of labels) {
+        const cleaned = label.trim().toLowerCase();
+        if (!cleaned) continue;
+
+        const match = existingTags.find(t => t.label.toLowerCase() === cleaned);
+        if (match) {
+            tagIds.push(match.id);
+        } else {
+            try {
+                const newTag = await createTag(cleaned);
+                tagIds.push(newTag.id);
+            } catch (err: any) {
+                console.error(`Failed to create Sonarr tag "${cleaned}":`, err.message);
+            }
+        }
+    }
+    return tagIds;
 }
 
 export async function deleteSeries(id: number, deleteFiles: boolean = false): Promise<void> {

@@ -11,6 +11,9 @@ import { checkAllServices } from "./services/health";
 import { handlePlexWebhook, handleRadarrWebhook, handleSonarrWebhook, handleNZBGetWebhook } from "./services/webhooks.ts";
 import * as sonarr from "./services/sonarr";
 import * as plex from "./services/plex";
+import * as radarr from "./services/radarr";
+import { formatBytes } from "./agent/tools";
+
 
 
 // Setup telegram bot using the token from environment variables
@@ -786,6 +789,54 @@ bot.command("watchlist_sync", async (ctx) => {
     }
 });
 
+// Handle /storage command
+bot.command("storage", async (ctx) => {
+    const userId = ctx.from?.id;
+    if (typeof userId !== "number") {
+        await ctx.reply("Cannot determine requesting user for authorization.");
+        return;
+    }
+    const allowedUserIds = getAllowedUserIdSet();
+
+    if (allowedUserIds.size > 0 && !allowedUserIds.has(userId)) {
+        await ctx.reply("You are not authorized to check storage.");
+        return;
+    }
+
+    await ctx.reply("💾 *Checking storage usage...*", { parse_mode: "Markdown" });
+
+    try {
+        const radarrFolders = await radarr.getRootFolders().catch(() => []);
+        const sonarrFolders = await sonarr.getRootFolders().catch(() => []);
+
+        let report = `💾 *Storage Information*\n\n`;
+
+        if (radarrFolders.length > 0) {
+            report += `🎬 *Radarr:*\n`;
+            radarrFolders.forEach(f => {
+                report += `▫️ \`${f.path}\`: *${formatBytes(f.freeSpace)}* free\n`;
+            });
+            report += `\n`;
+        }
+
+        if (sonarrFolders.length > 0) {
+            report += `📺 *Sonarr:*\n`;
+            sonarrFolders.forEach(f => {
+                report += `▫️ \`${f.path}\`: *${formatBytes(f.freeSpace)}* free\n`;
+            });
+        }
+
+        if (radarrFolders.length === 0 && sonarrFolders.length === 0) {
+            report = `❌ Could not retrieve storage folders from Radarr or Sonarr.`;
+        }
+
+        await ctx.reply(report, { parse_mode: "Markdown" });
+    } catch (error: any) {
+        console.error("Failed to check storage:", error);
+        await ctx.reply(`❌ Failed to retrieve storage info: ${error.message || "Unknown error"}`);
+    }
+});
+
 // Handle text messages
 bot.on("message:text", async (ctx) => {
     if (!ctx.from) return;
@@ -1001,6 +1052,54 @@ function startWeeklySummaryCron() {
     });
 }
 
+function startStorageAlertCron() {
+    const tz = getTimezone();
+    console.log(`⏰ Starting daily storage alert cron with timezone: ${tz}`);
+    cron.schedule("0 10 * * *", async () => {
+        const adminIds = getAllowedUserIdSet();
+        if (adminIds.size === 0) return;
+
+        try {
+            const radarrFolders = await radarr.getRootFolders().catch(() => []);
+            const sonarrFolders = await sonarr.getRootFolders().catch(() => []);
+
+            const lowSpaceFolders: Array<{ service: string; path: string; freeSpace: string }> = [];
+            const thresholdBytes = 50 * 1024 * 1024 * 1024; // 50 GB
+
+            radarrFolders.forEach(f => {
+                if (f.freeSpace < thresholdBytes) {
+                    lowSpaceFolders.push({ service: "Radarr", path: f.path, freeSpace: formatBytes(f.freeSpace) });
+                }
+            });
+
+            sonarrFolders.forEach(f => {
+                if (f.freeSpace < thresholdBytes) {
+                    lowSpaceFolders.push({ service: "Sonarr", path: f.path, freeSpace: formatBytes(f.freeSpace) });
+                }
+            });
+
+            if (lowSpaceFolders.length > 0) {
+                let alertMessage = `⚠️ *Low Storage Warning!*\n\nThe following folders have less than 50 GB free:\n\n`;
+                lowSpaceFolders.forEach(f => {
+                    alertMessage += `▫️ *[${f.service}]* \`${f.path}\`: *${f.freeSpace}* free\n`;
+                });
+
+                for (const adminId of adminIds) {
+                    try {
+                        await bot.api.sendMessage(adminId, alertMessage, { parse_mode: "Markdown" });
+                    } catch (err) {
+                        console.error(`Failed to send storage alert to ${adminId}:`, err);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("Failed running storage alert cron:", error);
+        }
+    }, {
+        timezone: tz
+    });
+}
+
 // Audit specs and verify config on every run (non-fatal on startup to allow healchecks to pass)
 await verifyConfig(false);
 
@@ -1071,6 +1170,7 @@ bot.api.getMe().then(async (me) => {
 
     // Start the cron scheduler
     startWeeklySummaryCron();
+    startStorageAlertCron();
 
     const restartNotifyChatId = Number(getMetadata("restart_notify_chat_id"));
     if (Number.isFinite(restartNotifyChatId) && restartNotifyChatId > 0) {

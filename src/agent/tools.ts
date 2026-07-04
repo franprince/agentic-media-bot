@@ -361,8 +361,9 @@ export const addMovieTool = tool({
         qualityProfileId: z.number().optional().describe("The ID of the quality profile to use (e.g., 1 for HD-1080p)."),
         rootFolderPath: z.string().optional().describe("The root folder path where the movie should be saved."),
         confirm: z.boolean().default(false).describe("Set to true ONLY when the user has explicitly confirmed the specific match and settings (folder, profile)."),
+        tags: z.array(z.string()).optional().describe("Custom tag labels to apply to the movie in Radarr (e.g. ['4k-only'])."),
     }),
-    execute: async ({ tmdbId, title, year, imdbId, qualityProfileId, rootFolderPath, confirm }: { tmdbId: number | null, title: string, year: number | null, imdbId?: string, qualityProfileId?: number, rootFolderPath?: string, confirm: boolean }) => {
+    execute: async ({ tmdbId, title, year, imdbId, qualityProfileId, rootFolderPath, confirm, tags }: { tmdbId: number | null, title: string, year: number | null, imdbId?: string, qualityProfileId?: number, rootFolderPath?: string, confirm: boolean, tags?: string[] }) => {
         let normalizedTmdbId = (tmdbId !== null && tmdbId !== undefined) ? Number(tmdbId) : 0;
         let normalizedYear = (year !== null && year !== undefined) ? Number(year) : 0;
 
@@ -459,7 +460,12 @@ export const addMovieTool = tool({
                 return { message: "Error: Could not determine quality profile or root folder for Radarr addition." } as any;
             }
 
-            const result = await radarr.addMovie(normalizedTmdbId, match.title, match.year, finalFolderPath, finalProfileId);
+            let resolvedTagIds: number[] | undefined;
+            if (tags && tags.length > 0) {
+                resolvedTagIds = await radarr.resolveTagIds(tags);
+            }
+
+            const result = await radarr.addMovie(normalizedTmdbId, match.title, match.year, finalFolderPath, finalProfileId, resolvedTagIds);
             return {
                 success: true,
                 message: `Successfully added '${result.title}' to Radarr.`,
@@ -605,8 +611,9 @@ export const addSeriesTool = tool({
         languageProfileId: z.number().optional().describe("The ID of the language profile to use."),
         rootFolderPath: z.string().optional().describe("The root folder path for the series."),
         confirm: z.boolean().default(false).describe("Set to true ONLY when the user has explicitly confirmed the specific match and settings (folder, profile)."),
+        tags: z.array(z.string()).optional().describe("Custom tag labels to apply to the series in Sonarr (e.g. ['anime'])."),
     }),
-    execute: async ({ tvdbId, title, imdbId, qualityProfileId, languageProfileId, rootFolderPath, confirm }: { tvdbId: number | null, title: string, imdbId?: string, qualityProfileId?: number, languageProfileId?: number, rootFolderPath?: string, confirm: boolean }) => {
+    execute: async ({ tvdbId, title, imdbId, qualityProfileId, languageProfileId, rootFolderPath, confirm, tags }: { tvdbId: number | null, title: string, imdbId?: string, qualityProfileId?: number, languageProfileId?: number, rootFolderPath?: string, confirm: boolean, tags?: string[] }) => {
         let normalizedTvdbId = (tvdbId !== null && tvdbId !== undefined) ? Number(tvdbId) : 0;
 
         let imdbMatch: any = null;
@@ -717,7 +724,12 @@ export const addSeriesTool = tool({
 
         const seriesType = isAnime ? "anime" : "standard";
 
-        await sonarr.addSeries(normalizedTvdbId, exactSeries.title, finalProfileId, finalLanguageId, finalFolderPath, seasons, seriesType);
+        let resolvedTagIds: number[] | undefined;
+        if (tags && tags.length > 0) {
+            resolvedTagIds = await sonarr.resolveTagIds(tags);
+        }
+
+        await sonarr.addSeries(normalizedTvdbId, exactSeries.title, finalProfileId, finalLanguageId, finalFolderPath, seasons, seriesType, resolvedTagIds);
 
         return {
             success: true,
@@ -1670,4 +1682,69 @@ export const syncWatchlistTool = tool({
         }
     }
 });
+
+export const getPlexSessionsTool = tool({
+    description: "Get currently active playback sessions on Plex. Shows title, playback state (playing, paused), user name, player/device, and playback progress.",
+    parameters: z.object({}),
+    execute: async () => {
+        try {
+            const sessions = await plex.getPlexSessions();
+            if (sessions.length === 0) {
+                return { message: "No active playback sessions found on Plex." };
+            }
+            return {
+                sessions: sessions.map(s => ({
+                    title: s.title,
+                    type: s.type,
+                    state: s.state,
+                    user: s.user,
+                    player: s.player,
+                    progress: `${s.progressPercent}% (${formatDuration(Math.floor(s.viewOffset / 1000))} / ${formatDuration(Math.floor(s.duration / 1000))})`
+                }))
+            };
+        } catch (error: any) {
+            return { message: `Failed to fetch Plex sessions: ${error.message || "Unknown error"}` };
+        }
+    }
+});
+
+export const getDiskSpaceTool = tool({
+    description: "Get disk space information for all root folders configured in Radarr and Sonarr.",
+    parameters: z.object({}),
+    execute: async () => {
+        try {
+            const radarrFolders = await radarr.getRootFolders().catch(() => []);
+            const sonarrFolders = await sonarr.getRootFolders().catch(() => []);
+            
+            const results: Array<{ service: string; path: string; freeSpace: string; freeBytes: number }> = [];
+            
+            radarrFolders.forEach(f => {
+                results.push({
+                    service: "Radarr",
+                    path: f.path,
+                    freeSpace: formatBytes(f.freeSpace),
+                    freeBytes: f.freeSpace
+                });
+            });
+            
+            sonarrFolders.forEach(f => {
+                results.push({
+                    service: "Sonarr",
+                    path: f.path,
+                    freeSpace: formatBytes(f.freeSpace),
+                    freeBytes: f.freeSpace
+                });
+            });
+            
+            if (results.length === 0) {
+                return { message: "No root folders configured in Radarr or Sonarr." };
+            }
+            
+            return { folders: results };
+        } catch (error: any) {
+            return { message: `Failed to fetch disk space details: ${error.message || "Unknown error"}` };
+        }
+    }
+});
+
 

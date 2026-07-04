@@ -24,8 +24,8 @@ export async function searchMovie(term: string): Promise<RadarrMovie[]> {
  * Add a movie to Radarr.
  * Usually requires rootFolderPath and qualityProfileId to be set from your Radarr instance.
  */
-export async function addMovie(tmdbId: number, title: string, year: number, rootFolderPath: string, qualityProfileId: number): Promise<RadarrMovie> {
-    if (isProxyEnabled()) return executeOnProxy("radarr", "addMovie", [tmdbId, title, year, rootFolderPath, qualityProfileId]);
+export async function addMovie(tmdbId: number, title: string, year: number, rootFolderPath: string, qualityProfileId: number, tags?: number[]): Promise<RadarrMovie> {
+    if (isProxyEnabled()) return executeOnProxy("radarr", "addMovie", [tmdbId, title, year, rootFolderPath, qualityProfileId, tags]);
     const allMovies = await fetchRadarr<RadarrMovie[]>("/movie");
     const existing = allMovies.find(m => m.tmdbId === tmdbId);
     if (existing) {
@@ -42,6 +42,7 @@ export async function addMovie(tmdbId: number, title: string, year: number, root
         addOptions: {
             searchForMovie: true,
         },
+        tags: tags || [],
     };
 
     return fetchRadarr<RadarrMovie>("/movie", {
@@ -100,4 +101,43 @@ export async function deleteMovie(id: number, deleteFiles: boolean = false): Pro
     await fetchRadarr(`/movie/${id}?deleteFiles=${deleteFiles}`, {
         method: "DELETE",
     });
+}
+
+export async function getTags(): Promise<Array<{ id: number, label: string }>> {
+    if (isProxyEnabled()) return executeOnProxy("radarr", "getTags", []);
+    return fetchRadarr<Array<{ id: number, label: string }>>("/tag");
+}
+
+export async function createTag(label: string): Promise<{ id: number, label: string }> {
+    if (isProxyEnabled()) return executeOnProxy("radarr", "createTag", [label]);
+    return fetchRadarr<{ id: number, label: string }>("/tag", {
+        method: "POST",
+        body: JSON.stringify({ label }),
+    });
+}
+
+export async function resolveTagIds(labels: string[]): Promise<number[]> {
+    if (isProxyEnabled()) return executeOnProxy("radarr", "resolveTagIds", [labels]);
+    if (!labels || labels.length === 0) return [];
+    
+    const existingTags = await getTags();
+    const tagIds: number[] = [];
+
+    for (const label of labels) {
+        const cleaned = label.trim().toLowerCase();
+        if (!cleaned) continue;
+
+        const match = existingTags.find(t => t.label.toLowerCase() === cleaned);
+        if (match) {
+            tagIds.push(match.id);
+        } else {
+            try {
+                const newTag = await createTag(cleaned);
+                tagIds.push(newTag.id);
+            } catch (err: any) {
+                console.error(`Failed to create Radarr tag "${cleaned}":`, err.message);
+            }
+        }
+    }
+    return tagIds;
 }

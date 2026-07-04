@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.39.0] - 2026-07-04
+
+### Added
+- **Plex Active Playback sessions ("Now Playing")**:
+  - Implemented `getPlexSessions()` querying the local server status endpoint `/status/sessions`.
+  - Parses playback progress percent, player devices, username, and formats episode title strings.
+  - Exposed `getPlexSessionsTool` to allow the conversational agent to check who is currently watching media.
+- **Storage Monitoring & Low Disk Alerts**:
+  - Added a conversational `getDiskSpaceTool` that lists all configured folders and their free space across Radarr and Sonarr.
+  - Added the `/storage` Telegram command to check disk space on demand.
+  - Registered a daily background cron job checking for folders with less than 50 GB free, pushing proactive low-space warnings to Telegram admin users.
+- **Custom Tags Support**:
+  - Added endpoints `/tag` on Radarr/Sonarr to get existing tags and create new ones.
+  - Implemented `resolveTagIds(labels)` helper mapping string labels to tag IDs, automatically creating missing tags.
+  - Updated `addMovieTool` and `addSeriesTool` parameters and payloads to accept custom tag labels (e.g. `['4k-only']`).
+
 ## [4.38.0] - 2026-07-04
 
 ### Added
