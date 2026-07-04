@@ -1216,6 +1216,9 @@ bot.api.getMe().then(async (me) => {
             const lastSentVersion = getMetadata("last_sent_changelog_version") || "";
 
             if (isNewerVersion(latestRelease.version, lastSentVersion)) {
+                // Update metadata first to prevent duplicate startup runs from sending the same changelog
+                setMetadata("last_sent_changelog_version", latestRelease.version);
+
                 const startupTitle = "🔄 Bot startup changelog";
                 const startupText = `${startupTitle}\n${buildReleaseChangelogText(latestRelease)}`;
 
@@ -1229,8 +1232,6 @@ bot.api.getMe().then(async (me) => {
                         console.error(`Failed to send startup message to ${adminId}:`, err);
                     }
                 }
-
-                setMetadata("last_sent_changelog_version", latestRelease.version);
             }
         } catch (err: any) {
             console.warn(`⚠️ Could not process changelog for startup notification: ${err.message}`);
