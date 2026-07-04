@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.38.0] - 2026-07-04
+
+### Added
+- **Universal Watchlist Integration**: Fully integrated the agent and bot with the Plex Universal Watchlist service:
+  - Fetches the user's Plex Watchlist via the `discover.provider.plex.tv` API.
+  - Automatically queries detailed metadata for new watchlist items to extract universal IDs (IMDb, TMDB, TVDB IDs).
+  - Synchronizes items to a local SQLite `watchlist` database table (`syncWatchlist`).
+  - Supports adding and removing items from the online Plex Watchlist directly using HTTP `PUT` requests to Plex's discover endpoints.
+- **SQLite Watchlist Cache**: Added a local `watchlist` SQLite table to store titles, media types, external IDs, and status (e.g. `pending`, `downloading`, `completed`).
+- **Watchlist Telegram Commands**: Registered `/watchlist` (to list current items and download statuses) and `/watchlist_sync` (to manually force synchronization).
+- **Watchlist Agent Tools**: Implemented `getWatchlistTool`, `addToWatchlistTool`, `removeFromWatchlistTool`, and `syncWatchlistTool` to allow the LLM agent to manage the watchlist on behalf of the user.
+
 ## [4.37.0] - 2026-07-04
 
 ### Added

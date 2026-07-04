@@ -1,6 +1,7 @@
 import type { PlexSearchResult, PlexContainer } from "../types/plex";
 import { fetchService } from "./api";
 import { executeOnProxy, isProxyEnabled } from "../agent/proxyClient";
+import { addToLocalWatchlist, getLocalWatchlist, removeFromLocalWatchlist } from "./database";
 
 const COUNTRY_NAME_MAP: Record<string, string> = {
     // English demonyms/adjectives -> country names as used by Plex metadata
@@ -396,3 +397,158 @@ export async function getUnwatchedEpisodes(seriesRatingKey: string): Promise<any
     const result = await fetchPlex<{ MediaContainer: PlexContainer }>(`/library/metadata/${seriesRatingKey}/allLeaves?viewCount=0`);
     return result.MediaContainer?.Metadata || [];
 }
+
+export async function getPlexWatchlist(): Promise<any[]> {
+    if (isProxyEnabled()) return executeOnProxy("plex", "getPlexWatchlist", []);
+    const apiKey = process.env.PLEX_TOKEN?.trim() || "";
+    if (!apiKey) throw new Error("PLEX_TOKEN is not configured");
+
+    const url = `https://discover.provider.plex.tv/library/sections/watchlist/all?X-Plex-Token=${apiKey}`;
+    const res = await fetch(url, {
+        headers: {
+            "Accept": "application/json",
+            "X-Plex-Client-Identifier": "agentic-media-bot"
+        }
+    });
+
+    if (!res.ok) {
+        throw new Error(`Failed to fetch Plex watchlist: HTTP ${res.status} ${res.statusText}`);
+    }
+
+    const data = await res.json() as any;
+    return data.MediaContainer?.Metadata || [];
+}
+
+export async function searchPlexDiscover(query: string, limit: number = 10): Promise<any[]> {
+    if (isProxyEnabled()) return executeOnProxy("plex", "searchPlexDiscover", [query, limit]);
+    const apiKey = process.env.PLEX_TOKEN?.trim() || "";
+    if (!apiKey) throw new Error("PLEX_TOKEN is not configured");
+
+    const url = `https://discover.provider.plex.tv/library/search?query=${encodeURIComponent(query)}&limit=${limit}&searchProviders=discover&searchTypes=movies,tv&includeMetadata=1&X-Plex-Token=${apiKey}`;
+    const res = await fetch(url, {
+        headers: {
+            "Accept": "application/json",
+            "X-Plex-Client-Identifier": "agentic-media-bot"
+        }
+    });
+
+    if (!res.ok) {
+        throw new Error(`Failed to search Plex Discover: HTTP ${res.status} ${res.statusText}`);
+    }
+
+    const data = await res.json() as any;
+    const searchResults = data.MediaContainer?.SearchResults || [];
+    const group = searchResults.find((s: any) => s.id === "external");
+    return group?.SearchResult?.map((r: any) => r.Metadata) || [];
+}
+
+export async function getPlexDiscoverMetadata(ratingKey: string): Promise<any> {
+    if (isProxyEnabled()) return executeOnProxy("plex", "getPlexDiscoverMetadata", [ratingKey]);
+    const apiKey = process.env.PLEX_TOKEN?.trim() || "";
+    if (!apiKey) throw new Error("PLEX_TOKEN is not configured");
+
+    const url = `https://discover.provider.plex.tv/library/metadata/${ratingKey}?X-Plex-Token=${apiKey}`;
+    const res = await fetch(url, {
+        headers: {
+            "Accept": "application/json",
+            "X-Plex-Client-Identifier": "agentic-media-bot"
+        }
+    });
+
+    if (!res.ok) {
+        throw new Error(`Failed to fetch Plex Discover metadata: HTTP ${res.status} ${res.statusText}`);
+    }
+
+    const data = await res.json() as any;
+    return data.MediaContainer?.Metadata?.[0] || null;
+}
+
+export async function addToPlexWatchlist(ratingKey: string): Promise<boolean> {
+    if (isProxyEnabled()) return executeOnProxy("plex", "addToPlexWatchlist", [ratingKey]);
+    const apiKey = process.env.PLEX_TOKEN?.trim() || "";
+    if (!apiKey) throw new Error("PLEX_TOKEN is not configured");
+
+    const url = `https://discover.provider.plex.tv/actions/addToWatchlist?ratingKey=${ratingKey}&X-Plex-Token=${apiKey}`;
+    const res = await fetch(url, {
+        method: "PUT",
+        headers: {
+            "Accept": "application/json",
+            "X-Plex-Client-Identifier": "agentic-media-bot"
+        }
+    });
+
+    return res.ok;
+}
+
+export async function removeFromPlexWatchlist(ratingKey: string): Promise<boolean> {
+    if (isProxyEnabled()) return executeOnProxy("plex", "removeFromPlexWatchlist", [ratingKey]);
+    const apiKey = process.env.PLEX_TOKEN?.trim() || "";
+    if (!apiKey) throw new Error("PLEX_TOKEN is not configured");
+
+    const url = `https://discover.provider.plex.tv/actions/removeFromWatchlist?ratingKey=${ratingKey}&X-Plex-Token=${apiKey}`;
+    const res = await fetch(url, {
+        method: "PUT",
+        headers: {
+            "Accept": "application/json",
+            "X-Plex-Client-Identifier": "agentic-media-bot"
+        }
+    });
+
+    return res.ok;
+}
+
+export async function syncWatchlist(): Promise<{ added: number, removed: number }> {
+    if (isProxyEnabled()) return executeOnProxy("plex", "syncWatchlist", []);
+    
+    const plexItems = await getPlexWatchlist();
+    const localItems = getLocalWatchlist();
+    const localMap = new Map(localItems.map(l => [l.rating_key, l]));
+    const plexRatingKeys = new Set(plexItems.map(p => p.ratingKey));
+
+    let added = 0;
+    let removed = 0;
+
+    // 1. Sync from Plex Watchlist to SQLite Watchlist
+    for (const item of plexItems) {
+        if (!localMap.has(item.ratingKey)) {
+            try {
+                const meta = await getPlexDiscoverMetadata(item.ratingKey);
+                const imdb = meta?.Guid?.find((g: any) => g.id.startsWith("imdb://"))?.id?.replace("imdb://", "") || null;
+                const tmdb = meta?.Guid?.find((g: any) => g.id.startsWith("tmdb://"))?.id?.replace("tmdb://", "") || null;
+                const tvdb = meta?.Guid?.find((g: any) => g.id.startsWith("tvdb://"))?.id?.replace("tvdb://", "") || null;
+                
+                addToLocalWatchlist({
+                    title: item.title,
+                    media_type: item.type === "movie" ? "movie" : "show",
+                    rating_key: item.ratingKey,
+                    imdb_id: imdb,
+                    tmdb_id: tmdb ? parseInt(tmdb) : null,
+                    tvdb_id: tvdb ? parseInt(tvdb) : null,
+                    status: "pending"
+                });
+                added++;
+            } catch (err: any) {
+                console.error(`Error fetching detailed discover metadata for ${item.title} (${item.ratingKey}):`, err.message);
+                // Still add to local DB even if metadata call fails (without external IDs)
+                addToLocalWatchlist({
+                    title: item.title,
+                    media_type: item.type === "movie" ? "movie" : "show",
+                    rating_key: item.ratingKey,
+                    status: "pending"
+                });
+                added++;
+            }
+        }
+    }
+
+    // 2. Remove local database items that have a rating_key but were removed on Plex
+    for (const local of localItems) {
+        if (local.rating_key && !plexRatingKeys.has(local.rating_key)) {
+            removeFromLocalWatchlist(local.rating_key);
+            removed++;
+        }
+    }
+
+    return { added, removed };
+}
+

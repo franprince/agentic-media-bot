@@ -136,6 +136,10 @@ export async function processUserMessage(
             discoverMedia: botTools.discoverMediaTool,
             getUnwatchedEpisodes: botTools.getUnwatchedEpisodesTool,
             subscribeToDownload: botTools.subscribeToDownloadTool,
+            getWatchlist: botTools.getWatchlistTool,
+            addToWatchlist: botTools.addToWatchlistTool,
+            removeFromWatchlist: botTools.removeFromWatchlistTool,
+            syncWatchlist: botTools.syncWatchlistTool,
         };
 
         if (shouldDisableAddTools) {

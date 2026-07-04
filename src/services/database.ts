@@ -72,6 +72,20 @@ db.run(`
   )
 `);
 
+db.run(`
+  CREATE TABLE IF NOT EXISTS watchlist (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    media_type TEXT NOT NULL, -- 'movie' or 'show'
+    rating_key TEXT UNIQUE, -- Plex Discover ratingKey
+    imdb_id TEXT,
+    tmdb_id INTEGER,
+    tvdb_id INTEGER,
+    added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    status TEXT DEFAULT 'pending' -- 'pending', 'downloading', 'completed'
+  )
+`);
+
 /**
  * Sanitize conversation history to prevent prototype pollution and injection attacks
  */
@@ -403,3 +417,42 @@ export function getPendingNotifications(mediaType: 'movie' | 'series', mediaId: 
 export function markNotificationSent(id: string) {
   db.run("UPDATE pending_notifications SET status = 'sent' WHERE id = ?", [id]);
 }
+
+export interface WatchlistItem {
+  id?: number;
+  title: string;
+  media_type: 'movie' | 'show';
+  rating_key?: string | null;
+  imdb_id?: string | null;
+  tmdb_id?: number | null;
+  tvdb_id?: number | null;
+  added_at?: string;
+  status: 'pending' | 'downloading' | 'completed';
+}
+
+export function addToLocalWatchlist(item: Omit<WatchlistItem, 'added_at' | 'status'> & { status?: 'pending' | 'downloading' | 'completed' }): void {
+  db.run(
+    `INSERT OR REPLACE INTO watchlist (title, media_type, rating_key, imdb_id, tmdb_id, tvdb_id, status)
+     VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, 'pending'))`,
+    [item.title, item.media_type, item.rating_key || null, item.imdb_id || null, item.tmdb_id || null, item.tvdb_id || null, item.status || 'pending']
+  );
+}
+
+export function removeFromLocalWatchlist(ratingKeyOrTitle: string): void {
+  db.run(
+    "DELETE FROM watchlist WHERE rating_key = ? OR title = ?",
+    [ratingKeyOrTitle, ratingKeyOrTitle]
+  );
+}
+
+export function getLocalWatchlist(): WatchlistItem[] {
+  return db.query("SELECT * FROM watchlist ORDER BY added_at DESC").all() as WatchlistItem[];
+}
+
+export function updateLocalWatchlistStatus(ratingKeyOrId: string | number, status: 'pending' | 'downloading' | 'completed'): void {
+  db.run(
+    "UPDATE watchlist SET status = ? WHERE rating_key = ? OR id = ?",
+    [status, ratingKeyOrId.toString(), ratingKeyOrId]
+  );
+}
+

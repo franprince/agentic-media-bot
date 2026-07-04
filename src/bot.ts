@@ -10,6 +10,8 @@ import { verifyConfig } from "./verify-config";
 import { checkAllServices } from "./services/health";
 import { handlePlexWebhook, handleRadarrWebhook, handleSonarrWebhook, handleNZBGetWebhook } from "./services/webhooks.ts";
 import * as sonarr from "./services/sonarr";
+import * as plex from "./services/plex";
+
 
 // Setup telegram bot using the token from environment variables
 const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -701,6 +703,89 @@ bot.command("audit", async (ctx) => {
     }
 });
 
+// Handle /watchlist command
+bot.command("watchlist", async (ctx) => {
+    const userId = ctx.from?.id;
+    if (typeof userId !== "number") {
+        await ctx.reply("Cannot determine requesting user for authorization.");
+        return;
+    }
+    const allowedUserIds = getAllowedUserIdSet();
+
+    if (allowedUserIds.size > 0 && !allowedUserIds.has(userId)) {
+        await ctx.reply("You are not authorized to view the watchlist.");
+        return;
+    }
+
+    await ctx.reply("⏳ *Fetching watchlist...*", { parse_mode: "Markdown" });
+
+    try {
+        // Sync watchlist to ensure fresh results
+        await plex.syncWatchlist();
+        const list = getMetadata("last_sent_changelog_version") ? getRecentMediaEvents("Plex", 1) : []; // simple dummy load or import check
+        const watchlist = db.getLocalWatchlist();
+        
+        if (watchlist.length === 0) {
+            await ctx.reply("Your watchlist is currently empty.");
+            return;
+        }
+
+        let report = `🍿 *Your Watchlist*\n\n`;
+        watchlist.forEach((item, index) => {
+            const typeIcon = item.media_type === "movie" ? "🎬" : "📺";
+            const statusIcon = item.status === "completed" ? "✅" : (item.status === "downloading" ? "⏳" : "▫️");
+            report += `${index + 1}. ${typeIcon} *${item.title}* (${item.media_type})\n   Status: \`${item.status}\` ${statusIcon}\n\n`;
+        });
+
+        const chunks = splitTelegramMessage(report);
+        for (const chunk of chunks) {
+            await ctx.reply(chunk, { parse_mode: "Markdown" });
+        }
+    } catch (error: any) {
+        console.error("Failed to list watchlist:", error);
+        await ctx.reply(`❌ Failed to retrieve watchlist: ${error.message || "Unknown error"}`);
+    }
+});
+
+// Handle /watchlist_sync command
+bot.command("watchlist_sync", async (ctx) => {
+    const userId = ctx.from?.id;
+    if (typeof userId !== "number") {
+        await ctx.reply("Cannot determine requesting user for authorization.");
+        return;
+    }
+    const allowedUserIds = getAllowedUserIdSet();
+
+    if (allowedUserIds.size > 0 && !allowedUserIds.has(userId)) {
+        await ctx.reply("You are not authorized to sync the watchlist.");
+        return;
+    }
+
+    const statusMsg = await ctx.reply("🔄 *Synchronizing watchlist with Plex Discover...*", { parse_mode: "Markdown" });
+
+    try {
+        const syncResult = await plex.syncWatchlist();
+        await ctx.api.editMessageText(
+            ctx.chat.id,
+            statusMsg.message_id,
+            `✅ *Watchlist synchronization complete!*\n\nAdded: *${syncResult.added}* new item(s)\nRemoved: *${syncResult.removed}* item(s) no longer in Plex Watchlist.`,
+            { parse_mode: "Markdown" }
+        );
+    } catch (error: any) {
+        console.error("Failed to sync watchlist:", error);
+        try {
+            await ctx.api.editMessageText(
+                ctx.chat.id,
+                statusMsg.message_id,
+                `❌ *Watchlist synchronization failed:*\n${error.message || "Unknown error"}`,
+                { parse_mode: "Markdown" }
+            );
+        } catch (_) {
+            await ctx.reply(`❌ Failed to sync watchlist: ${error.message || "Unknown error"}`);
+        }
+    }
+});
+
 // Handle text messages
 bot.on("message:text", async (ctx) => {
     if (!ctx.from) return;
@@ -1053,6 +1138,15 @@ bot.api.getMe().then(async (me) => {
     }
 
     // Catch-up logic for unreplied messages
+    // Sync watchlist on startup
+    try {
+        console.log("🔄 Synchronizing watchlist from Plex...");
+        const syncResult = await plex.syncWatchlist();
+        console.log(`✅ Watchlist synchronized: added ${syncResult.added}, removed ${syncResult.removed}`);
+    } catch (err: any) {
+        console.warn(`⚠️ Watchlist synchronization failed on startup: ${err.message}`);
+    }
+
     const skipCatchupOnce = getMetadata("skip_catchup_once") === "1";
     if (skipCatchupOnce) {
         setMetadata("skip_catchup_once", "0");
