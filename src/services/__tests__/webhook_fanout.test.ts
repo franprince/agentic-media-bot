@@ -5,6 +5,9 @@ import * as database from "../database";
 // We test getNotifyTargets indirectly through the webhook handlers by verifying
 // that sendMessage is called once per allowed user ID.
 
+/** Wait for the event queue's async drain loop to finish. */
+const drainQueue = () => new Promise(resolve => setTimeout(resolve, 100));
+
 describe("Multi-user webhook notification fan-out", () => {
     let sendMessageSpy: ReturnType<typeof spyOn>;
     let mockBot: any;
@@ -55,6 +58,8 @@ describe("Multi-user webhook notification fan-out", () => {
         });
 
         await handleRadarrWebhook(request, mockBot);
+        // Queue sends notifications asynchronously — wait for drain
+        await drainQueue();
 
         const calls = (sendMessageSpy as any).mock.calls;
         const targets = calls.map((c: any[]) => c[0]);
@@ -84,6 +89,7 @@ describe("Multi-user webhook notification fan-out", () => {
         });
 
         await handleRadarrWebhook(request, mockBot);
+        await drainQueue();
 
         const calls = (sendMessageSpy as any).mock.calls;
         const targets = calls.map((c: any[]) => c[0]);
@@ -114,6 +120,7 @@ describe("Multi-user webhook notification fan-out", () => {
         });
 
         await handleSonarrWebhook(request, mockBot);
+        await drainQueue();
 
         const calls = (sendMessageSpy as any).mock.calls;
         const targets = calls.map((c: any[]) => c[0]);

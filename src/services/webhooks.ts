@@ -6,6 +6,8 @@ import { clearCache } from "../agent/tools";
 import { Bot, InputFile } from "grammy";
 import type { RadarrWebhookPayload } from "../types/radarr";
 import type { SonarrWebhookPayload } from "../types/sonarr";
+import { webhookEventQueue } from "./eventQueue";
+
 
 /**
  * Returns the list of Telegram chat IDs that should receive webhook notifications.
@@ -149,81 +151,98 @@ export async function handlePlexWebhook(request: Request, bot: Bot) {
 
         const message = formatWebhookMessage(payload, prevState);
 
-        // Always save plex events to DB first to determine if it is a duplicate
+        // Build the DB-save closure (used by queue worker).
         let eventTitle = payload.Metadata?.title || payload.event;
         const dbMessage = message ? message.replace(/[_*`]/g, "") : `Plex Event: ${payload.event} - ${eventTitle}`;
-        const isNewEvent = saveMediaEvent("plex", payload.event, eventTitle, dbMessage);
 
-        if (message && isNewEvent) {
-            // Check if notifications are globally disabled or service-specific events are disabled
-            if (!areNotificationsEnabled()) {
-                console.log(`Plex Webhook: Notifications are disabled, skipping alert for ${payload.event}`);
-            } else if (!getEventAlertConfig("plex", payload.event)) {
-                console.log(`Plex Webhook: Notifications for event ${payload.event} are disabled in settings.`);
-            } else {
-                const PLEX_URL = process.env.PLEX_URL?.trim();
-                const PLEX_TOKEN = process.env.PLEX_TOKEN?.trim();
+        if (message) {
+            // Pre-fetch the thumbnail so the HTTP response to Plex is not delayed by
+            // the image download; the buffer is captured in the send closure.
+            const PLEX_URL = process.env.PLEX_URL?.trim();
+            const PLEX_TOKEN = process.env.PLEX_TOKEN?.trim();
+            const thumb = payload.Metadata?.thumb || payload.Metadata?.parentThumb || payload.Metadata?.grandparentThumb;
+            const thumbUrl = (thumb && PLEX_URL && PLEX_TOKEN) ? getPosterUrl(thumb) : undefined;
 
-                const thumb = payload.Metadata?.thumb || payload.Metadata?.parentThumb || payload.Metadata?.grandparentThumb;
-                const thumbUrl = (thumb && PLEX_URL && PLEX_TOKEN) ? getPosterUrl(thumb) : undefined;
+            let imageBuffer: ArrayBuffer | null = null;
+            let imageExtension = "jpg";
 
-                // Fetch the thumbnail once (if available), then fan out to all targets
-                let imageBuffer: ArrayBuffer | null = null;
-                let imageExtension = "jpg";
-
-                if (thumbUrl) {
-                    let lastError: Error | null = null;
-                    for (let attempt = 1; attempt <= 3; attempt++) {
-                        try {
-                            const controller = new AbortController();
-                            const timeoutId = setTimeout(() => controller.abort(), 10000);
-                            const response = await fetch(thumbUrl, {
-                                signal: controller.signal,
-                                headers: { 'User-Agent': 'agentic-media-bot/1.0' }
-                            });
-                            clearTimeout(timeoutId);
-                            if (response.ok) {
-                                imageBuffer = await response.arrayBuffer();
-                                imageExtension = thumbUrl.split("?")[0]?.split(".").pop() || "jpg";
-                                break;
-                            } else {
-                                lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
-                            }
-                        } catch (err) {
-                            lastError = err as Error;
-                            console.warn(`Webhook image fetch attempt ${attempt} failed:`, lastError.message);
-                        }
-                        if (attempt < 3) {
-                            await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt - 1) * 1000));
-                        }
-                    }
-                    if (!imageBuffer) {
-                        console.warn(`Failed to fetch Plex thumb after 3 attempts: ${lastError?.message || 'Unknown error'}`);
-                    }
-                }
-
-                for (const target of notifyTargets) {
+            if (thumbUrl) {
+                let lastError: Error | null = null;
+                for (let attempt = 1; attempt <= 3; attempt++) {
                     try {
-                        if (imageBuffer) {
-                            await bot.api.sendPhoto(target, new InputFile(Buffer.from(imageBuffer), `thumb.${imageExtension}`), {
-                                caption: message,
-                                parse_mode: "Markdown"
-                            });
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 10000);
+                        const response = await fetch(thumbUrl, {
+                            signal: controller.signal,
+                            headers: { 'User-Agent': 'agentic-media-bot/1.0' }
+                        });
+                        clearTimeout(timeoutId);
+                        if (response.ok) {
+                            imageBuffer = await response.arrayBuffer();
+                            imageExtension = thumbUrl.split("?")[0]?.split(".").pop() || "jpg";
+                            break;
                         } else {
-                            await bot.api.sendMessage(target, message, { parse_mode: "Markdown" });
+                            lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
                         }
                     } catch (err) {
-                        const error = err as Error;
-                        console.error(`Failed to send Plex webhook notification to ${target}:`, error.message);
+                        lastError = err as Error;
+                        console.warn(`Webhook image fetch attempt ${attempt} failed:`, lastError.message);
+                    }
+                    if (attempt < 3) {
+                        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt - 1) * 1000));
+                    }
+                }
+                if (!imageBuffer) {
+                    console.warn(`Failed to fetch Plex thumb after 3 attempts: ${lastError?.message || 'Unknown error'}`);
+                }
+            }
+
+            // Capture everything needed by the queue worker in closures.
+            const capturedMessage = message;
+            const capturedImageBuffer = imageBuffer;
+            const capturedImageExtension = imageExtension;
+            const capturedEventTitle = eventTitle;
+            const capturedEvent = payload.event;
+
+            webhookEventQueue.enqueue({
+                key: `plex:${capturedEvent}:${capturedEventTitle}`.toLowerCase(),
+                label: `Plex/${capturedEvent}/${capturedEventTitle}`,
+                dbSave: () => saveMediaEvent("plex", capturedEvent, capturedEventTitle, dbMessage),
+                send: async () => {
+                    if (!areNotificationsEnabled()) {
+                        console.log(`Plex Webhook: Notifications are disabled, skipping alert for ${capturedEvent}`);
+                        return;
+                    }
+                    if (!getEventAlertConfig("plex", capturedEvent)) {
+                        console.log(`Plex Webhook: Notifications for event ${capturedEvent} are disabled in settings.`);
+                        return;
+                    }
+                    const targets = getNotifyTargets();
+                    for (const target of targets) {
                         try {
-                            await bot.api.sendMessage(target, message.replace(/[_*`]/g, ""));
-                            console.info(`Successfully sent fallback plain text to ${target}`);
-                        } catch (fallbackErr) {
-                            console.error(`Failed to send fallback message to ${target}:`, (fallbackErr as Error).message);
+                            if (capturedImageBuffer) {
+                                await bot.api.sendPhoto(
+                                    target,
+                                    new InputFile(Buffer.from(capturedImageBuffer), `thumb.${capturedImageExtension}`),
+                                    { caption: capturedMessage, parse_mode: "Markdown" }
+                                );
+                            } else {
+                                await bot.api.sendMessage(target, capturedMessage, { parse_mode: "Markdown" });
+                            }
+                        } catch (err) {
+                            console.error(`Failed to send Plex notification to ${target}:`, (err as Error).message);
+                            try {
+                                await bot.api.sendMessage(target, capturedMessage.replace(/[_*`]/g, ""));
+                            } catch (fallbackErr) {
+                                console.error(`Failed fallback to ${target}:`, (fallbackErr as Error).message);
+                            }
                         }
                     }
                 }
-            }
+            });
+        } else {
+            // No notification message but still persist the event to the history DB.
+            saveMediaEvent("plex", payload.event, eventTitle, dbMessage);
         }
 
         return new Response("OK", { status: 200 });
@@ -282,21 +301,32 @@ export async function handleRadarrWebhook(request: Request, bot: Bot) {
             }
         }
 
-        // Always save the event to the DB, construct a plain fallback message if one wasn't generated above
+        // Build notification and enqueue for serial delivery.
         const dbMessage = message ? message.replace(/[_*`]/g, "") : `Radarr Event: ${eventType} - ${eventTitle}`;
-        const isNewEvent = saveMediaEvent("radarr", eventType.toLowerCase(), eventTitle, dbMessage);
 
-        if (message && isNewEvent) {
-            const notifyTargets = getNotifyTargets();
-            if (notifyTargets.length > 0 && areNotificationsEnabled() && getEventAlertConfig("radarr", eventType.toLowerCase())) {
-                for (const target of notifyTargets) {
-                    try {
-                        await bot.api.sendMessage(target, message, { parse_mode: "Markdown" });
-                    } catch (err) {
-                        console.error(`Failed to send Radarr notification to ${target}:`, (err as Error).message);
+        if (message) {
+            const capturedMessage = message;
+            const capturedEventTitle = eventTitle;
+            const capturedEventType = eventType;
+
+            webhookEventQueue.enqueue({
+                key: `radarr:${capturedEventType.toLowerCase()}:${capturedEventTitle}`.toLowerCase(),
+                label: `Radarr/${capturedEventType}/${capturedEventTitle}`,
+                dbSave: () => saveMediaEvent("radarr", capturedEventType.toLowerCase(), capturedEventTitle, dbMessage),
+                send: async () => {
+                    if (!areNotificationsEnabled() || !getEventAlertConfig("radarr", capturedEventType.toLowerCase())) return;
+                    const targets = getNotifyTargets();
+                    for (const target of targets) {
+                        try {
+                            await bot.api.sendMessage(target, capturedMessage, { parse_mode: "Markdown" });
+                        } catch (err) {
+                            console.error(`Failed to send Radarr notification to ${target}:`, (err as Error).message);
+                        }
                     }
                 }
-            }
+            });
+        } else {
+            saveMediaEvent("radarr", eventType.toLowerCase(), eventTitle, dbMessage);
         }
 
         return new Response("OK", { status: 200 });
@@ -357,23 +387,34 @@ export async function handleSonarrWebhook(request: Request, bot: Bot) {
             }
         } else if (eventType === "SeriesAdd") {
             message = `📺 *Sonarr*: Added new series *${eventTitle}*\n`;
-        } // Handle SeriesAdd if received
+        }
 
-        // Always save the event to the DB, construct a plain fallback message if one wasn't generated above
+        // Build notification and enqueue for serial delivery.
         const dbMessage = message ? message.replace(/[_*`]/g, "") : `Sonarr Event: ${eventType} - ${eventTitle}`;
-        const isNewEvent = saveMediaEvent("sonarr", eventType.toLowerCase(), eventTitle, dbMessage);
 
-        if (message && isNewEvent) {
-            const notifyTargets = getNotifyTargets();
-            if (notifyTargets.length > 0 && areNotificationsEnabled() && getEventAlertConfig("sonarr", eventType.toLowerCase())) {
-                for (const target of notifyTargets) {
-                    try {
-                        await bot.api.sendMessage(target, message, { parse_mode: "Markdown" });
-                    } catch (err) {
-                        console.error(`Failed to send Sonarr notification to ${target}:`, (err as Error).message);
+        if (message) {
+            const capturedMessage = message;
+            const capturedEventTitle = eventTitle;
+            const capturedEventType = eventType;
+
+            webhookEventQueue.enqueue({
+                key: `sonarr:${capturedEventType.toLowerCase()}:${capturedEventTitle}`.toLowerCase(),
+                label: `Sonarr/${capturedEventType}/${capturedEventTitle}`,
+                dbSave: () => saveMediaEvent("sonarr", capturedEventType.toLowerCase(), capturedEventTitle, dbMessage),
+                send: async () => {
+                    if (!areNotificationsEnabled() || !getEventAlertConfig("sonarr", capturedEventType.toLowerCase())) return;
+                    const targets = getNotifyTargets();
+                    for (const target of targets) {
+                        try {
+                            await bot.api.sendMessage(target, capturedMessage, { parse_mode: "Markdown" });
+                        } catch (err) {
+                            console.error(`Failed to send Sonarr notification to ${target}:`, (err as Error).message);
+                        }
                     }
                 }
-            }
+            });
+        } else {
+            saveMediaEvent("sonarr", eventType.toLowerCase(), eventTitle, dbMessage);
         }
 
         return new Response("OK", { status: 200 });
@@ -399,21 +440,32 @@ export async function handleNZBGetWebhook(request: Request, bot: Bot) {
             message = `✅ *NZBGet*: Download finished *${title}*`;
         }
 
-        // Always save to DB
+        // Build notification and enqueue for serial delivery.
         const dbMessage = message ? message.replace(/[_*`]/g, "") : `NZBGet Event: ${eventType} - ${title}`;
-        const isNewEvent = saveMediaEvent("nzbget", eventType, title, dbMessage);
 
-        if (message && isNewEvent) {
-            const notifyTargets = getNotifyTargets();
-            if (notifyTargets.length > 0 && areNotificationsEnabled() && getEventAlertConfig("nzbget", eventType)) {
-                for (const target of notifyTargets) {
-                    try {
-                        await bot.api.sendMessage(target, message, { parse_mode: "Markdown" });
-                    } catch (err) {
-                        console.error(`Failed to send NZBGet notification to ${target}:`, (err as Error).message);
+        if (message) {
+            const capturedMessage = message;
+            const capturedTitle = title;
+            const capturedEventType = eventType;
+
+            webhookEventQueue.enqueue({
+                key: `nzbget:${capturedEventType}:${capturedTitle}`.toLowerCase(),
+                label: `NZBGet/${capturedEventType}/${capturedTitle}`,
+                dbSave: () => saveMediaEvent("nzbget", capturedEventType, capturedTitle, dbMessage),
+                send: async () => {
+                    if (!areNotificationsEnabled() || !getEventAlertConfig("nzbget", capturedEventType)) return;
+                    const targets = getNotifyTargets();
+                    for (const target of targets) {
+                        try {
+                            await bot.api.sendMessage(target, capturedMessage, { parse_mode: "Markdown" });
+                        } catch (err) {
+                            console.error(`Failed to send NZBGet notification to ${target}:`, (err as Error).message);
+                        }
                     }
                 }
-            }
+            });
+        } else {
+            saveMediaEvent("nzbget", eventType, title, dbMessage);
         }
 
         return new Response("OK", { status: 200 });

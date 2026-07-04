@@ -8,7 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [4.36.1] - 2026-07-04
 
 ### Fixed
-- **Duplicate Notifications**: Webhook handlers for Plex, Radarr, Sonarr, and NZBGet now check the return value of `saveMediaEvent` to ensure notifications are only sent for unique new events, preventing duplicate alerts from being sent to Telegram.
+- **Triple-notification race condition** (`eventQueue`): Three simultaneous webhook
+  deliveries (e.g. 3 Sonarr connections configured in Sonarr Settings → Connect) could
+  all pass the `saveMediaEvent` duplicate check before any had time to INSERT, causing
+  identical notifications to be sent 3× to every Telegram target.
+
+  **Root cause**: The previous `SELECT → INSERT` flow was not atomic under concurrent
+  async requests handled by Bun's HTTP server.
+
+  **Fix**: Introduced a singleton `WebhookEventQueue` (`src/services/eventQueue.ts`)
+  that provides two deduplication layers:
+  1. **In-memory (fast path)** — if the same `service:eventType:title` key is already
+     pending in the queue, subsequent arrivals are dropped immediately before any DB
+     or Telegram interaction.
+  2. **DB safety net** — the queue's serial single-worker drain loop calls
+     `saveMediaEvent()` (which uses a `BEGIN IMMEDIATE` SQLite transaction) before
+     each `send()`, so late-arriving duplicates (same episode re-downloaded within
+     60 s) are also blocked.
+
+  All webhook handlers (Plex, Radarr, Sonarr, NZBGet) now return `200 OK` immediately
+  after enqueuing the event; notification delivery is fully decoupled and happens
+  asynchronously in the queue worker.
 
 ## [4.36.0] - 2026-07-04
 

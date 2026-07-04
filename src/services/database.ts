@@ -314,27 +314,35 @@ export interface MediaEvent {
 }
 
 export function saveMediaEvent(service: string, eventType: string, title: string, message: string): boolean {
-  // Deduplicate: skip if the same (service, event_type, title) was saved in the last 60 seconds.
-  // This prevents Plex from logging the same library.new event twice (once per matching section).
-  const recentDuplicate = db.query(
-    `SELECT id FROM media_events
-     WHERE service = ? AND event_type = ? AND title = ?
-       AND timestamp >= datetime('now', '-60 seconds')
-     LIMIT 1`
-  ).get(service, eventType, title);
+  // Use an IMMEDIATE transaction so the SELECT + INSERT is atomic.
+  // Without this, concurrent webhook deliveries (e.g. 3 Sonarr connections firing
+  // simultaneously) can all pass the duplicate check before any has written, causing
+  // multiple Telegram notifications for the same event.
+  let inserted = false;
+  db.transaction(() => {
+    const recentDuplicate = db.query(
+      `SELECT id FROM media_events
+       WHERE service = ? AND event_type = ? AND title = ?
+         AND timestamp >= datetime('now', '-60 seconds')
+       LIMIT 1`
+    ).get(service, eventType, title);
 
-  if (recentDuplicate) {
-    return false;
-  }
+    if (recentDuplicate) {
+      inserted = false;
+      return;
+    }
 
-  const id = crypto.randomUUID();
-  // Store as ISO-8601 with 'T' separator so JavaScript Date() can parse it reliably.
-  const isoNow = new Date().toISOString();
-  db.run(
-    "INSERT INTO media_events (id, service, event_type, title, message, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
-    [id, service, eventType, title, message, isoNow]
-  );
-  return true;
+    const id = crypto.randomUUID();
+    // Store as ISO-8601 with 'T' separator so JavaScript Date() can parse it reliably.
+    const isoNow = new Date().toISOString();
+    db.run(
+      "INSERT INTO media_events (id, service, event_type, title, message, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
+      [id, service, eventType, title, message, isoNow]
+    );
+    inserted = true;
+  }).immediate();
+
+  return inserted;
 }
 
 export function getRecentMediaEvents(service: string, limit: number = 10, sinceDate?: Date): MediaEvent[] {
