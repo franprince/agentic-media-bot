@@ -47,21 +47,21 @@
 ### Pre-computed download progress
 **Problem:** Queue tools return raw bytes; LLM sometimes miscalculates.  
 **Fix:** Compute `progressPercent`, `downloadedGB`, `totalGB`, `etaHuman` in tool execute.  
-**Status:** 📋 Backlog
+**Status:** ✅ Shipped in v4.37.0
 
 ---
 
 ### Timezone-aware ETA & date formatting
 **Problem:** `getTimezone()` exists but is never used for formatting.  
 **Fix:** Use stored timezone in all date rendering: event history, webhook messages, ETA.  
-**Status:** 📋 Backlog
+**Status:** ✅ Shipped in v4.37.0
 
 ---
 
 ### Plex cross-check on search results (auto-flag "already in library")
 **Problem:** LLM often skips the Plex cross-check step after Radarr search.  
 **Fix:** Auto-enrich search results with `alreadyInPlex: true` flag inside the tool.  
-**Status:** 📋 Backlog
+**Status:** ✅ Shipped in v4.37.0
 
 ---
 
@@ -75,28 +75,29 @@
 ### Plex "Now Playing" live sessions tool
 **Problem:** No tool to query active playback sessions.  
 **Fix:** Add `getPlexSessionsTool` using Plex `/status/sessions` endpoint.  
-**Status:** 📋 Backlog
+**Status:** ✅ Shipped in v4.39.0
 
 ---
 
 ### Disk space awareness & alerting
 **Problem:** Disk usage shown only during add-media confirmation; no proactive alerts.  
 **Fix:** Add `getDiskSpaceTool`; optionally alert when free space drops below threshold.  
-**Status:** 📋 Backlog
+**Status:** ✅ Shipped in v4.39.0
 
 ---
 
 ### Radarr/Sonarr tags support
 **Problem:** Tags silently dropped when adding media.  
 **Fix:** Expose optional `tags` param in add tools.  
-**Status:** 📋 Backlog
+**Status:** ✅ Shipped in v4.39.0
 
 ---
 
 ### Watchlist / "Add for later"
 **Problem:** No lightweight way to save titles without triggering a download.  
 **Fix:** SQLite `watchlist` table; bot adds/lists items on request.  
-**Status:** 📋 Backlog
+**Status:** ✅ Shipped in v4.38.0
+
 
 ---
 
