@@ -4,7 +4,7 @@ import { resolve, isAbsolute } from "node:path";
 import { randomUUID } from "node:crypto";
 import { processUserMessage } from "./agent/index.ts";
 import { detectStatusLanguage } from "./agent/status.ts";
-import { getMetadata, setMetadata, deleteMetadata, getAllConversations, getUserName, setUserName, areNotificationsEnabled, setNotificationsEnabled, getRecentMediaEvents, setEventAlertConfig, getTimezone, formatEventTimestamp, getAllReportSubscriptions, type ReportSubscription } from "./services/database.ts";
+import { getMetadata, setMetadata, deleteMetadata, getAllConversations, getUserName, setUserName, areNotificationsEnabled, setNotificationsEnabled, getRecentMediaEvents, setEventAlertConfig, getTimezone, formatEventTimestamp, getAllReportSubscriptions, type ReportSubscription, getLocalWatchlist } from "./services/database.ts";
 import cron from "node-cron";
 import { registerSubscriptionChangedCallback } from "./services/scheduler";
 
@@ -730,7 +730,7 @@ bot.command("watchlist", async (ctx) => {
         // Sync watchlist to ensure fresh results
         await plex.syncWatchlist();
         const list = getMetadata("last_sent_changelog_version") ? getRecentMediaEvents("Plex", 1) : []; // simple dummy load or import check
-        const watchlist = db.getLocalWatchlist();
+        const watchlist = getLocalWatchlist();
         
         if (watchlist.length === 0) {
             await ctx.reply("Your watchlist is currently empty.");
@@ -917,12 +917,16 @@ bot.on("message:voice", async (ctx) => {
         await handleUserText(ctx, userId, transcription, username);
     } catch (error: any) {
         console.error("Failed to transcribe voice note:", error);
+        let msg = error.message || "Unknown error";
+        if (msg.toLowerCase().includes("api key") || msg.toLowerCase().includes("apikey")) {
+            msg = "API key not valid. Please ensure GOOGLE_GENERATIVE_AI_API_KEY is configured with a valid Gemini API key in your .env.local file.";
+        }
         await ctx.api.editMessageText(
             ctx.chat.id,
             statusMsg.message_id,
-            `❌ *Transcription failed:* ${error.message || "Unknown error"}`
+            `❌ *Transcription failed:* ${msg}`
         ).catch(() => {
-            ctx.reply(`❌ Transcription failed: ${error.message || "Unknown error"}`);
+            ctx.reply(`❌ Transcription failed: ${msg}`);
         });
     }
 });
