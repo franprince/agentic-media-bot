@@ -27,7 +27,7 @@ export async function transcribeAudio(audioBuffer: Buffer | ArrayBuffer, mediaTy
                     {
                         type: "file",
                         data: audioBuffer,
-                        mediaType: mediaType,
+                        mimeType: mediaType,
                     },
                 ],
             },
