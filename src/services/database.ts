@@ -86,6 +86,18 @@ db.run(`
   )
 `);
 
+db.run(`
+  CREATE TABLE IF NOT EXISTS report_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    report_type TEXT NOT NULL,
+    cron_expression TEXT NOT NULL,
+    days INTEGER DEFAULT 7,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+
 /**
  * Sanitize conversation history to prevent prototype pollution and injection attacks
  */
@@ -455,4 +467,36 @@ export function updateLocalWatchlistStatus(ratingKeyOrId: string | number, statu
     [status, ratingKeyOrId.toString(), ratingKeyOrId]
   );
 }
+
+export interface ReportSubscription {
+  id: number;
+  user_id: number;
+  report_type: string;
+  cron_expression: string;
+  days: number;
+  created_at: string;
+}
+
+export function addReportSubscription(userId: number, reportType: string, cronExpression: string, days: number = 7): number {
+  db.run(
+    `INSERT INTO report_subscriptions (user_id, report_type, cron_expression, days)
+     VALUES (?, ?, ?, ?)` ,
+    [userId, reportType, cronExpression, days]
+  );
+  const row = db.query("SELECT last_insert_rowid() as id").get() as { id: number };
+  return row.id;
+}
+
+export function removeReportSubscription(id: number): void {
+  db.run("DELETE FROM report_subscriptions WHERE id = ?", [id]);
+}
+
+export function getReportSubscriptions(userId: number): ReportSubscription[] {
+  return db.query("SELECT * FROM report_subscriptions WHERE user_id = ?").all(userId) as ReportSubscription[];
+}
+
+export function getAllReportSubscriptions(): ReportSubscription[] {
+  return db.query("SELECT * FROM report_subscriptions").all() as ReportSubscription[];
+}
+
 

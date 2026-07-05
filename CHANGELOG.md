@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.40.0] - 2026-07-05
+
+### Added
+- **Telegram Voice Notes Transcription**:
+  - Automatically intercepts voice messages, downloads the audio payload, and passes it directly to Gemini 1.5 Flash for transcription.
+  - Passes the transcribed query to the conversational agent seamlessly.
+- **Dynamic Database-Backed Scheduled Reports**:
+  - Added SQLite `report_subscriptions` table to save user-defined recurring reports.
+  - Implemented dynamic scheduling using `node-cron` matching stored cron expressions.
+  - Exposed agent tools: `subscribeToReportTool`, `unsubscribeFromReportTool`, and `getReportSubscriptionsTool`.
+
 ## [4.39.1] - 2026-07-04
 
 ### Fixed

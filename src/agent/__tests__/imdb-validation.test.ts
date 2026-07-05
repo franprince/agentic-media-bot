@@ -104,7 +104,7 @@ describe("IMDb Validation", () => {
                 confirm: true
             }, { abortSignal: undefined as any });
 
-            expect(addMovieSpy).toHaveBeenCalledWith(27205, "Inception", 2010, "/movies", 7);
+            expect(addMovieSpy).toHaveBeenCalledWith(27205, "Inception", 2010, "/movies", 7, undefined);
             expect(confirmResult.success).toBe(true);
         });
     });
@@ -196,7 +196,7 @@ describe("IMDb Validation", () => {
                 confirm: true
             }, { abortSignal: undefined as any });
 
-            expect(addSeriesSpy).toHaveBeenCalledWith(81189, "Breaking Bad", 7, 2, "/tv", [{ seasonNumber: 1, monitored: true }], "standard");
+            expect(addSeriesSpy).toHaveBeenCalledWith(81189, "Breaking Bad", 7, 2, "/tv", [{ seasonNumber: 1, monitored: true }], "standard", undefined);
             expect(confirmResult.success).toBe(true);
         });
     });

@@ -142,6 +142,9 @@ export async function processUserMessage(
             syncWatchlist: botTools.syncWatchlistTool,
             getPlexSessions: botTools.getPlexSessionsTool,
             getDiskSpace: botTools.getDiskSpaceTool,
+            subscribeToReport: botTools.subscribeToReportTool,
+            unsubscribeFromReport: botTools.unsubscribeFromReportTool,
+            getReportSubscriptions: botTools.getReportSubscriptionsTool,
         };
 
         if (shouldDisableAddTools) {

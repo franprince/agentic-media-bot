@@ -4,8 +4,10 @@ import { resolve, isAbsolute } from "node:path";
 import { randomUUID } from "node:crypto";
 import { processUserMessage } from "./agent/index.ts";
 import { detectStatusLanguage } from "./agent/status.ts";
-import { getMetadata, setMetadata, deleteMetadata, getAllConversations, getUserName, setUserName, areNotificationsEnabled, setNotificationsEnabled, getRecentMediaEvents, setEventAlertConfig, getTimezone, formatEventTimestamp } from "./services/database.ts";
+import { getMetadata, setMetadata, deleteMetadata, getAllConversations, getUserName, setUserName, areNotificationsEnabled, setNotificationsEnabled, getRecentMediaEvents, setEventAlertConfig, getTimezone, formatEventTimestamp, getAllReportSubscriptions, type ReportSubscription } from "./services/database.ts";
 import cron from "node-cron";
+import { registerSubscriptionChangedCallback } from "./services/scheduler";
+
 import { verifyConfig } from "./verify-config";
 import { checkAllServices } from "./services/health";
 import { handlePlexWebhook, handleRadarrWebhook, handleSonarrWebhook, handleNZBGetWebhook } from "./services/webhooks.ts";
@@ -13,6 +15,8 @@ import * as sonarr from "./services/sonarr";
 import * as plex from "./services/plex";
 import * as radarr from "./services/radarr";
 import { formatBytes } from "./agent/tools";
+import { transcribeAudio } from "./services/transcription";
+
 
 
 
@@ -867,6 +871,62 @@ How can I help you today?
     await handleUserText(ctx, userId, ctx.message.text as string, user);
 });
 
+// Handle voice messages
+bot.on("message:voice", async (ctx) => {
+    if (!ctx.from) return;
+
+    const userId = ctx.from.id;
+    const allowedUserIds = getAllowedUserIdSet();
+
+    if (allowedUserIds.size > 0 && !allowedUserIds.has(userId)) {
+        await ctx.reply("You are not authorized to interact with this bot.");
+        return;
+    }
+
+    const username = ctx.from.username || ctx.from.first_name;
+    const statusMsg = await ctx.reply("🎙️ *Transcribing voice message...*", { parse_mode: "Markdown" });
+
+    try {
+        await ctx.replyWithChatAction("record_voice");
+
+        const voice = ctx.message.voice;
+        const file = await ctx.getFile();
+        const fileUrl = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
+        const res = await fetch(fileUrl);
+        if (!res.ok) {
+            throw new Error(`Failed to download voice file: ${res.statusText}`);
+        }
+        const audioBuffer = await res.arrayBuffer();
+
+        const transcription = await transcribeAudio(audioBuffer, voice.mime_type || "audio/ogg");
+        
+        if (!transcription || transcription.trim().length === 0) {
+            await ctx.api.editMessageText(ctx.chat.id, statusMsg.message_id, "❌ I couldn't hear any speech in that voice message.");
+            return;
+        }
+
+        // Edit status message to show transcription in italics
+        await ctx.api.editMessageText(
+            ctx.chat.id,
+            statusMsg.message_id,
+            `🗣️ _"${transcription}"_`,
+            { parse_mode: "Markdown" }
+        );
+
+        // Process transcription just like user typed it
+        await handleUserText(ctx, userId, transcription, username);
+    } catch (error: any) {
+        console.error("Failed to transcribe voice note:", error);
+        await ctx.api.editMessageText(
+            ctx.chat.id,
+            statusMsg.message_id,
+            `❌ *Transcription failed:* ${error.message || "Unknown error"}`
+        ).catch(() => {
+            ctx.reply(`❌ Transcription failed: ${error.message || "Unknown error"}`);
+        });
+    }
+});
+
 async function handleUserText(ctx: any, userId: number, userText: string, username: string | number) {
     if (userText.startsWith("/")) return;
     console.log(`📩 Message from @${username} (${userId}): ${userText}`);
@@ -1052,6 +1112,98 @@ function startWeeklySummaryCron() {
     });
 }
 
+const activeReportCrons = new Map<number, cron.ScheduledTask>();
+
+export async function sendSummaryReport(userId: number, days: number = 7) {
+    const sinceDate = new Date();
+    sinceDate.setDate(sinceDate.getDate() - days);
+
+    const radarrEvents = [
+        ...getRecentMediaEvents("radarr", 100, sinceDate),
+        ...getRecentMediaEvents("Radarr", 100, sinceDate)
+    ];
+    const sonarrEvents = [
+        ...getRecentMediaEvents("sonarr", 100, sinceDate),
+        ...getRecentMediaEvents("Sonarr", 100, sinceDate)
+    ];
+
+    if (radarrEvents.length === 0 && sonarrEvents.length === 0) {
+        await bot.api.sendMessage(userId, `📊 *Summary Report (${days} days)*\n\nNo media activity was recorded during this period.`, { parse_mode: "Markdown" }).catch(e => {
+            console.error(`Failed to send empty summary report to user ${userId}:`, e);
+        });
+        return;
+    }
+
+    let summary = `📊 *Summary Report (${days} days)*\n\n`;
+
+    if (radarrEvents.length > 0) {
+        summary += `🎬 *Radarr* (${radarrEvents.length} events)\n`;
+        const grabs = radarrEvents.filter(e => e.event_type === "grab").length;
+        const downloads = radarrEvents.filter(e => e.event_type === "download").length;
+        summary += `▫️ Grabbed: ${grabs}\n▫️ Downloaded: ${downloads}\n\n`;
+    }
+
+    if (sonarrEvents.length > 0) {
+        summary += `📺 *Sonarr* (${sonarrEvents.length} events)\n`;
+        const grabs = sonarrEvents.filter(e => e.event_type === "grab").length;
+        const downloads = sonarrEvents.filter(e => e.event_type === "download").length;
+        summary += `▫️ Grabbed: ${grabs}\n▫️ Downloaded: ${downloads}\n\n`;
+    }
+
+    summary += `_You can manage immediate alerts with_\n\`/radarr alerts <grab|download> <on|off>\`\n\`/sonarr alerts <grab|download> <on|off>\``;
+
+    await bot.api.sendMessage(userId, summary, { parse_mode: "Markdown" }).catch(e => {
+        console.error(`Failed to send summary report to user ${userId}:`, e);
+    });
+}
+
+export function reloadReportSubscriptions() {
+    const tz = getTimezone();
+    console.log(`⏰ Reloading dynamic report subscriptions with timezone: ${tz}`);
+
+    for (const [id, task] of activeReportCrons.entries()) {
+        try {
+            task.stop();
+        } catch (e) {
+            console.error(`Failed to stop cron task ${id}:`, e);
+        }
+    }
+    activeReportCrons.clear();
+
+    let subs: ReportSubscription[] = [];
+    try {
+        subs = getAllReportSubscriptions();
+    } catch (err: any) {
+        console.error("Failed to load report subscriptions from database:", err.message);
+        return;
+    }
+
+    for (const sub of subs) {
+        try {
+            if (!cron.validate(sub.cron_expression)) {
+                console.warn(`⚠️ Invalid cron expression for subscription ID ${sub.id}: '${sub.cron_expression}'`);
+                continue;
+            }
+
+            const task = cron.schedule(sub.cron_expression, async () => {
+                console.log(`⏰ Executing scheduled report ID ${sub.id} (type: ${sub.report_type}) for user ${sub.user_id}`);
+                if (sub.report_type === "summary") {
+                    await sendSummaryReport(sub.user_id, sub.days);
+                }
+            }, {
+                timezone: tz
+            });
+
+            activeReportCrons.set(sub.id, task);
+        } catch (err: any) {
+            console.error(`Failed to schedule report subscription ID ${sub.id}:`, err.message);
+        }
+    }
+
+    console.log(`✅ Loaded and scheduled ${activeReportCrons.size} report subscriptions.`);
+}
+
+
 function startStorageAlertCron() {
     const tz = getTimezone();
     console.log(`⏰ Starting daily storage alert cron with timezone: ${tz}`);
@@ -1171,6 +1323,11 @@ bot.api.getMe().then(async (me) => {
     // Start the cron scheduler
     startWeeklySummaryCron();
     startStorageAlertCron();
+    reloadReportSubscriptions();
+
+    registerSubscriptionChangedCallback(() => {
+        reloadReportSubscriptions();
+    });
 
     const restartNotifyChatId = Number(getMetadata("restart_notify_chat_id"));
     if (Number.isFinite(restartNotifyChatId) && restartNotifyChatId > 0) {
