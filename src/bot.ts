@@ -1376,22 +1376,25 @@ bot.api.getMe().then(async (me) => {
             const latestRelease = await getLatestChangelogRelease();
             const lastSentVersion = getMetadata("last_sent_changelog_version") || "";
 
-            if (isNewerVersion(latestRelease.version, lastSentVersion)) {
-                // Update metadata first to prevent duplicate startup runs from sending the same changelog
-                setMetadata("last_sent_changelog_version", latestRelease.version);
-
+             if (isNewerVersion(latestRelease.version, lastSentVersion)) {
                 const startupTitle = "🔄 Bot startup changelog";
                 const startupText = `${startupTitle}\n${buildReleaseChangelogText(latestRelease)}`;
 
+                let sentSuccessfully = false;
                 for (const adminId of adminIds) {
                     try {
                         const chunks = splitTelegramMessage(startupText);
                         for (const chunk of chunks) {
                             await bot.api.sendMessage(adminId, chunk);
                         }
+                        sentSuccessfully = true;
                     } catch (err) {
                         console.error(`Failed to send startup message to ${adminId}:`, err);
                     }
+                }
+
+                if (sentSuccessfully) {
+                    setMetadata("last_sent_changelog_version", latestRelease.version);
                 }
             }
         } catch (err: any) {

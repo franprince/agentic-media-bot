@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.40.1] - 2026-07-06
+
+### Fixed
+- **Watchlist command error**: Resolved a `ReferenceError: db is not defined` exception by properly importing and calling `getLocalWatchlist` from the database module.
+- **Audio transcription file parts**: Changed the Vercel AI SDK `FilePart` key from `mediaType` to `mimeType` to match version `3.4.33` specifications, preventing Zod validation prompt format errors.
+- **Robust Multi-Provider Transcription**: Added support for OpenAI/Whisper-compatible transcription endpoints (`/v1/audio/transcriptions`) with automatic fallback to Gemini 1.5 Flash.
+- **Startup changelog delivery robustness**: Postponed updating the database version key until after messages are successfully sent to Telegram to ensure notifications are not dropped on crash/restart.
+- **Service Deployment restarts**: Updated the deployment script to prompt for restarts of both `agentic-media-bot` and `agentic-media-proxy` services.
+
 ## [4.40.0] - 2026-07-05
 
 ### Added
