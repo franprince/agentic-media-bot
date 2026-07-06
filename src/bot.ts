@@ -1396,10 +1396,12 @@ bot.api.getMe().then(async (me) => {
                 const failedIds: string[] = [];
                 for (const adminId of adminIds) {
                     try {
+                        console.log(`📢 Sending changelog v${latestRelease.version} to admin ${adminId}...`);
                         const chunks = splitTelegramMessage(startupText);
                         for (const chunk of chunks) {
                             await bot.api.sendMessage(adminId, chunk);
                         }
+                        console.log(`✅ Changelog sent to admin ${adminId}.`);
                         // Successfully delivered — remove from failed set if it was there
                         previouslyFailedIds.delete(adminId);
                     } catch (err) {
@@ -1412,11 +1414,13 @@ bot.api.getMe().then(async (me) => {
                 const anySucceeded = failedIds.length < adminIds.length;
                 if (anySucceeded) {
                     setMetadata("last_sent_changelog_version", latestRelease.version);
+                    console.log(`📝 Changelog version committed to DB: ${latestRelease.version}`);
                 }
 
                 // Store IDs that still need delivery so next startup can retry them.
                 if (failedIds.length > 0) {
                     setMetadata("changelog_failed_admin_ids", failedIds.join(","));
+                    console.warn(`⚠️ Changelog delivery failed for admin IDs: ${failedIds.join(", ")}. Will retry on next startup.`);
                 } else {
                     setMetadata("changelog_failed_admin_ids", "");
                 }
