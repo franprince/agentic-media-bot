@@ -27,7 +27,6 @@ echo "🚀 Running post-push deploy..."
     EXIT_CODE=$?
 
     if [ $EXIT_CODE -eq 0 ]; then
-        systemctl --user restart agentic-media-bot agentic-media-proxy >> "$LOG_FILE" 2>&1
         echo "✅ Deploy + service restart completed at $(date)" >> "$LOG_FILE"
     else
         echo "❌ Deploy script failed (exit $EXIT_CODE) at $(date)" >> "$LOG_FILE"
