@@ -242,6 +242,35 @@ export async function verifyConfig(exitOnFailure: boolean = true) {
                 return `Success: TMDB reachable — found ${results.length > 0 ? results[0].title : "results"}.`;
             }
         },
+        {
+            name: "Audio Transcription Provider",
+            fn: async () => {
+                const explicitUrl = process.env.TRANSCRIPTION_URL;
+                const model = process.env.TRANSCRIPTION_MODEL || "whisper-1";
+
+                if (explicitUrl) {
+                    return `Success: Explicit TRANSCRIPTION_URL configured (${explicitUrl}, model: ${model}).`;
+                }
+
+                if (process.env.AI_PROVIDER === "ollama") {
+                    const base = process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434";
+                    return `Success: Using Ollama-derived transcription endpoint (${base}/v1/audio/transcriptions, model: ${model}).`;
+                }
+
+                if (process.env.AI_PROVIDER === "openai") {
+                    const base = process.env.OPENAI_BASE_URL ?? "https://api.openai.com";
+                    return `Success: Using OpenAI-derived transcription endpoint (${base}/v1/audio/transcriptions, model: ${model}).`;
+                }
+
+                // Default: Gemini
+                const geminiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+                if (!geminiKey) {
+                    console.warn("⚠️  No transcription provider configured. Voice notes will fail unless GOOGLE_GENERATIVE_AI_API_KEY or TRANSCRIPTION_URL is set.");
+                    return "Warning: No transcription provider configured. Set GOOGLE_GENERATIVE_AI_API_KEY or TRANSCRIPTION_URL.";
+                }
+                return "Success: Using Google Gemini 1.5 Flash for audio transcription (default).";
+            }
+        },
     ];
 
     for (const check of checks) {

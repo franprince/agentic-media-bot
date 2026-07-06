@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.40.2] - 2026-07-06
+
+### Fixed
+- **Transcription audio filename extension**: The Whisper multipart upload now derives the file extension from the actual MIME type (e.g. `audio.mp3` for `audio/mpeg`, `audio.webm` for `audio/webm`) instead of always sending `audio.ogg`, preventing codec misdetection on strict servers.
+- **Explicit TRANSCRIPTION_URL failures now hard-fail**: When `TRANSCRIPTION_URL` is explicitly configured and the endpoint is unreachable or returns an error, the transcription now throws immediately instead of silently falling back to Gemini (which masked misconfigurations).
+- **Provider-aware transcription error hint**: The voice-note error handler no longer unconditionally tells users to set `GOOGLE_GENERATIVE_AI_API_KEY`; the Gemini-specific hint is now suppressed when a custom transcription provider (`TRANSCRIPTION_URL`, `AI_PROVIDER=ollama`, or `AI_PROVIDER=openai`) is configured.
+- **Per-admin changelog retry**: Failed startup changelog deliveries are now tracked per admin ID in `changelog_failed_admin_ids` metadata. On the next startup, still-failing admins are retried even if the version has already been committed, so no admin permanently misses a release notification.
+
+### Improved
+- **`transcription.ts` readability**: Extracted URL resolution into `resolveTranscriptionUrl()` and MIME-to-extension mapping into `mimeTypeToExtension()`, replacing the hard-to-read triple-chained ternary expression.
+- **`verify-config.ts` transcription check**: Added an "Audio Transcription Provider" verification step that reports which provider is active (`TRANSCRIPTION_URL`, Ollama, OpenAI, or Gemini) and warns when none is configured.
+- **Indentation**: Fixed a stray leading-space on the `isNewerVersion` block in `bot.ts`.
+
+### Tests
+- Added `src/services/__tests__/transcription.test.ts` with 9 tests covering: explicit Whisper success, correct filename extension for `audio/mpeg` and `audio/webm`, hard-fail on explicit-URL errors, silent Gemini fallback for derived Ollama URLs, default Gemini path, and the no-provider error.
+
 ## [4.40.1] - 2026-07-06
 
 ### Fixed

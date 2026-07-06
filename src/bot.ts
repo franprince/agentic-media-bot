@@ -918,7 +918,12 @@ bot.on("message:voice", async (ctx) => {
     } catch (error: any) {
         console.error("Failed to transcribe voice note:", error);
         let msg = error.message || "Unknown error";
-        if (msg.toLowerCase().includes("api key") || msg.toLowerCase().includes("apikey")) {
+        // Only surface a Gemini-specific hint when no custom transcription endpoint is configured
+        // and the error is clearly about an API key, to avoid misleading Whisper users.
+        const usingCustomTranscription = !!process.env.TRANSCRIPTION_URL
+            || process.env.AI_PROVIDER === "ollama"
+            || process.env.AI_PROVIDER === "openai";
+        if (!usingCustomTranscription && (msg.toLowerCase().includes("api key") || msg.toLowerCase().includes("apikey"))) {
             msg = "API key not valid. Please ensure GOOGLE_GENERATIVE_AI_API_KEY is configured with a valid Gemini API key in your .env.local file.";
         }
         await ctx.api.editMessageText(
@@ -1376,25 +1381,66 @@ bot.api.getMe().then(async (me) => {
             const latestRelease = await getLatestChangelogRelease();
             const lastSentVersion = getMetadata("last_sent_changelog_version") || "";
 
-             if (isNewerVersion(latestRelease.version, lastSentVersion)) {
+            if (isNewerVersion(latestRelease.version, lastSentVersion)) {
                 const startupTitle = "🔄 Bot startup changelog";
                 const startupText = `${startupTitle}\n${buildReleaseChangelogText(latestRelease)}`;
 
-                let sentSuccessfully = false;
+                // Retrieve any admin IDs that failed in a previous startup attempt
+                // so we can retry them even if the version was already committed.
+                const previouslyFailedIds = new Set(
+                    (getMetadata("changelog_failed_admin_ids") || "")
+                        .split(",")
+                        .filter(Boolean)
+                );
+
+                const failedIds: string[] = [];
                 for (const adminId of adminIds) {
                     try {
                         const chunks = splitTelegramMessage(startupText);
                         for (const chunk of chunks) {
                             await bot.api.sendMessage(adminId, chunk);
                         }
-                        sentSuccessfully = true;
+                        // Successfully delivered — remove from failed set if it was there
+                        previouslyFailedIds.delete(adminId);
                     } catch (err) {
                         console.error(`Failed to send startup message to ${adminId}:`, err);
+                        failedIds.push(adminId);
                     }
                 }
 
-                if (sentSuccessfully) {
+                // Persist the version only after at least one admin received the message.
+                const anySucceeded = failedIds.length < adminIds.length;
+                if (anySucceeded) {
                     setMetadata("last_sent_changelog_version", latestRelease.version);
+                }
+
+                // Store IDs that still need delivery so next startup can retry them.
+                if (failedIds.length > 0) {
+                    setMetadata("changelog_failed_admin_ids", failedIds.join(","));
+                } else {
+                    setMetadata("changelog_failed_admin_ids", "");
+                }
+            } else {
+                // Even if the version hasn't changed, retry previously failed admins.
+                const pendingIds = (getMetadata("changelog_failed_admin_ids") || "")
+                    .split(",")
+                    .filter(Boolean);
+
+                if (pendingIds.length > 0) {
+                    const latestText = `🔄 Bot startup changelog (retry)\n${buildReleaseChangelogText(latestRelease)}`;
+                    const stillFailing: string[] = [];
+                    for (const adminId of pendingIds) {
+                        try {
+                            const chunks = splitTelegramMessage(latestText);
+                            for (const chunk of chunks) {
+                                await bot.api.sendMessage(adminId, chunk);
+                            }
+                        } catch (err) {
+                            console.error(`Retry: Failed to send startup message to ${adminId}:`, err);
+                            stillFailing.push(adminId);
+                        }
+                    }
+                    setMetadata("changelog_failed_admin_ids", stillFailing.join(","));
                 }
             }
         } catch (err: any) {
