@@ -18,6 +18,7 @@
 - `src/setup.ts`: Standalone interactive CLI tool for initial configuration and dependency installation.
 - `src/agent/index.ts`: LLM abstraction. Handles message history, conditional model loading, and iterative tool execution.
 - `src/services/`: Modular wrappers for Radarr, Sonarr, qBittorrent, Plex, and NZBGet APIs.
+- `src/services/transcription.ts`: Audio transcription abstraction. Resolves the active provider via `resolveTranscriptionUrl()` (explicit `TRANSCRIPTION_URL` > Ollama-derived > OpenAI-derived > null/Gemini). Derives the file extension from the MIME type via `mimeTypeToExtension()` to correctly label the Whisper multipart upload. Explicit URL failures hard-fail; auto-derived failures silently fall back to Gemini.
 - `src/agent/tools.ts`: Unified tool repository for AI integration.
 - `src/services/database.ts`: Persistence layer using `bun:sqlite` for conversation history and user personalization (names). The database is stored in `data/bot_data.sqlite` to facilitate persistence via Docker volumes.
 - `src/services/webhooks.ts`: Webhook handler for external service integration (e.g., Plex).
@@ -104,8 +105,10 @@
 - Startup catch-up can be skipped once after admin-triggered restart via metadata flag.
 - Changelog data in `src/bot.ts` is maintained as semantic-versioned release entries, and startup notifications send the latest release once per version upgrade.
 - Admin startup changelog notifications are chunked below Telegram's 4096-character message limit before sending.
+- **Per-admin delivery retry**: Failed admin IDs are stored in the `changelog_failed_admin_ids` metadata key. On every subsequent startup, still-pending admins are retried (even if the current version is already committed) until all deliveries succeed.
 - **Verification Logic:**
     - On every run, the bot executing `src/verify-config.ts` (or equivalent) to audit its environment against `TECHNICAL_SPEC.md` and `FUNCTIONAL_SPEC.md`.
+    - **Audio Transcription Provider check**: Reports which provider is active (`TRANSCRIPTION_URL`, Ollama, OpenAI, or Gemini) and warns if none is configured.
     - **Deployment:** The bot MUST be restarted after any functional or technical update to apply changes and trigger the startup audit/changelog notification.
 
 ## Onboarding & Configuration

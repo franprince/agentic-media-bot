@@ -87,8 +87,20 @@ A conversational Telegram bot that controls a user's home media server stack, ca
 
 9. **Update Notifications & Changelogs**
    - Changelog entries are organized as semantic-versioned releases (e.g., `1.4.2`, `1.5.0`, `2.0.0`).
-    - On bot startup, administrators receive the latest release changelog message once per version upgrade.
+   - On bot startup, administrators receive the latest release changelog message once per version upgrade.
    - Long changelog notifications are split into Telegram-safe chunks to avoid message length errors.
+   - If a notification fails for a specific admin ID, the delivery is retried on every subsequent startup until it succeeds.
+
+10. **Voice Note Transcription**
+    - The bot intercepts Telegram voice messages (`message:voice`) and automatically transcribes them using the configured AI provider.
+    - The transcription result is shown inline (in italics) and then processed by the conversational agent as if the user had typed it.
+    - If the audio contains no detectable speech, the user receives a friendly message instead of an empty reply.
+    - **Provider selection** (priority order):
+        1. `TRANSCRIPTION_URL` — explicit Whisper-compatible endpoint. Failures are surfaced immediately (hard-fail).
+        2. Ollama-derived endpoint (`AI_PROVIDER=ollama`) — uses `OLLAMA_BASE_URL/v1/audio/transcriptions`. Failures silently fall back to Gemini.
+        3. OpenAI-derived endpoint (`AI_PROVIDER=openai`) — uses `OPENAI_BASE_URL/v1/audio/transcriptions`. Failures silently fall back to Gemini.
+        4. Google Gemini 1.5 Flash (default/fallback).
+    - **Error messaging**: API key errors are only attributed to Gemini when no custom transcription provider is active, to avoid misleading users with alternative setups.
 
 8. **LLM Personality & I18n**
     - The bot is helpful, concise, and confirms massive actions.
