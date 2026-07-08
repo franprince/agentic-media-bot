@@ -577,6 +577,11 @@ bot.command("plex", async (ctx) => {
         const eventType = args[1];
         const state = args[2];
         
+        if (!eventType) {
+            await ctx.reply("Usage: `/plex alerts <play|resume|scrobble|library> <on|off>`", { parse_mode: "Markdown" });
+            return;
+        }
+        
         // Map shorthand names to actual Plex webhook events
         const eventMapping: Record<string, string> = {
             play: "media.play",
@@ -587,7 +592,7 @@ bot.command("plex", async (ctx) => {
         
         const actualEvent = eventMapping[eventType] || eventType;
 
-        if (eventType && (actualEvent === "media.play" || actualEvent === "media.resume" || actualEvent === "media.scrobble" || actualEvent === "library.new") && (state === "on" || state === "off")) {
+        if ((actualEvent === "media.play" || actualEvent === "media.resume" || actualEvent === "media.scrobble" || actualEvent === "library.new") && (state === "on" || state === "off")) {
             const enabled = state === "on";
             setEventAlertConfig("plex", actualEvent, enabled);
             await ctx.reply(`✅ Plex *${eventType}* alerts turned *${state}*.`, { parse_mode: "Markdown" });

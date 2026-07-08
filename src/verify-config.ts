@@ -239,7 +239,7 @@ export async function verifyConfig(exitOnFailure: boolean = true) {
                 }
                 const tmdb = await import("./services/tmdb");
                 const results = await tmdb.discoverMedia("comedy movies 2025", 1);
-                return `Success: TMDB reachable — found ${results.length > 0 ? results[0].title : "results"}.`;
+                return `Success: TMDB reachable — found ${results.length > 0 ? results[0]?.title : "results"}.`;
             }
         },
         {
