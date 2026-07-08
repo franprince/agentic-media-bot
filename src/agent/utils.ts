@@ -110,3 +110,112 @@ export function buildLanguageRewritePrompt(target: StatusLanguage): string {
         "Do not add or remove items; only change language.",
     ].join(" ");
 }
+
+export function convertMarkdownTablesToLists(text: string): string {
+    const lines = text.split("\n");
+    const resultLines: string[] = [];
+    let i = 0;
+
+    while (i < lines.length) {
+        const line = lines[i];
+        if (line === undefined) break;
+
+        // Detect start of a table
+        if (line.trim().startsWith("|") && line.trim().endsWith("|")) {
+            const tableLines: string[] = [];
+            while (i < lines.length) {
+                const currentLine = lines[i];
+                if (currentLine && currentLine.trim().startsWith("|") && currentLine.trim().endsWith("|")) {
+                    tableLines.push(currentLine.trim());
+                    i++;
+                } else {
+                    break;
+                }
+            }
+
+            // Process the collected table lines
+            const processedTable = parseAndFormatTable(tableLines);
+            resultLines.push(processedTable);
+        } else {
+            resultLines.push(line);
+            i++;
+        }
+    }
+
+    return resultLines.join("\n");
+}
+
+function parseAndFormatTable(lines: string[]): string {
+    if (lines.length < 2) return lines.join("\n"); // Not a valid table
+
+    const getCells = (row: string) => {
+        const parts = row.split("|");
+        return parts.slice(1, parts.length - 1).map(c => c.trim());
+    };
+
+    const headerCells = getCells(lines[0] || "");
+    
+    let startIndex = 1;
+    if (lines[1] && (lines[1].includes("---") || lines[1].includes("-:-"))) {
+        startIndex = 2;
+    }
+
+    const rows: string[] = [];
+    for (let idx = startIndex; idx < lines.length; idx++) {
+        const rowLine = lines[idx];
+        if (!rowLine) continue;
+        const cells = getCells(rowLine);
+        if (cells.length === 0 || cells.every(c => c === "")) continue;
+
+        const getColumnVal = (possibleNames: string[], defaultIndex: number) => {
+            const colIndex = headerCells.findIndex(h => 
+                possibleNames.some(name => h.toLowerCase().includes(name.toLowerCase()))
+            );
+            if (colIndex !== -1) return cells[colIndex] || "";
+            
+            const otherMatchedIndex = headerCells.findIndex(h =>
+                ["title", "movie", "película", "show", "series", "nombre", "título", "year", "año", "fecha", "genre", "genres", "género", "géneros", "rating", "calificación", "voto"].some(name => h.toLowerCase().includes(name))
+            );
+            if (otherMatchedIndex !== -1) {
+                return "";
+            }
+            return cells[defaultIndex] || "";
+        };
+
+        const num = getColumnVal(["#", "num", "id"], 0);
+        const title = getColumnVal(["title", "movie", "película", "show", "series", "nombre", "título"], 1);
+        const year = getColumnVal(["year", "año", "fecha"], 2);
+        const genres = getColumnVal(["genre", "genres", "género", "géneros"], 3);
+        const rating = getColumnVal(["rating", "calificación", "voto"], 4);
+
+        let rowText = "";
+        if (num) {
+            rowText += `${num}. `;
+        } else {
+            rowText += `- `;
+        }
+
+        rowText += `**${title}**`;
+
+        if (year) {
+            rowText += ` (${year})`;
+        }
+
+        const details: string[] = [];
+        if (genres) {
+            details.push(genres);
+        }
+        if (rating) {
+            const ratingStr = rating.includes("⭐") ? rating : `⭐ ${rating}`;
+            details.push(ratingStr);
+        }
+
+        if (details.length > 0) {
+            rowText += ` • ${details.join(" • ")}`;
+        }
+
+        rows.push(rowText);
+    }
+
+    return rows.join("\n");
+}

@@ -15,7 +15,8 @@ import {
     buildToolArgsRepairPrompt,
     normalizeToolCallsForLogging,
     shouldRewriteForTargetLanguage,
-    buildLanguageRewritePrompt
+    buildLanguageRewritePrompt,
+    convertMarkdownTablesToLists
 } from "./utils";
 
 /**
@@ -366,6 +367,8 @@ export async function processUserMessage(
                 console.warn("Language rewrite step failed; returning original text.", rewriteError);
             }
         }
+
+        text = convertMarkdownTablesToLists(text);
 
         console.log(`🤖 Bot Response to ${userId}: `, text);
         if (imageUrl) console.log(`🖼️ Attached Poster: `, imageUrl);
