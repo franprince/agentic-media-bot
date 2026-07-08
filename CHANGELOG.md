@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.40.5] - 2026-07-08
+
+### Fixed
+- **Type error in `bot.ts`**: Resolved TypeScript compilation error `Cannot find namespace 'cron'` by importing `ScheduledTask` as a type directly from `node-cron` instead of trying to reference it on the default-imported `cron` value/namespace.
+
 ## [4.40.4] - 2026-07-08
 
 ### Fixed

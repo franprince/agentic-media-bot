@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { processUserMessage } from "./agent/index.ts";
 import { detectStatusLanguage } from "./agent/status.ts";
 import { getMetadata, setMetadata, deleteMetadata, getAllConversations, getUserName, setUserName, areNotificationsEnabled, setNotificationsEnabled, getRecentMediaEvents, setEventAlertConfig, getTimezone, formatEventTimestamp, getAllReportSubscriptions, type ReportSubscription, getLocalWatchlist } from "./services/database.ts";
-import cron from "node-cron";
+import cron, { type ScheduledTask } from "node-cron";
 import { registerSubscriptionChangedCallback } from "./services/scheduler";
 
 import { verifyConfig } from "./verify-config";
@@ -1121,7 +1121,7 @@ function startWeeklySummaryCron() {
     });
 }
 
-const activeReportCrons = new Map<number, cron.ScheduledTask>();
+const activeReportCrons = new Map<number, ScheduledTask>();
 
 export async function sendSummaryReport(userId: number, days: number = 7) {
     const sinceDate = new Date();
