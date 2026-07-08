@@ -180,13 +180,13 @@ function setupConflictHandling() {
         const error = err.error;
         const msg = err.message;
         if ((error instanceof GrammyError && error.error_code === 409) || (msg && msg.includes("409"))) {
-            console.error("⛔ [409 Conflict] Another bot instance is polling. This instance will exit to resolve the conflict.");
             const activeId = getMetadata("active_instance_id");
             if (activeId !== INSTANCE_ID) {
-                console.error(`Status: current ID ${INSTANCE_ID} does not match lock owner ${activeId}. Exit.`);
+                console.error(`⛔ [409 Conflict] Another bot instance is polling and we do not own the lock (current ID ${INSTANCE_ID} !== lock owner ${activeId}). Exiting to resolve the conflict.`);
                 process.exit(1);
             }
-            process.exit(1);
+            console.warn(`⚠️ [409 Conflict] Grammy reported conflict, but we (${INSTANCE_ID}) own the database lock. Retrying polling...`);
+            return;
         }
         console.error("Error in bot:", err);
     });

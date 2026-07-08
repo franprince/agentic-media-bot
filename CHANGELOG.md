@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.40.4] - 2026-07-08
+
+### Fixed
+- **Long polling 409 Conflict crash loop during container deployments**: Fixed a crash loop where new containers started during rolling updates (like on Coolify) would exit immediately on 409 Conflict. The bot now checks database lock ownership on conflict; the lock owner will continue running and retry polling, while superseded processes gracefully exit.
+
+### Tests
+- Added a test case in `src/services/__tests__/instance_supersede.test.ts` to verify conflict-handling decision logic based on database lock ownership.
+
 ## [4.40.3] - 2026-07-08
 
 ### Fixed

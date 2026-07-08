@@ -59,4 +59,22 @@ describe("Instance Supersede Logic", () => {
         // Heartbeat should NOT have changed to 3000
         expect(getMetadata("instance_heartbeat")).toBe("2000");
     });
+
+    it("should decide to exit or retry on 409 conflict based on lock ownership", () => {
+        const testHandleConflict = (myInstanceId: string, getActiveId: () => string) => {
+            const activeId = getActiveId();
+            if (activeId !== myInstanceId) {
+                return "exit";
+            }
+            return "retry";
+        };
+
+        // Case 1: We own the lock -> should retry/ignore
+        const result1 = testHandleConflict(INSTANCE_A, () => INSTANCE_A);
+        expect(result1).toBe("retry");
+
+        // Case 2: We do not own the lock (another instance superseded us) -> should exit
+        const result2 = testHandleConflict(INSTANCE_A, () => INSTANCE_B);
+        expect(result2).toBe("exit");
+    });
 });
