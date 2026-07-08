@@ -137,14 +137,22 @@ function acquireInstanceLock(): boolean {
         return true;
     }
 
+    // Check if the heartbeat is stale (allow 30 seconds) or in the future
+    const isHeartbeatStale = (now - heartbeat > 30000);
+    const isHeartbeatInFuture = (heartbeat - now > 300000);
+
     // If the PID in the database matches our current PID, it means the previous
     // instance used this same PID slot (common in containers where the bot is PID 1).
-    // Since we are running now, that previous instance is definitely gone.
-    if (pid === process.pid) {
-        console.warn(`⚠️ [${INSTANCE_ID}] Previous instance used the same PID (${pid}). Taking over lock.`);
-        setMetadata("active_instance_id", INSTANCE_ID);
-        setMetadata("instance_heartbeat", String(now));
-        return true;
+    // If it's a different random ID, we are in a different container/process namespace,
+    // so we must ONLY override if the heartbeat is stale.
+    if (pid === process.pid && activeId !== INSTANCE_ID) {
+        if (isHeartbeatStale || isHeartbeatInFuture) {
+            console.warn(`⚠️ [${INSTANCE_ID}] Previous instance used the same PID (${pid}) but its heartbeat is stale. Taking over lock.`);
+            setMetadata("active_instance_id", INSTANCE_ID);
+            setMetadata("instance_heartbeat", String(now));
+            return true;
+        }
+        return false;
     }
 
     // If the process is not running at all, we can safely take over
@@ -155,11 +163,6 @@ function acquireInstanceLock(): boolean {
         setMetadata("instance_heartbeat", String(now));
         return true;
     }
-
-    // If process is running, check heartbeat.
-    // Allow 2 minutes of staleness (120000ms)
-    const isHeartbeatStale = (now - heartbeat > 120000);
-    const isHeartbeatInFuture = (heartbeat - now > 300000);
 
     if (isHeartbeatStale || isHeartbeatInFuture) {
         console.warn(`⚠️ [${INSTANCE_ID}] Instance PID ${pid} is running but heartbeat is ${isHeartbeatInFuture ? 'in the future' : 'stale'}. Overriding lock.`);
@@ -202,7 +205,7 @@ function startHeartbeat() {
         }
 
         setMetadata("instance_heartbeat", String(Date.now()));
-    }, 30000); // Every 30 seconds
+    }, 10000); // Every 10 seconds
 }
 
 // Graceful shutdown handlers
@@ -1284,20 +1287,7 @@ try {
     // Ignore pgrep failures
 }
 
-// Instance locking MUST happen before starting any servers to prevent 409 conflicts
-// and ensure only one service instance is active.
-if (!acquireInstanceLock()) {
-    const activePid = getMetadata("active_instance_pid");
-    console.error(`❌ [${INSTANCE_ID}] Another instance (PID ${activePid}) is already active. Exiting to prevent 409 Conflict.`);
-    // Wait a bit to avoid rapid restart loops in some environments
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    process.exit(1);
-}
-startHeartbeat();
-setupSignalHandlers();
-setupConflictHandling();
-
-// Initialize HTTP Server for Healthchecks and Webhooks
+// Initialize HTTP Server for Healthchecks and Webhooks immediately on startup
 Bun.serve({
     port: Number(process.env.WEBHOOK_PORT) || 3000,
     async fetch(req) {
@@ -1331,156 +1321,177 @@ Bun.serve({
 
 console.log(`📡 Health/Webhook server listening on port ${process.env.WEBHOOK_PORT || 3000}.`);
 
-bot.api.getMe().then(async (me) => {
-    console.log(`✅ Bot is online and listening as @${me.username}`);
-
-    // Start the cron scheduler
-    startWeeklySummaryCron();
-    startStorageAlertCron();
-    reloadReportSubscriptions();
-
-    registerSubscriptionChangedCallback(() => {
-        reloadReportSubscriptions();
-    });
-
-    const restartNotifyChatId = Number(getMetadata("restart_notify_chat_id"));
-    if (Number.isFinite(restartNotifyChatId) && restartNotifyChatId > 0) {
-        const restartNotifyLang = getMetadata("restart_notify_lang");
-        const message = restartNotifyLang === "es"
-            ? "✅ Volví a estar en línea."
-            : "✅ I am back online.";
-        try {
-            await bot.api.sendMessage(restartNotifyChatId, message);
-        } catch (error) {
-            console.error(`Failed to send restart notification to ${restartNotifyChatId}:`, error);
-        } finally {
-            setMetadata("restart_notify_chat_id", "");
-            setMetadata("restart_notify_lang", "");
+// Start background loop to acquire the instance lock before starting the bot runner
+async function startBotLifecycle() {
+    let hasLock = false;
+    while (!hasLock) {
+        if (acquireInstanceLock()) {
+            hasLock = true;
+            break;
         }
+        const activePid = getMetadata("active_instance_pid");
+        const activeId = getMetadata("active_instance_id");
+        console.log(`⏳ [${INSTANCE_ID}] Another instance (PID ${activePid}, ID ${activeId}) is active. Waiting to acquire lock...`);
+        await new Promise(resolve => setTimeout(resolve, 10000)); // check every 10 seconds
     }
 
-    // Initial health check
-    console.log("📡 performing initial service health check...");
-    let results = await checkAllServices();
+    console.log(`✅ [${INSTANCE_ID}] Instance lock acquired! Starting bot lifecycle.`);
+    startHeartbeat();
+    setupSignalHandlers();
+    setupConflictHandling();
 
-    // If Sonarr is down, try to restart it (only on startup)
-    const sonarrStatus = results.find(s => s.service === "Sonarr");
-    if (sonarrStatus && !sonarrStatus.online) {
-        console.warn("⚠️ Sonarr is offline at startup. Attempting auto-restart...");
-        await sonarr.restartSonarrService();
-        // Wait a bit for it to start up before checking again
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        results = await checkAllServices();
-    }
+    bot.api.getMe().then(async (me) => {
+        console.log(`✅ Bot is online and listening as @${me.username}`);
 
-    results.forEach(s => {
-        const icon = s.online ? "✅" : "❌";
-        console.log(`${icon} ${s.service}: ${s.message}`);
-    });
+        // Start the cron scheduler
+        startWeeklySummaryCron();
+        startStorageAlertCron();
+        reloadReportSubscriptions();
 
-    // Changelog / Restart notification logic
-    const adminIds = process.env.ALLOWED_USER_IDS?.split(",") || [];
+        registerSubscriptionChangedCallback(() => {
+            reloadReportSubscriptions();
+        });
 
-    if (adminIds.length > 0) {
-        try {
-            const latestRelease = await getLatestChangelogRelease();
-            const lastSentVersion = getMetadata("last_sent_changelog_version") || "";
+        const restartNotifyChatId = Number(getMetadata("restart_notify_chat_id"));
+        if (Number.isFinite(restartNotifyChatId) && restartNotifyChatId > 0) {
+            const restartNotifyLang = getMetadata("restart_notify_lang");
+            const message = restartNotifyLang === "es"
+                ? "✅ Volví a estar en línea."
+                : "✅ I am back online.";
+            try {
+                await bot.api.sendMessage(restartNotifyChatId, message);
+            } catch (error) {
+                console.error(`Failed to send restart notification to ${restartNotifyChatId}:`, error);
+            } finally {
+                setMetadata("restart_notify_chat_id", "");
+                setMetadata("restart_notify_lang", "");
+            }
+        }
 
-            if (isNewerVersion(latestRelease.version, lastSentVersion)) {
-                const startupTitle = "🔄 Bot startup changelog";
-                const startupText = `${startupTitle}\n${buildReleaseChangelogText(latestRelease)}`;
+        // Initial health check
+        console.log("📡 performing initial service health check...");
+        let results = await checkAllServices();
 
-                // Retrieve any admin IDs that failed in a previous startup attempt
-                // so we can retry them even if the version was already committed.
-                const previouslyFailedIds = new Set(
-                    (getMetadata("changelog_failed_admin_ids") || "")
-                        .split(",")
-                        .filter(Boolean)
-                );
+        // If Sonarr is down, try to restart it (only on startup)
+        const sonarrStatus = results.find(s => s.service === "Sonarr");
+        if (sonarrStatus && !sonarrStatus.online) {
+            console.warn("⚠️ Sonarr is offline at startup. Attempting auto-restart...");
+            await sonarr.restartSonarrService();
+            // Wait a bit for it to start up before checking again
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            results = await checkAllServices();
+        }
 
-                const failedIds: string[] = [];
-                for (const adminId of adminIds) {
-                    try {
-                        console.log(`📢 Sending changelog v${latestRelease.version} to admin ${adminId}...`);
-                        const chunks = splitTelegramMessage(startupText);
-                        for (const chunk of chunks) {
-                            await bot.api.sendMessage(adminId, chunk);
-                        }
-                        console.log(`✅ Changelog sent to admin ${adminId}.`);
-                        // Successfully delivered — remove from failed set if it was there
-                        previouslyFailedIds.delete(adminId);
-                    } catch (err) {
-                        console.error(`Failed to send startup message to ${adminId}:`, err);
-                        failedIds.push(adminId);
-                    }
-                }
+        results.forEach(s => {
+            const icon = s.online ? "✅" : "❌";
+            console.log(`${icon} ${s.service}: ${s.message}`);
+        });
 
-                // Persist the version only after at least one admin received the message.
-                const anySucceeded = failedIds.length < adminIds.length;
-                if (anySucceeded) {
-                    setMetadata("last_sent_changelog_version", latestRelease.version);
-                    console.log(`📝 Changelog version committed to DB: ${latestRelease.version}`);
-                }
+        // Changelog / Restart notification logic
+        const adminIds = process.env.ALLOWED_USER_IDS?.split(",") || [];
 
-                // Store IDs that still need delivery so next startup can retry them.
-                if (failedIds.length > 0) {
-                    setMetadata("changelog_failed_admin_ids", failedIds.join(","));
-                    console.warn(`⚠️ Changelog delivery failed for admin IDs: ${failedIds.join(", ")}. Will retry on next startup.`);
-                } else {
-                    setMetadata("changelog_failed_admin_ids", "");
-                }
-            } else {
-                // Even if the version hasn't changed, retry previously failed admins.
-                const pendingIds = (getMetadata("changelog_failed_admin_ids") || "")
-                    .split(",")
-                    .filter(Boolean);
+        if (adminIds.length > 0) {
+            try {
+                const latestRelease = await getLatestChangelogRelease();
+                const lastSentVersion = getMetadata("last_sent_changelog_version") || "";
 
-                if (pendingIds.length > 0) {
-                    const latestText = `🔄 Bot startup changelog (retry)\n${buildReleaseChangelogText(latestRelease)}`;
-                    const stillFailing: string[] = [];
-                    for (const adminId of pendingIds) {
+                if (isNewerVersion(latestRelease.version, lastSentVersion)) {
+                    const startupTitle = "🔄 Bot startup changelog";
+                    const startupText = `${startupTitle}\n${buildReleaseChangelogText(latestRelease)}`;
+
+                    // Retrieve any admin IDs that failed in a previous startup attempt
+                    // so we can retry them even if the version was already committed.
+                    const previouslyFailedIds = new Set(
+                        (getMetadata("changelog_failed_admin_ids") || "")
+                            .split(",")
+                            .filter(Boolean)
+                    );
+
+                    const failedIds: string[] = [];
+                    for (const adminId of adminIds) {
                         try {
-                            const chunks = splitTelegramMessage(latestText);
+                            console.log(`📢 Sending changelog v${latestRelease.version} to admin ${adminId}...`);
+                            const chunks = splitTelegramMessage(startupText);
                             for (const chunk of chunks) {
                                 await bot.api.sendMessage(adminId, chunk);
                             }
+                            console.log(`✅ Changelog sent to admin ${adminId}.`);
+                            // Successfully delivered — remove from failed set if it was there
+                            previouslyFailedIds.delete(adminId);
                         } catch (err) {
-                            console.error(`Retry: Failed to send startup message to ${adminId}:`, err);
-                            stillFailing.push(adminId);
+                            console.error(`Failed to send startup message to ${adminId}:`, err);
+                            failedIds.push(adminId);
                         }
                     }
-                    setMetadata("changelog_failed_admin_ids", stillFailing.join(","));
+
+                    // Persist the version only after at least one admin received the message.
+                    const anySucceeded = failedIds.length < adminIds.length;
+                    if (anySucceeded) {
+                        setMetadata("last_sent_changelog_version", latestRelease.version);
+                        console.log(`📝 Changelog version committed to DB: ${latestRelease.version}`);
+                    }
+
+                    // Store IDs that still need delivery so next startup can retry them.
+                    if (failedIds.length > 0) {
+                        setMetadata("changelog_failed_admin_ids", failedIds.join(","));
+                        console.warn(`⚠️ Changelog delivery failed for admin IDs: ${failedIds.join(", ")}. Will retry on next startup.`);
+                    } else {
+                        setMetadata("changelog_failed_admin_ids", "");
+                    }
+                } else {
+                    // Even if the version hasn't changed, retry previously failed admins.
+                    const pendingIds = (getMetadata("changelog_failed_admin_ids") || "")
+                        .split(",")
+                        .filter(Boolean);
+
+                    if (pendingIds.length > 0) {
+                        const latestText = `🔄 Bot startup changelog (retry)\n${buildReleaseChangelogText(latestRelease)}`;
+                        const stillFailing: string[] = [];
+                        for (const adminId of pendingIds) {
+                            try {
+                                const chunks = splitTelegramMessage(latestText);
+                                for (const chunk of chunks) {
+                                    await bot.api.sendMessage(adminId, chunk);
+                                }
+                            } catch (err) {
+                                console.error(`Retry: Failed to send startup message to ${adminId}:`, err);
+                                stillFailing.push(adminId);
+                            }
+                        }
+                        setMetadata("changelog_failed_admin_ids", stillFailing.join(","));
+                    }
                 }
+            } catch (err: any) {
+                console.warn(`⚠️ Could not process changelog for startup notification: ${err.message}`);
             }
-        } catch (err: any) {
-            console.warn(`⚠️ Could not process changelog for startup notification: ${err.message}`);
         }
-    }
 
-    // Catch-up logic for unreplied messages
-    // Sync watchlist on startup
-    try {
-        console.log("🔄 Synchronizing watchlist from Plex...");
-        const syncResult = await plex.syncWatchlist();
-        console.log(`✅ Watchlist synchronized: added ${syncResult.added}, removed ${syncResult.removed}`);
-    } catch (err: any) {
-        console.warn(`⚠️ Watchlist synchronization failed on startup: ${err.message}`);
-    }
+        // Catch-up logic for unreplied messages
+        // Sync watchlist on startup
+        try {
+            console.log("🔄 Synchronizing watchlist from Plex...");
+            const syncResult = await plex.syncWatchlist();
+            console.log(`✅ Watchlist synchronized: added ${syncResult.added}, removed ${syncResult.removed}`);
+        } catch (err: any) {
+            console.warn(`⚠️ Watchlist synchronization failed on startup: ${err.message}`);
+        }
 
-    const skipCatchupOnce = getMetadata("skip_catchup_once") === "1";
-    if (skipCatchupOnce) {
-        setMetadata("skip_catchup_once", "0");
-        console.log("⏭️ Skipping catch-up once after admin restart.");
-    } else {
-        console.log("📥 Checking for unreplied messages...");
-        await syncUnrepliedMessages();
-    }
+        const skipCatchupOnce = getMetadata("skip_catchup_once") === "1";
+        if (skipCatchupOnce) {
+            setMetadata("skip_catchup_once", "0");
+            console.log("⏭️ Skipping catch-up once after admin restart.");
+        } else {
+            console.log("📥 Checking for unreplied messages...");
+            await syncUnrepliedMessages();
+        }
 
+        // Use grammyjs/runner to handle graceful restarts and long-polling concurrently
+        botRunner = run(bot);
+        console.log("🚀 Bot is ready and polling.");
+    });
+}
 
-    // Use grammyjs/runner to handle graceful restarts and long-polling concurrently
-    botRunner = run(bot);
-    console.log("🚀 Bot is ready and polling.");
-});
+startBotLifecycle();
 
 async function syncUnrepliedMessages() {
     const conversations = getAllConversations();

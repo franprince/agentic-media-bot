@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Type error in `bot.ts`**: Resolved TypeScript compilation error `Type 'undefined' cannot be used as an index type` on line 588 when indexing Plex webhook events. Added an early exit check if the `eventType` argument is undefined, which narrows its type and prevents potential runtime errors.
+- **Rolling deployment 409 Conflict loop**: Resolved a persistent `409 Conflict` crash loop during container deployments (like Coolify/Docker where process PID is always `1`). Postponed the startup of the Telegram bot runner until the instance lock is fully acquired, while starting the HTTP server immediately to allow health checks to pass. Re-implemented lock acquisition to rely on heartbeat staleness if the process PID matches.
 
 ## [4.40.5] - 2026-07-08
 
