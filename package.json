@@ -1,6 +1,6 @@
 {
   "name": "agentic-media-bot",
-  "version": "4.40.6",
+  "version": "4.40.7",
   "module": "index.ts",
   "type": "module",
   "private": true,
