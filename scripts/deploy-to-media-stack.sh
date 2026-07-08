@@ -41,6 +41,6 @@ rm -rf "$TARGET_DIR/proxy-ui/dist"
 cp -r "$REPO_DIR/proxy-ui/dist" "$TARGET_DIR/proxy-ui/dist"
 
 echo "✅ Build and deployment complete!"
-echo "🔄 Restarting services..."
-systemctl --user restart agentic-media-bot agentic-media-proxy
-echo "✅ Services restarted."
+echo "🔄 Restarting proxy service..."
+systemctl --user restart agentic-media-proxy
+echo "✅ Proxy service restarted."
