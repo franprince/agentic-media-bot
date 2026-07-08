@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.40.3] - 2026-07-08
+
+### Fixed
+- **Proactive notification callback routing**: Updated the system prompt to use structured callback data formats (`notify_download_confirm_<mediaType>_<mediaId>` and `notify_download_decline`) for proactive notification buttons. This prevents the LLM from getting confused when handling button clicks and resolves the `notify_<title>` unknown command error.
+
+### Tests
+- Added an E2E test case in `src/agent/__tests__/agent_loop.test.ts` verifying that clicking the "Yes, notify me!" button successfully invokes the `subscribeToDownload` tool with the correct parameters retrieved from history.
+
 ## [4.40.2] - 2026-07-06
 
 ### Fixed

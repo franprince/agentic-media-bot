@@ -2,10 +2,12 @@ import { describe, expect, it, mock, beforeEach } from "bun:test";
 import { processUserMessage } from "../index";
 
 // Mock database
+let mockHistoryVal: any[] = [];
 mock.module("../../services/database.ts", () => ({
-    getHistory: () => [],
-    saveHistory: () => { },
+    getHistory: () => mockHistoryVal,
+    saveHistory: (userId: number, history: any[]) => { mockHistoryVal = history; },
     getUserName: () => "Fran",
+    savePendingNotification: () => { },
 }));
 
 // Mock plex normalization
@@ -22,6 +24,7 @@ mock.module("ai", () => ({
 describe("Agent E2E - Origin Search & Language", () => {
     beforeEach(() => {
         mockGenerateText.mockClear();
+        mockHistoryVal = [];
         process.env.AI_PROVIDER = "google";
         process.env.AI_MODEL_FAST = "fast-model";
         process.env.AI_MODEL_CAPABLE = "capable-model";
@@ -108,4 +111,76 @@ describe("Agent E2E - Origin Search & Language", () => {
 
         expect(result.text).toBe("Yes, you have Japanese series.");
     });
+
+    it("should handle notify_download_confirm callback message by calling subscribeToDownload tool", async () => {
+        const userId = 12345;
+        mockHistoryVal = [
+            {
+                role: "assistant",
+                content: [
+                    {
+                        type: "text",
+                        text: '🎉 "Elle" (2026) has been added to Sonarr. Would you like me to notify you once it\'s finished downloading?'
+                    }
+                ]
+            }
+        ];
+
+        mockGenerateText.mockResolvedValueOnce({
+            text: "Calling subscribeToDownload...",
+            toolCalls: [
+                {
+                    toolName: "subscribeToDownload",
+                    toolCallId: "call_sub_1",
+                    args: {
+                        userId: 12345,
+                        mediaType: "series",
+                        mediaId: 413380,
+                        title: "Elle"
+                    }
+                }
+            ],
+            toolResults: [
+                {
+                    toolName: "subscribeToDownload",
+                    toolCallId: "call_sub_1",
+                    result: {
+                        success: true,
+                        message: "Perfect! I'll send you a Telegram message as soon as 'Elle' finishes downloading. 📡🎬"
+                    }
+                }
+            ],
+            response: {
+                messages: [
+                    { role: "assistant", content: [{ type: "text", text: "..." }] },
+                    {
+                        role: "tool", content: [{
+                            type: "tool-result", toolName: "subscribeToDownload", result: {
+                                success: true,
+                                message: "Perfect! I'll send you a Telegram message as soon as 'Elle' finishes downloading. 📡🎬"
+                            }
+                        }]
+                    }
+                ]
+            }
+        });
+
+        mockGenerateText.mockResolvedValueOnce({
+            text: "Perfect! I'll send you a Telegram message as soon as 'Elle' finishes downloading. 📡🎬",
+            toolResults: [],
+            response: {
+                messages: [
+                    {
+                        role: "assistant",
+                        content: [{ type: "text", text: "Perfect! I'll send you a Telegram message as soon as 'Elle' finishes downloading. 📡🎬" }]
+                    }
+                ]
+            }
+        });
+
+        const result = await processUserMessage(userId, "notify_download_confirm_series_413380");
+
+        expect(result.text).toContain("Perfect! I'll send you a Telegram message as soon as 'Elle' finishes downloading.");
+    });
 });
+
