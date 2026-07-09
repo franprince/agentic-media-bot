@@ -167,26 +167,44 @@ function parseAndFormatTable(lines: string[]): string {
         const cells = getCells(rowLine);
         if (cells.length === 0 || cells.every(c => c === "")) continue;
 
+        const numNames = ["#", "num", "id", "no.", "position", "posición"];
+        const titleNames = ["title", "movie", "película", "show", "series", "serie", "nombre", "título", "name", "tv", "programa"];
+        const yearNames = ["year", "año", "fecha", "date"];
+        const genresNames = ["genre", "genres", "género", "géneros", "categoría", "categorías", "tags"];
+        const ratingNames = ["rating", "calificación", "voto", "score", "⭐"];
+
+        const allColumns = [
+            { name: "num", patterns: numNames },
+            { name: "title", patterns: titleNames },
+            { name: "year", patterns: yearNames },
+            { name: "genres", patterns: genresNames },
+            { name: "rating", patterns: ratingNames }
+        ];
+
         const getColumnVal = (possibleNames: string[], defaultIndex: number) => {
             const colIndex = headerCells.findIndex(h => 
                 possibleNames.some(name => h.toLowerCase().includes(name.toLowerCase()))
             );
             if (colIndex !== -1) return cells[colIndex] || "";
-            
-            const otherMatchedIndex = headerCells.findIndex(h =>
-                ["title", "movie", "película", "show", "series", "nombre", "título", "year", "año", "fecha", "genre", "genres", "género", "géneros", "rating", "calificación", "voto"].some(name => h.toLowerCase().includes(name))
-            );
-            if (otherMatchedIndex !== -1) {
-                return "";
+
+            const defaultHeader = headerCells[defaultIndex]?.toLowerCase();
+            if (defaultHeader) {
+                const isClaimedByOthers = allColumns.some(col => {
+                    const matchesOurs = possibleNames.some(p => col.patterns.includes(p));
+                    if (matchesOurs) return false;
+                    return col.patterns.some(p => defaultHeader.includes(p));
+                });
+                if (isClaimedByOthers) return "";
             }
+
             return cells[defaultIndex] || "";
         };
 
-        const num = getColumnVal(["#", "num", "id"], 0);
-        const title = getColumnVal(["title", "movie", "película", "show", "series", "nombre", "título"], 1);
-        const year = getColumnVal(["year", "año", "fecha"], 2);
-        const genres = getColumnVal(["genre", "genres", "género", "géneros"], 3);
-        const rating = getColumnVal(["rating", "calificación", "voto"], 4);
+        const num = getColumnVal(numNames, 0);
+        const title = getColumnVal(titleNames, 1);
+        const year = getColumnVal(yearNames, 2);
+        const genres = getColumnVal(genresNames, 3);
+        const rating = getColumnVal(ratingNames, 4);
 
         let rowText = "";
         if (num) {

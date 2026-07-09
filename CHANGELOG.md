@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.40.9] - 2026-07-08
+
+### Fixed
+- **Markdown table title columns matching**: Optimized the table converter utility `convertMarkdownTablesToLists` to include singular TV show terms (like `Serie` or `Show`) in the search patterns. Improved standard column claiming logic to prevent fallback default index overrides from clearing titles when standard headers are present.
+
 ## [4.40.8] - 2026-07-08
 
 ### Fixed

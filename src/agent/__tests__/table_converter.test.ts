@@ -46,4 +46,22 @@ describe("convertMarkdownTablesToLists", () => {
 
         expect(convertMarkdownTablesToLists(input)).toBe(expected);
     });
+
+    it("should handle TV show tables with singular 'Serie' column header", () => {
+        const input = [
+            "¡Series de comedia recomendadas!",
+            "",
+            "| # | Serie | Año | Géneros | ⭐ Rating |",
+            "|---|---|---|---|---|",
+            "| 1 | La oficina | 2026 | Comedia | 9.3 |"
+        ].join("\n");
+
+        const expected = [
+            "¡Series de comedia recomendadas!",
+            "",
+            "1. **La oficina** (2026) • Comedia • ⭐ 9.3"
+        ].join("\n");
+
+        expect(convertMarkdownTablesToLists(input)).toBe(expected);
+    });
 });
