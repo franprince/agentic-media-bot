@@ -997,27 +997,36 @@ bot.on("callback_query:data", async (ctx) => {
 async function sendPhotoSmart(ctx: any, userId: number | string, imageUrl: string | undefined, options: any) {
     if (!imageUrl) return;
 
-    const isLocal = imageUrl.includes("localhost") || imageUrl.includes("127.0.0.1");
+    let finalUrl = imageUrl;
+    if (imageUrl.startsWith("/")) {
+        const isSonarr = imageUrl.includes("sonarr") || imageUrl.includes("MediaCoverProxy");
+        const baseUrl = isSonarr 
+            ? (process.env.SONARR_URL || "http://localhost:8989")
+            : (process.env.RADARR_URL || "http://localhost:7878");
+        finalUrl = baseUrl.replace(/\/$/, "") + imageUrl;
+    }
+
+    const isLocal = finalUrl.includes("localhost") || finalUrl.includes("127.0.0.1");
 
     if (isLocal) {
         try {
-            const response = await fetch(imageUrl);
+            const response = await fetch(finalUrl);
             if (response.ok) {
                 const buffer = await response.arrayBuffer();
                 // Extract original filename or use default
-                const urlPart = imageUrl.split("?")[0]?.split("/").pop() ?? "";
+                const urlPart = finalUrl.split("?")[0]?.split("/").pop() ?? "";
                 const extension = urlPart.includes(".") ? (urlPart.split(".").pop() ?? "jpg") : "jpg";
                 const filename = `thumb.${extension}`;
 
                 return await ctx.api.sendPhoto(userId, new InputFile(Buffer.from(buffer), filename), options);
             }
         } catch (err) {
-            console.warn(`⚠️ Failed to fetch local image: ${imageUrl}. Falling back to remote or text.`, (err as Error).message);
+            console.warn(`⚠️ Failed to fetch local image: ${finalUrl}. Falling back to remote or text.`, (err as Error).message);
         }
     }
 
     // Default: Send as URL
-    return await ctx.api.sendPhoto(userId, imageUrl, options);
+    return await ctx.api.sendPhoto(userId, finalUrl, options);
 }
 
 /**

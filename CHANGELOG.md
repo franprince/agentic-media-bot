@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.41.0] - 2026-07-08
+
+### Added
+- **Programmatic Poster Fallback**: Implemented a self-healing fallback mechanism in `processUserMessage` that automatically extracts the poster URL directly from tool results (e.g. `searchSeries`, `searchMovie`, `discoverMedia`) if the LLM forgets or fails to generate the `POSTER: <url>` line.
+- **Relative Poster URLs Resolution**: Updated `sendPhotoSmart` to detect relative cover URLs (starting with `/`) from Radarr or Sonarr local caches and automatically resolve them to absolute localhost or local-IP URLs before fetching.
+
 ## [4.40.9] - 2026-07-08
 
 ### Fixed

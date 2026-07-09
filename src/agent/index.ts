@@ -329,11 +329,38 @@ export async function processUserMessage(
             }
         }
 
-        // Extract poster URL if present (using a more robust regex to skip over model-added fluff)
-        const posterMatch = text.match(/POSTER:.*?(https?:\/\/\S+)/i);
+        // Extract poster URL if present (matching both remote https and local/relative paths)
+        const posterMatch = text.match(/POSTER:\s*(\S+)/i);
         if (posterMatch) {
             imageUrl = posterMatch[1];
-            text = text.replace(/POSTER:.*?(https?:\/\/\S+)/i, "").trim();
+            text = text.replace(/POSTER:\s*(\S+)/i, "").trim();
+        }
+
+        if (!imageUrl) {
+            // Fallback: Programmatically search for a poster URL in the tool results
+            for (const tr of toolResultsForCounts) {
+                if (!tr.result) continue;
+
+                if (tr.result.posterUrl && typeof tr.result.posterUrl === "string") {
+                    imageUrl = tr.result.posterUrl;
+                    break;
+                }
+
+                const items = Array.isArray(tr.result)
+                    ? tr.result
+                    : (Array.isArray(tr.result.suggestions) ? tr.result.suggestions : []);
+
+                if (items.length > 0) {
+                    const matchedItem = items.find((item: any) =>
+                        item.title && text.toLowerCase().includes(item.title.toLowerCase())
+                    ) || items[0];
+
+                    if (matchedItem && matchedItem.posterUrl && typeof matchedItem.posterUrl === "string") {
+                        imageUrl = matchedItem.posterUrl;
+                        break;
+                    }
+                }
+            }
         }
 
         // Extract interactive buttons if present
