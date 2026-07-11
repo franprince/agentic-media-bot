@@ -5,7 +5,7 @@ import { join } from "path";
 
 const DATA_DIR = "data";
 if (!existsSync(DATA_DIR)) {
-  mkdirSync(DATA_DIR, { recursive: true });
+	mkdirSync(DATA_DIR, { recursive: true });
 }
 
 const db = new Database(join(DATA_DIR, "bot_data.sqlite"), { create: true });
@@ -97,217 +97,248 @@ db.run(`
   )
 `);
 
-
 /**
  * Sanitize conversation history to prevent prototype pollution and injection attacks
  */
 function sanitizeConversationHistory(history: CoreMessage[]): CoreMessage[] {
-  const sanitized: CoreMessage[] = [];
-  
-  for (let i = 0; i < history.length; i++) {
-    const msg = history[i];
-    let sanitizedMsg = { ...msg };
-    
-    if (msg.role === 'user') {
-      if (typeof msg.content === 'string') {
-        sanitizedMsg.content = msg.content
-          .replace(/__proto__/g, '___proto___')
-          .replace(/constructor/g, 'constructor_')
-          .replace(/prototype/g, 'prototype_');
-      }
-    } else if (msg.role === 'assistant' && Array.isArray(msg.content)) {
-      sanitizedMsg.content = msg.content.map(part => {
-        if (part.type === 'tool-call') {
-          return {
-            ...part,
-            args: sanitizeToolArgs(part.args as Record<string, any>)
-          };
-        }
-        return part;
-      }) as any;
-    } else if (msg.role === 'tool' && Array.isArray(msg.content)) {
-      sanitizedMsg.content = msg.content.map(part => {
-        if (part.type === 'tool-result') {
-          let result = sanitizeToolResult(part.result as any);
-          if (Array.isArray(result) || typeof result !== 'object' || result === null) {
-            result = { result };
-          }
-          return {
-            ...part,
-            result
-          };
-        }
-        return part;
-      }) as any;
-    }
-    
-    // Merge consecutive user messages to maintain strict alternation
-    if (sanitizedMsg.role === 'user' && sanitized.length > 0 && sanitized[sanitized.length - 1].role === 'user') {
-      const lastMsg = sanitized[sanitized.length - 1];
-      if (typeof lastMsg.content === 'string' && typeof sanitizedMsg.content === 'string') {
-        lastMsg.content = `${lastMsg.content}\n${sanitizedMsg.content}`;
-        continue;
-      }
-    }
+	const sanitized: CoreMessage[] = [];
 
-    sanitized.push(sanitizedMsg);
-    
-    // If a tool message is followed by a user message, insert a dummy assistant message
-    // to preserve Gemini's strict alternating turn structure (User -> Model -> User -> Model).
-    if (msg.role === 'tool') {
-      const nextMsg = history[i + 1];
-      if (nextMsg && nextMsg.role === 'user') {
-        sanitized.push({
-          role: 'assistant',
-          content: 'I have processed the tool results.'
-        });
-      }
-    }
-  }
-  
-  return sanitized;
+	for (let i = 0; i < history.length; i++) {
+		const msg = history[i];
+		const sanitizedMsg = { ...msg };
+
+		if (msg.role === "user") {
+			if (typeof msg.content === "string") {
+				sanitizedMsg.content = msg.content
+					.replace(/__proto__/g, "___proto___")
+					.replace(/constructor/g, "constructor_")
+					.replace(/prototype/g, "prototype_");
+			}
+		} else if (msg.role === "assistant" && Array.isArray(msg.content)) {
+			sanitizedMsg.content = msg.content.map((part) => {
+				if (part.type === "tool-call") {
+					return {
+						...part,
+						args: sanitizeToolArgs(part.args as Record<string, any>),
+					};
+				}
+				return part;
+			}) as any;
+		} else if (msg.role === "tool" && Array.isArray(msg.content)) {
+			sanitizedMsg.content = msg.content.map((part) => {
+				if (part.type === "tool-result") {
+					let result = sanitizeToolResult(part.result as any);
+					if (
+						Array.isArray(result) ||
+						typeof result !== "object" ||
+						result === null
+					) {
+						result = { result };
+					}
+					return {
+						...part,
+						result,
+					};
+				}
+				return part;
+			}) as any;
+		}
+
+		// Merge consecutive user messages to maintain strict alternation
+		if (
+			sanitizedMsg.role === "user" &&
+			sanitized.length > 0 &&
+			sanitized[sanitized.length - 1].role === "user"
+		) {
+			const lastMsg = sanitized[sanitized.length - 1];
+			if (
+				typeof lastMsg.content === "string" &&
+				typeof sanitizedMsg.content === "string"
+			) {
+				lastMsg.content = `${lastMsg.content}\n${sanitizedMsg.content}`;
+				continue;
+			}
+		}
+
+		sanitized.push(sanitizedMsg);
+
+		// If a tool message is followed by a user message, insert a dummy assistant message
+		// to preserve Gemini's strict alternating turn structure (User -> Model -> User -> Model).
+		if (msg.role === "tool") {
+			const nextMsg = history[i + 1];
+			if (nextMsg && nextMsg.role === "user") {
+				sanitized.push({
+					role: "assistant",
+					content: "I have processed the tool results.",
+				});
+			}
+		}
+	}
+
+	return sanitized;
 }
 
 /**
  * Sanitize tool arguments to prevent injection
  */
 function sanitizeToolArgs(args: Record<string, any>): Record<string, any> {
-  const sanitized: Record<string, any> = {};
-  for (const [key, value] of Object.entries(args)) {
-    // Skip dangerous prototype properties
-    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
-      continue;
-    }
+	const sanitized: Record<string, any> = {};
+	for (const [key, value] of Object.entries(args)) {
+		// Skip dangerous prototype properties
+		if (key === "__proto__" || key === "constructor" || key === "prototype") {
+			continue;
+		}
 
-    if (typeof value === 'string') {
-      sanitized[key] = value
-        .replace(/__proto__/g, '___proto___')
-        .replace(/constructor/g, 'constructor_')
-        .replace(/prototype/g, 'prototype_');
-    } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-      sanitized[key] = sanitizeToolArgs(value);
-    } else {
-      sanitized[key] = value;
-    }
-  }
-  return sanitized;
+		if (typeof value === "string") {
+			sanitized[key] = value
+				.replace(/__proto__/g, "___proto___")
+				.replace(/constructor/g, "constructor_")
+				.replace(/prototype/g, "prototype_");
+		} else if (
+			typeof value === "object" &&
+			value !== null &&
+			!Array.isArray(value)
+		) {
+			sanitized[key] = sanitizeToolArgs(value);
+		} else {
+			sanitized[key] = value;
+		}
+	}
+	return sanitized;
 }
 
 /**
  * Sanitize tool results to prevent injection
  */
 function sanitizeToolResult(result: any): any {
-  if (typeof result !== 'object' || result === null) {
-    return result;
-  }
+	if (typeof result !== "object" || result === null) {
+		return result;
+	}
 
-  // For tool results, we'll just remove dangerous properties
-  // and keep the rest intact since they come from our own services
-  const sanitized = Array.isArray(result) ? [...result] : { ...result };
-  if (typeof sanitized === 'object' && sanitized !== null) {
-    delete (sanitized as any)['__proto__'];
-    delete (sanitized as any)['constructor'];
-    delete (sanitized as any)['prototype'];
-  }
+	// For tool results, we'll just remove dangerous properties
+	// and keep the rest intact since they come from our own services
+	const sanitized = Array.isArray(result) ? [...result] : { ...result };
+	if (typeof sanitized === "object" && sanitized !== null) {
+		delete (sanitized as any)["__proto__"];
+		delete (sanitized as any)["constructor"];
+		delete (sanitized as any)["prototype"];
+	}
 
-  return sanitized;
+	return sanitized;
 }
 
 export function getUserName(userId: number): string | null {
-  const row = db.query("SELECT name FROM users WHERE user_id = ?").get(userId) as { name: string } | null;
-  return row ? row.name : null;
+	const row = db
+		.query("SELECT name FROM users WHERE user_id = ?")
+		.get(userId) as { name: string } | null;
+	return row ? row.name : null;
 }
 
 export function setUserName(userId: number, name: string) {
-  db.run("INSERT OR REPLACE INTO users (user_id, name) VALUES (?, ?)", [userId, name]);
+	db.run("INSERT OR REPLACE INTO users (user_id, name) VALUES (?, ?)", [
+		userId,
+		name,
+	]);
 }
 
 export function getHistory(userId: number): CoreMessage[] {
-  const row = db.query("SELECT history FROM conversations WHERE user_id = ?").get(userId) as { history: string } | null;
-  if (row) {
-    try {
-      const parsed = JSON.parse(row.history);
-      return sanitizeConversationHistory(parsed);
-    } catch (e) {
-      console.error("Failed to parse history", e);
-      return [];
-    }
-  }
-  return [];
+	const row = db
+		.query("SELECT history FROM conversations WHERE user_id = ?")
+		.get(userId) as { history: string } | null;
+	if (row) {
+		try {
+			const parsed = JSON.parse(row.history);
+			return sanitizeConversationHistory(parsed);
+		} catch (e) {
+			console.error("Failed to parse history", e);
+			return [];
+		}
+	}
+	return [];
 }
 
 export function saveHistory(userId: number, history: CoreMessage[]) {
-  // Sanitize history before saving to prevent injection attacks
-  const sanitizedHistory = sanitizeConversationHistory(history);
-  db.run(
-    "INSERT OR REPLACE INTO conversations (user_id, history) VALUES (?, ?)",
-    [userId, JSON.stringify(sanitizedHistory)]
-  );
+	// Sanitize history before saving to prevent injection attacks
+	const sanitizedHistory = sanitizeConversationHistory(history);
+	db.run(
+		"INSERT OR REPLACE INTO conversations (user_id, history) VALUES (?, ?)",
+		[userId, JSON.stringify(sanitizedHistory)],
+	);
 }
 
 /**
  * Trim history to keep only the most recent messages.
  * This helps prevent the context from becoming too "sticky" or confusing the AI.
  */
-export function trimHistory(userId: number, maxMessages: number = 20): CoreMessage[] {
-  const history = getHistory(userId);
-  if (history.length <= maxMessages) return history;
+export function trimHistory(
+	userId: number,
+	maxMessages: number = 20,
+): CoreMessage[] {
+	const history = getHistory(userId);
+	if (history.length <= maxMessages) return history;
 
-  const trimmed = history.slice(-maxMessages);
-  saveHistory(userId, trimmed);
-  return trimmed;
+	const trimmed = history.slice(-maxMessages);
+	saveHistory(userId, trimmed);
+	return trimmed;
 }
 
 /**
  * Clear the conversation history for a user.
  */
 export function clearHistory(userId: number): void {
-  db.run("DELETE FROM conversations WHERE user_id = ?", [userId]);
+	db.run("DELETE FROM conversations WHERE user_id = ?", [userId]);
 }
 
 export function getMetadata(key: string): string | null {
-  const row = db.query("SELECT value FROM metadata WHERE key = ?").get(key) as { value: string } | null;
-  return row ? row.value : null;
+	const row = db.query("SELECT value FROM metadata WHERE key = ?").get(key) as {
+		value: string;
+	} | null;
+	return row ? row.value : null;
 }
 
 export function setMetadata(key: string, value: string) {
-  db.run("INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)", [key, value]);
+	db.run("INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)", [
+		key,
+		value,
+	]);
 }
 
 export function deleteMetadata(key: string) {
-  db.run("DELETE FROM metadata WHERE key = ?", [key]);
+	db.run("DELETE FROM metadata WHERE key = ?", [key]);
 }
 
 export function areNotificationsEnabled(): boolean {
-  const value = getMetadata("notifications_enabled");
-  return value !== "false"; // Default to true if not set
+	const value = getMetadata("notifications_enabled");
+	return value !== "false"; // Default to true if not set
 }
 
 export function setNotificationsEnabled(enabled: boolean) {
-  setMetadata("notifications_enabled", String(enabled));
+	setMetadata("notifications_enabled", String(enabled));
 }
 
 export function getRawTimezone(): string {
-  return getMetadata("timezone") || "UTC";
+	return getMetadata("timezone") || "UTC";
 }
 
 export function getTimezone(): string {
-  const tz = getRawTimezone();
+	const tz = getRawTimezone();
 
-  try {
-    Intl.DateTimeFormat(undefined, { timeZone: tz });
-    return tz;
-  } catch (e) {
-    // Only warn if it's actually invalid and not default
-    if (tz !== "UTC") {
-      console.warn(`Invalid timezone set in database: "${tz}". Internal features will fall back to UTC.`);
-    }
-    return "UTC";
-  }
+	try {
+		Intl.DateTimeFormat(undefined, { timeZone: tz });
+		return tz;
+	} catch (e) {
+		// Only warn if it's actually invalid and not default
+		if (tz !== "UTC") {
+			console.warn(
+				`Invalid timezone set in database: "${tz}". Internal features will fall back to UTC.`,
+			);
+		}
+		return "UTC";
+	}
 }
 
 export function setTimezone(tz: string) {
-  setMetadata("timezone", tz);
+	setMetadata("timezone", tz);
 }
 
 /**
@@ -316,187 +347,270 @@ export function setTimezone(tz: string) {
  * and new proper ISO-8601 format ("2026-07-03T19:00:00.000Z").
  */
 export function formatEventTimestamp(timestamp: string): string {
-  const normalised = timestamp.trim().replace(" ", "T").replace(/Z+$/, "") + "Z";
-  const date = new Date(normalised);
-  if (isNaN(date.getTime())) {
-    return timestamp; // Fallback: return raw string if parsing still fails
-  }
-  try {
-    const tz = getTimezone();
-    return date.toLocaleString("en-GB", { timeZone: tz, hour12: false }).replace(",", "");
-  } catch (err) {
-    return date.toLocaleString();
-  }
+	const normalised =
+		timestamp.trim().replace(" ", "T").replace(/Z+$/, "") + "Z";
+	const date = new Date(normalised);
+	if (isNaN(date.getTime())) {
+		return timestamp; // Fallback: return raw string if parsing still fails
+	}
+	try {
+		const tz = getTimezone();
+		return date
+			.toLocaleString("en-GB", { timeZone: tz, hour12: false })
+			.replace(",", "");
+	} catch (err) {
+		return date.toLocaleString();
+	}
 }
 
-
 export function getPlaybackState(sessionId: string): string | null {
-  const row = db.query("SELECT last_event FROM playback_sessions WHERE id = ?").get(sessionId) as { last_event: string } | null;
-  return row ? row.last_event : null;
+	const row = db
+		.query("SELECT last_event FROM playback_sessions WHERE id = ?")
+		.get(sessionId) as { last_event: string } | null;
+	return row ? row.last_event : null;
 }
 
 export function updatePlaybackState(sessionId: string, event: string) {
-  db.run(
-    "INSERT OR REPLACE INTO playback_sessions (id, last_event, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
-    [sessionId, event]
-  );
+	db.run(
+		"INSERT OR REPLACE INTO playback_sessions (id, last_event, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
+		[sessionId, event],
+	);
 }
 
-export function getAllConversations(): { userId: number, history: CoreMessage[] }[] {
-  const rows = db.query("SELECT user_id, history FROM conversations").all() as { user_id: number, history: string }[];
-  return rows.map(r => ({
-    userId: r.user_id,
-    history: JSON.parse(r.history)
-  }));
+export function getAllConversations(): {
+	userId: number;
+	history: CoreMessage[];
+}[] {
+	const rows = db.query("SELECT user_id, history FROM conversations").all() as {
+		user_id: number;
+		history: string;
+	}[];
+	return rows.map((r) => ({
+		userId: r.user_id,
+		history: JSON.parse(r.history),
+	}));
 }
 
 export interface MediaEvent {
-  id: string;
-  service: string;
-  event_type: string;
-  title: string;
-  message: string;
-  timestamp: string;
+	id: string;
+	service: string;
+	event_type: string;
+	title: string;
+	message: string;
+	timestamp: string;
 }
 
-export function saveMediaEvent(service: string, eventType: string, title: string, message: string): boolean {
-  // Use an IMMEDIATE transaction so the SELECT + INSERT is atomic.
-  // Without this, concurrent webhook deliveries (e.g. 3 Sonarr connections firing
-  // simultaneously) can all pass the duplicate check before any has written, causing
-  // multiple Telegram notifications for the same event.
-  let inserted = false;
-  db.transaction(() => {
-    const recentDuplicate = db.query(
-      `SELECT id FROM media_events
+export function saveMediaEvent(
+	service: string,
+	eventType: string,
+	title: string,
+	message: string,
+): boolean {
+	// Use an IMMEDIATE transaction so the SELECT + INSERT is atomic.
+	// Without this, concurrent webhook deliveries (e.g. 3 Sonarr connections firing
+	// simultaneously) can all pass the duplicate check before any has written, causing
+	// multiple Telegram notifications for the same event.
+	let inserted = false;
+	db.transaction(() => {
+		const recentDuplicate = db
+			.query(
+				`SELECT id FROM media_events
        WHERE service = ? AND event_type = ? AND title = ?
          AND timestamp >= datetime('now', '-60 seconds')
-       LIMIT 1`
-    ).get(service, eventType, title);
+       LIMIT 1`,
+			)
+			.get(service, eventType, title);
 
-    if (recentDuplicate) {
-      inserted = false;
-      return;
-    }
+		if (recentDuplicate) {
+			inserted = false;
+			return;
+		}
 
-    const id = crypto.randomUUID();
-    // Store as ISO-8601 with 'T' separator so JavaScript Date() can parse it reliably.
-    const isoNow = new Date().toISOString();
-    db.run(
-      "INSERT INTO media_events (id, service, event_type, title, message, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
-      [id, service, eventType, title, message, isoNow]
-    );
-    inserted = true;
-  }).immediate();
+		const id = crypto.randomUUID();
+		// Store as ISO-8601 with 'T' separator so JavaScript Date() can parse it reliably.
+		const isoNow = new Date().toISOString();
+		db.run(
+			"INSERT INTO media_events (id, service, event_type, title, message, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
+			[id, service, eventType, title, message, isoNow],
+		);
+		inserted = true;
+	}).immediate();
 
-  return inserted;
+	return inserted;
 }
 
-export function getRecentMediaEvents(service: string, limit: number = 10, sinceDate?: Date): MediaEvent[] {
-  if (sinceDate) {
-    const timeStr = sinceDate.toISOString().replace("T", " ").substring(0, 19);
-    return db.query("SELECT * FROM media_events WHERE service = ? AND timestamp >= ? ORDER BY timestamp DESC LIMIT ?").all(service, timeStr, limit) as MediaEvent[];
-  }
-  return db.query("SELECT * FROM media_events WHERE service = ? ORDER BY timestamp DESC LIMIT ?").all(service, limit) as MediaEvent[];
+export function getRecentMediaEvents(
+	service: string,
+	limit: number = 10,
+	sinceDate?: Date,
+): MediaEvent[] {
+	if (sinceDate) {
+		const timeStr = sinceDate.toISOString().replace("T", " ").substring(0, 19);
+		return db
+			.query(
+				"SELECT * FROM media_events WHERE service = ? AND timestamp >= ? ORDER BY timestamp DESC LIMIT ?",
+			)
+			.all(service, timeStr, limit) as MediaEvent[];
+	}
+	return db
+		.query(
+			"SELECT * FROM media_events WHERE service = ? ORDER BY timestamp DESC LIMIT ?",
+		)
+		.all(service, limit) as MediaEvent[];
 }
 
-export function getEventAlertConfig(service: string, eventType: string): boolean {
-  const row = db.query("SELECT enabled FROM alert_config WHERE service = ? AND event_type = ?").get(service, eventType) as { enabled: number } | null;
-  if (row) {
-    return row.enabled === 1;
-  }
-  return true; // Default to true if not set
+export function getEventAlertConfig(
+	service: string,
+	eventType: string,
+): boolean {
+	const row = db
+		.query(
+			"SELECT enabled FROM alert_config WHERE service = ? AND event_type = ?",
+		)
+		.get(service, eventType) as { enabled: number } | null;
+	if (row) {
+		return row.enabled === 1;
+	}
+	return true; // Default to true if not set
 }
 
-export function setEventAlertConfig(service: string, eventType: string, enabled: boolean) {
-  db.run(
-    "INSERT OR REPLACE INTO alert_config (service, event_type, enabled) VALUES (?, ?, ?)",
-    [service, eventType, enabled ? 1 : 0]
-  );
+export function setEventAlertConfig(
+	service: string,
+	eventType: string,
+	enabled: boolean,
+) {
+	db.run(
+		"INSERT OR REPLACE INTO alert_config (service, event_type, enabled) VALUES (?, ?, ?)",
+		[service, eventType, enabled ? 1 : 0],
+	);
 }
 
-export function savePendingNotification(userId: number, mediaType: 'movie' | 'series', mediaId: number, title: string) {
-  const id = crypto.randomUUID();
-  db.run(
-    "INSERT INTO pending_notifications (id, user_id, media_type, media_id, title) VALUES (?, ?, ?, ?, ?)",
-    [id, userId, mediaType, mediaId, title]
-  );
+export function savePendingNotification(
+	userId: number,
+	mediaType: "movie" | "series",
+	mediaId: number,
+	title: string,
+) {
+	const id = crypto.randomUUID();
+	db.run(
+		"INSERT INTO pending_notifications (id, user_id, media_type, media_id, title) VALUES (?, ?, ?, ?, ?)",
+		[id, userId, mediaType, mediaId, title],
+	);
 }
 
-export function getPendingNotifications(mediaType: 'movie' | 'series', mediaId: number): { user_id: number, title: string, id: string }[] {
-  return db.query("SELECT id, user_id, title FROM pending_notifications WHERE media_type = ? AND media_id = ? AND status = 'pending'").all(mediaType, mediaId) as { id: string, user_id: number, title: string }[];
+export function getPendingNotifications(
+	mediaType: "movie" | "series",
+	mediaId: number,
+): { user_id: number; title: string; id: string }[] {
+	return db
+		.query(
+			"SELECT id, user_id, title FROM pending_notifications WHERE media_type = ? AND media_id = ? AND status = 'pending'",
+		)
+		.all(mediaType, mediaId) as {
+		id: string;
+		user_id: number;
+		title: string;
+	}[];
 }
 
 export function markNotificationSent(id: string) {
-  db.run("UPDATE pending_notifications SET status = 'sent' WHERE id = ?", [id]);
+	db.run("UPDATE pending_notifications SET status = 'sent' WHERE id = ?", [id]);
 }
 
 export interface WatchlistItem {
-  id?: number;
-  title: string;
-  media_type: 'movie' | 'show';
-  rating_key?: string | null;
-  imdb_id?: string | null;
-  tmdb_id?: number | null;
-  tvdb_id?: number | null;
-  added_at?: string;
-  status: 'pending' | 'downloading' | 'completed';
+	id?: number;
+	title: string;
+	media_type: "movie" | "show";
+	rating_key?: string | null;
+	imdb_id?: string | null;
+	tmdb_id?: number | null;
+	tvdb_id?: number | null;
+	added_at?: string;
+	status: "pending" | "downloading" | "completed";
 }
 
-export function addToLocalWatchlist(item: Omit<WatchlistItem, 'added_at' | 'status'> & { status?: 'pending' | 'downloading' | 'completed' }): void {
-  db.run(
-    `INSERT OR REPLACE INTO watchlist (title, media_type, rating_key, imdb_id, tmdb_id, tvdb_id, status)
+export function addToLocalWatchlist(
+	item: Omit<WatchlistItem, "added_at" | "status"> & {
+		status?: "pending" | "downloading" | "completed";
+	},
+): void {
+	db.run(
+		`INSERT OR REPLACE INTO watchlist (title, media_type, rating_key, imdb_id, tmdb_id, tvdb_id, status)
      VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, 'pending'))`,
-    [item.title, item.media_type, item.rating_key || null, item.imdb_id || null, item.tmdb_id || null, item.tvdb_id || null, item.status || 'pending']
-  );
+		[
+			item.title,
+			item.media_type,
+			item.rating_key || null,
+			item.imdb_id || null,
+			item.tmdb_id || null,
+			item.tvdb_id || null,
+			item.status || "pending",
+		],
+	);
 }
 
 export function removeFromLocalWatchlist(ratingKeyOrTitle: string): void {
-  db.run(
-    "DELETE FROM watchlist WHERE rating_key = ? OR title = ?",
-    [ratingKeyOrTitle, ratingKeyOrTitle]
-  );
+	db.run("DELETE FROM watchlist WHERE rating_key = ? OR title = ?", [
+		ratingKeyOrTitle,
+		ratingKeyOrTitle,
+	]);
 }
 
 export function getLocalWatchlist(): WatchlistItem[] {
-  return db.query("SELECT * FROM watchlist ORDER BY added_at DESC").all() as WatchlistItem[];
+	return db
+		.query("SELECT * FROM watchlist ORDER BY added_at DESC")
+		.all() as WatchlistItem[];
 }
 
-export function updateLocalWatchlistStatus(ratingKeyOrId: string | number, status: 'pending' | 'downloading' | 'completed'): void {
-  db.run(
-    "UPDATE watchlist SET status = ? WHERE rating_key = ? OR id = ?",
-    [status, ratingKeyOrId.toString(), ratingKeyOrId]
-  );
+export function updateLocalWatchlistStatus(
+	ratingKeyOrId: string | number,
+	status: "pending" | "downloading" | "completed",
+): void {
+	db.run("UPDATE watchlist SET status = ? WHERE rating_key = ? OR id = ?", [
+		status,
+		ratingKeyOrId.toString(),
+		ratingKeyOrId,
+	]);
 }
 
 export interface ReportSubscription {
-  id: number;
-  user_id: number;
-  report_type: string;
-  cron_expression: string;
-  days: number;
-  created_at: string;
+	id: number;
+	user_id: number;
+	report_type: string;
+	cron_expression: string;
+	days: number;
+	created_at: string;
 }
 
-export function addReportSubscription(userId: number, reportType: string, cronExpression: string, days: number = 7): number {
-  db.run(
-    `INSERT INTO report_subscriptions (user_id, report_type, cron_expression, days)
-     VALUES (?, ?, ?, ?)` ,
-    [userId, reportType, cronExpression, days]
-  );
-  const row = db.query("SELECT last_insert_rowid() as id").get() as { id: number };
-  return row.id;
+export function addReportSubscription(
+	userId: number,
+	reportType: string,
+	cronExpression: string,
+	days: number = 7,
+): number {
+	db.run(
+		`INSERT INTO report_subscriptions (user_id, report_type, cron_expression, days)
+     VALUES (?, ?, ?, ?)`,
+		[userId, reportType, cronExpression, days],
+	);
+	const row = db.query("SELECT last_insert_rowid() as id").get() as {
+		id: number;
+	};
+	return row.id;
 }
 
 export function removeReportSubscription(id: number): void {
-  db.run("DELETE FROM report_subscriptions WHERE id = ?", [id]);
+	db.run("DELETE FROM report_subscriptions WHERE id = ?", [id]);
 }
 
 export function getReportSubscriptions(userId: number): ReportSubscription[] {
-  return db.query("SELECT * FROM report_subscriptions WHERE user_id = ?").all(userId) as ReportSubscription[];
+	return db
+		.query("SELECT * FROM report_subscriptions WHERE user_id = ?")
+		.all(userId) as ReportSubscription[];
 }
 
 export function getAllReportSubscriptions(): ReportSubscription[] {
-  return db.query("SELECT * FROM report_subscriptions").all() as ReportSubscription[];
+	return db
+		.query("SELECT * FROM report_subscriptions")
+		.all() as ReportSubscription[];
 }
-
-

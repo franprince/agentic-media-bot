@@ -1,591 +1,724 @@
-import type { PlexSearchResult, PlexContainer, PlexSession } from "../types/plex";
-import { fetchService } from "./api";
 import { executeOnProxy, isProxyEnabled } from "../agent/proxyClient";
-import { addToLocalWatchlist, getLocalWatchlist, removeFromLocalWatchlist } from "./database";
+import type {
+	PlexContainer,
+	PlexSearchResult,
+	PlexSession,
+} from "../types/plex";
+import { fetchService } from "./api";
+import {
+	addToLocalWatchlist,
+	getLocalWatchlist,
+	removeFromLocalWatchlist,
+} from "./database";
 
 const COUNTRY_NAME_MAP: Record<string, string> = {
-    // English demonyms/adjectives -> country names as used by Plex metadata
-    "japanese": "japan",
-    "french": "france",
-    "spanish": "spain",
-    "american": "united states",
-    "british": "united kingdom",
-    "korean": "south korea",
-    "chinese": "china",
-    "german": "germany",
-    "danish": "denmark",
-    "dutch": "netherlands",
-    "swedish": "sweden",
-    "norwegian": "norway",
-    "finnish": "finland",
-    "polish": "poland",
-    "turkish": "turkey",
-    "greek": "greece",
-    "portuguese": "portugal",
-    "italian": "italy",
-    "brazilian": "brazil",
-    "russian": "russia",
-    "mexican": "mexico",
-    "canadian": "canada",
-    "australian": "australia",
-    "indian": "india",
-    "argentine": "argentina",
-    "argentinian": "argentina",
-    // Spanish demonyms/adjectives -> country names
-    "japonés": "japan",
-    "japonesa": "japan",
-    "japones": "japan",
-    "francés": "france",
-    "francesa": "france",
-    "frances": "france",
-    "español": "spain",
-    "española": "spain",
-    "alemán": "germany",
-    "alemana": "germany",
-    "aleman": "germany",
-    "italiano": "italy",
-    "italiana": "italy",
-    "coreano": "south korea",
-    "coreana": "south korea",
-    "corea": "south korea",
-    "chino": "china",
-    "china": "china",
-    "británico": "united kingdom",
-    "británica": "united kingdom",
-    "britanico": "united kingdom",
-    "britanica": "united kingdom",
-    "americano": "united states",
-    "americana": "united states",
-    "argentino": "argentina",
-    // Spanish country nouns -> country names
-    "japón": "japan",
-    "francia": "france",
-    "españa": "spain",
-    "alemania": "germany",
-    "italia": "italy",
-    "reino unido": "united kingdom",
-    "estados unidos": "united states",
-    "brasil": "brazil",
-    "méxico": "mexico",
-    "rusia": "russia",
-    "india": "india",
-    "canadá": "canada",
+	// English demonyms/adjectives -> country names as used by Plex metadata
+	japanese: "japan",
+	french: "france",
+	spanish: "spain",
+	american: "united states",
+	british: "united kingdom",
+	korean: "south korea",
+	chinese: "china",
+	german: "germany",
+	danish: "denmark",
+	dutch: "netherlands",
+	swedish: "sweden",
+	norwegian: "norway",
+	finnish: "finland",
+	polish: "poland",
+	turkish: "turkey",
+	greek: "greece",
+	portuguese: "portugal",
+	italian: "italy",
+	brazilian: "brazil",
+	russian: "russia",
+	mexican: "mexico",
+	canadian: "canada",
+	australian: "australia",
+	indian: "india",
+	argentine: "argentina",
+	argentinian: "argentina",
+	// Spanish demonyms/adjectives -> country names
+	japonés: "japan",
+	japonesa: "japan",
+	japones: "japan",
+	francés: "france",
+	francesa: "france",
+	frances: "france",
+	español: "spain",
+	española: "spain",
+	alemán: "germany",
+	alemana: "germany",
+	aleman: "germany",
+	italiano: "italy",
+	italiana: "italy",
+	coreano: "south korea",
+	coreana: "south korea",
+	corea: "south korea",
+	chino: "china",
+	china: "china",
+	británico: "united kingdom",
+	británica: "united kingdom",
+	britanico: "united kingdom",
+	britanica: "united kingdom",
+	americano: "united states",
+	americana: "united states",
+	argentino: "argentina",
+	// Spanish country nouns -> country names
+	japón: "japan",
+	francia: "france",
+	españa: "spain",
+	alemania: "germany",
+	italia: "italy",
+	"reino unido": "united kingdom",
+	"estados unidos": "united states",
+	brasil: "brazil",
+	méxico: "mexico",
+	rusia: "russia",
+	india: "india",
+	canadá: "canada",
 };
 
 export function normalizeCountryName(input: string): string {
-    const normalized = input.toLowerCase().trim();
-    return COUNTRY_NAME_MAP[normalized] || normalized;
+	const normalized = input.toLowerCase().trim();
+	return COUNTRY_NAME_MAP[normalized] || normalized;
 }
 
 function extractCountryTags(metadata: any): string[] {
-    const countries = metadata?.Country;
-    if (!Array.isArray(countries)) return [];
-    return countries
-        .map((c: any) => c?.tag || c?.title)
-        .filter((value: any) => typeof value === "string" && value.trim().length > 0)
-        .map((value: string) => normalizeCountryName(value));
+	const countries = metadata?.Country;
+	if (!Array.isArray(countries)) return [];
+	return countries
+		.map((c: any) => c?.tag || c?.title)
+		.filter(
+			(value: any) => typeof value === "string" && value.trim().length > 0,
+		)
+		.map((value: string) => normalizeCountryName(value));
 }
 
 export async function getItemCountryTags(ratingKey: string): Promise<string[]> {
-    if (isProxyEnabled()) return executeOnProxy("plex", "getItemCountryTags", [ratingKey]);
-    const result = await fetchPlex<{ MediaContainer: PlexContainer }>(`/library/metadata/${ratingKey}`);
-    const item = result.MediaContainer?.Metadata?.[0];
-    return extractCountryTags(item);
+	if (isProxyEnabled())
+		return executeOnProxy("plex", "getItemCountryTags", [ratingKey]);
+	const result = await fetchPlex<{ MediaContainer: PlexContainer }>(
+		`/library/metadata/${ratingKey}`,
+	);
+	const item = result.MediaContainer?.Metadata?.[0];
+	return extractCountryTags(item);
 }
 
-export async function getItemMetadata(ratingKey: string): Promise<any | undefined> {
-    if (isProxyEnabled()) return executeOnProxy("plex", "getItemMetadata", [ratingKey]);
-    const result = await fetchPlex<{ MediaContainer: PlexContainer }>(`/library/metadata/${ratingKey}`);
-    return result.MediaContainer?.Metadata?.[0];
+export async function getItemMetadata(
+	ratingKey: string,
+): Promise<any | undefined> {
+	if (isProxyEnabled())
+		return executeOnProxy("plex", "getItemMetadata", [ratingKey]);
+	const result = await fetchPlex<{ MediaContainer: PlexContainer }>(
+		`/library/metadata/${ratingKey}`,
+	);
+	return result.MediaContainer?.Metadata?.[0];
 }
 
 async function mapWithConcurrency<T, R>(
-    items: T[],
-    limit: number,
-    iterator: (item: T) => Promise<R>
+	items: T[],
+	limit: number,
+	iterator: (item: T) => Promise<R>,
 ): Promise<R[]> {
-    const results: R[] = new Array(items.length);
-    let index = 0;
+	const results: R[] = new Array(items.length);
+	let index = 0;
 
-    async function worker() {
-        let current: number;
-        while ((current = index++) < items.length) {
-            const item = items[current];
-            if (item !== undefined) {
-                results[current] = await iterator(item);
-            }
-        }
-    }
+	async function worker() {
+		let current: number;
+		while ((current = index++) < items.length) {
+			const item = items[current];
+			if (item !== undefined) {
+				results[current] = await iterator(item);
+			}
+		}
+	}
 
-    const workers = Array.from({ length: Math.min(limit, items.length) }, () => worker());
-    await Promise.all(workers);
-    return results;
+	const workers = Array.from({ length: Math.min(limit, items.length) }, () =>
+		worker(),
+	);
+	await Promise.all(workers);
+	return results;
 }
 
 export async function filterItemsByCountryTag(
-    items: any[],
-    countryName: string,
-    options: { primaryOnly?: boolean } = {}
+	items: any[],
+	countryName: string,
+	options: { primaryOnly?: boolean } = {},
 ): Promise<any[]> {
-    const target = normalizeCountryName(countryName);
-    if (!target) return [];
-    if (items.length === 0) return [];
-    const primaryOnly = options.primaryOnly ?? true;
+	const target = normalizeCountryName(countryName);
+	if (!target) return [];
+	if (items.length === 0) return [];
+	const primaryOnly = options.primaryOnly ?? true;
 
-    const filteredFlags = await mapWithConcurrency(items, 5, async (item) => {
-        const ratingKey = item?.ratingKey;
-        if (!ratingKey) return false;
-        const tags = await getItemCountryTags(String(ratingKey));
-        if (tags.length === 0) return false;
-        if (!tags.includes(target)) return false;
-        if (!primaryOnly) return true;
-        return tags[0] === target;
-    });
+	const filteredFlags = await mapWithConcurrency(items, 5, async (item) => {
+		const ratingKey = item?.ratingKey;
+		if (!ratingKey) return false;
+		const tags = await getItemCountryTags(String(ratingKey));
+		if (tags.length === 0) return false;
+		if (!tags.includes(target)) return false;
+		if (!primaryOnly) return true;
+		return tags[0] === target;
+	});
 
-    // Filter out undefined values (truthy check: false, 0, "", null, undefined are falsy)
-    return items.filter((_item, idx) => filteredFlags[idx] ?? false);
+	// Filter out undefined values (truthy check: false, 0, "", null, undefined are falsy)
+	return items.filter((_item, idx) => filteredFlags[idx] ?? false);
 }
 
 export function getMovieSectionIds(): string[] {
-    return process.env.PLEX_MOVIE_SECTION_IDS?.split(",").map(s => s.trim()) || [];
+	return (
+		process.env.PLEX_MOVIE_SECTION_IDS?.split(",").map((s) => s.trim()) || []
+	);
 }
 
 export function getShowSectionIds(): string[] {
-    return process.env.PLEX_SHOW_SECTION_IDS?.split(",").map(s => s.trim()) || [];
+	return (
+		process.env.PLEX_SHOW_SECTION_IDS?.split(",").map((s) => s.trim()) || []
+	);
 }
 
 export async function getAllSectionIds(): Promise<string[]> {
-    const movieSectionIds = getMovieSectionIds();
-    const showSectionIds = getShowSectionIds();
+	const movieSectionIds = getMovieSectionIds();
+	const showSectionIds = getShowSectionIds();
 
-    if (movieSectionIds.length > 0 || showSectionIds.length > 0) {
-        return [...movieSectionIds, ...showSectionIds];
-    }
+	if (movieSectionIds.length > 0 || showSectionIds.length > 0) {
+		return [...movieSectionIds, ...showSectionIds];
+	}
 
-    const sections = await getLibrarySections();
-    return (sections.Directory as any[])
-        ?.filter(d => d.type === "movie" || d.type === "show")
-        .map(d => d.key) || [];
+	const sections = await getLibrarySections();
+	return (
+		(sections.Directory as any[])
+			?.filter((d) => d.type === "movie" || d.type === "show")
+			.map((d) => d.key) || []
+	);
 }
 
 /**
  * Helper to construct a full Plex URL for a thumbnail or art.
  */
 export function getPosterUrl(thumb: string | undefined): string | undefined {
-    if (!thumb) return undefined;
-    const PLEX_URL = process.env.PLEX_URL?.trim();
-    const PLEX_TOKEN = process.env.PLEX_TOKEN?.trim();
-    if (!PLEX_URL || !PLEX_TOKEN) return undefined;
+	if (!thumb) return undefined;
+	const PLEX_URL = process.env.PLEX_URL?.trim();
+	const PLEX_TOKEN = process.env.PLEX_TOKEN?.trim();
+	if (!PLEX_URL || !PLEX_TOKEN) return undefined;
 
-    return `${PLEX_URL}${thumb}?X-Plex-Token=${PLEX_TOKEN}`;
+	return `${PLEX_URL}${thumb}?X-Plex-Token=${PLEX_TOKEN}`;
 }
 
 /**
  * Helper to get a poster image as base64 data URL.
  * Returns a data URL that can be used directly in <img> tags or sent as a file.
  */
-export async function getPosterData(thumb: string | undefined): Promise<string | undefined> {
-    const url = getPosterUrl(thumb);
-    if (!url) return undefined;
+export async function getPosterData(
+	thumb: string | undefined,
+): Promise<string | undefined> {
+	const url = getPosterUrl(thumb);
+	if (!url) return undefined;
 
-    const response = await fetch(url);
+	const response = await fetch(url);
 
-    if (!response.ok) return undefined;
+	if (!response.ok) return undefined;
 
-    const arrayBuffer = await response.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString("base64");
-    const contentType = response.headers.get("content-type") || "image/jpeg";
+	const arrayBuffer = await response.arrayBuffer();
+	const base64 = Buffer.from(arrayBuffer).toString("base64");
+	const contentType = response.headers.get("content-type") || "image/jpeg";
 
-    return `data:${contentType};base64,${base64}`;
+	return `data:${contentType};base64,${base64}`;
 }
 
-
 async function fetchPlex<T>(endpoint: string, options: any = {}): Promise<T> {
-    const baseUrl = process.env.PLEX_URL?.trim() || "";
-    const apiKey = process.env.PLEX_TOKEN?.trim() || "";
+	const baseUrl = process.env.PLEX_URL?.trim() || "";
+	const apiKey = process.env.PLEX_TOKEN?.trim() || "";
 
-    return fetchService<T>(
-        baseUrl,
-        endpoint,
-        "X-Plex-Token",
-        apiKey,
-        {
-            ...options,
-            headers: {
-                "X-Plex-Client-Identifier": "agentic-media-bot",
-                "X-Plex-Product": "Agentic Media Bot",
-                "X-Plex-Version": "1.0.0",
-                ...options.headers,
-            },
-        }
-    );
+	return fetchService<T>(baseUrl, endpoint, "X-Plex-Token", apiKey, {
+		...options,
+		headers: {
+			"X-Plex-Client-Identifier": "agentic-media-bot",
+			"X-Plex-Product": "Agentic Media Bot",
+			"X-Plex-Version": "1.0.0",
+			...options.headers,
+		},
+	});
 }
 
 export async function searchPlex(query: string): Promise<PlexSearchResult> {
-    if (isProxyEnabled()) return executeOnProxy("plex", "searchPlex", [query]);
-    const result = await fetchPlex<{ MediaContainer: PlexSearchResult }>(`/search?query=${encodeURIComponent(query)}`);
-    return result.MediaContainer;
+	if (isProxyEnabled()) return executeOnProxy("plex", "searchPlex", [query]);
+	const result = await fetchPlex<{ MediaContainer: PlexSearchResult }>(
+		`/search?query=${encodeURIComponent(query)}`,
+	);
+	return result.MediaContainer;
 }
 
 export async function getRecentlyAdded(): Promise<PlexContainer> {
-    if (isProxyEnabled()) return executeOnProxy("plex", "getRecentlyAdded");
-    // /library/recentlyAdded
-    const result = await fetchPlex<{ MediaContainer: PlexContainer }>("/library/recentlyAdded");
-    return result.MediaContainer;
+	if (isProxyEnabled()) return executeOnProxy("plex", "getRecentlyAdded");
+	// /library/recentlyAdded
+	const result = await fetchPlex<{ MediaContainer: PlexContainer }>(
+		"/library/recentlyAdded",
+	);
+	return result.MediaContainer;
 }
 
 export async function getSystemStatus(): Promise<any> {
-    if (isProxyEnabled()) return executeOnProxy("plex", "getSystemStatus");
-    return fetchPlex<any>("/");
+	if (isProxyEnabled()) return executeOnProxy("plex", "getSystemStatus");
+	return fetchPlex<any>("/");
 }
 
 export async function getLibrarySections(): Promise<PlexContainer> {
-    if (isProxyEnabled()) return executeOnProxy("plex", "getLibrarySections");
-    const result = await fetchPlex<{ MediaContainer: PlexContainer }>("/library/sections");
-    return result.MediaContainer;
+	if (isProxyEnabled()) return executeOnProxy("plex", "getLibrarySections");
+	const result = await fetchPlex<{ MediaContainer: PlexContainer }>(
+		"/library/sections",
+	);
+	return result.MediaContainer;
 }
 
-function extractFilterValueFromTagKey(rawKey: unknown, filterParam: string): string {
-    if (typeof rawKey !== "string") return "";
-    const key = rawKey.trim();
-    if (!key) return "";
+function extractFilterValueFromTagKey(
+	rawKey: unknown,
+	filterParam: string,
+): string {
+	if (typeof rawKey !== "string") return "";
+	const key = rawKey.trim();
+	if (!key) return "";
 
-    // Some Plex tag keys are plain IDs (e.g. "42"), others are full paths
-    // like "/library/sections/1/all?country=42". We normalize both forms.
-    if (!key.includes("?")) return key;
+	// Some Plex tag keys are plain IDs (e.g. "42"), others are full paths
+	// like "/library/sections/1/all?country=42". We normalize both forms.
+	if (!key.includes("?")) return key;
 
-    try {
-        const parsed = new URL(key, "http://localhost");
-        const value = parsed.searchParams.get(filterParam);
-        return (value || key).trim();
-    } catch {
-        return key;
-    }
+	try {
+		const parsed = new URL(key, "http://localhost");
+		const value = parsed.searchParams.get(filterParam);
+		return (value || key).trim();
+	} catch {
+		return key;
+	}
 }
 
 function normalizeLibraryTagPath(rawKey: unknown): string | undefined {
-    if (typeof rawKey !== "string") return undefined;
-    const key = rawKey.trim();
-    if (!key.startsWith("/")) return undefined;
-    try {
-        const parsed = new URL(key, "http://localhost");
-        return `${parsed.pathname}${parsed.search}`;
-    } catch {
-        return key;
-    }
+	if (typeof rawKey !== "string") return undefined;
+	const key = rawKey.trim();
+	if (!key.startsWith("/")) return undefined;
+	try {
+		const parsed = new URL(key, "http://localhost");
+		return `${parsed.pathname}${parsed.search}`;
+	} catch {
+		return key;
+	}
 }
-export async function getItemsByGenre(sectionId: string, genreName: string): Promise<PlexContainer> {
-    if (isProxyEnabled()) return executeOnProxy("plex", "getItemsByGenre", [sectionId, genreName]);
-    const genres = await getLibraryGenres(sectionId);
-    const genre = genres.find((g: any) => g.title.toLowerCase() === genreName.toLowerCase());
+export async function getItemsByGenre(
+	sectionId: string,
+	genreName: string,
+): Promise<PlexContainer> {
+	if (isProxyEnabled())
+		return executeOnProxy("plex", "getItemsByGenre", [sectionId, genreName]);
+	const genres = await getLibraryGenres(sectionId);
+	const genre = genres.find(
+		(g: any) => g.title.toLowerCase() === genreName.toLowerCase(),
+	);
 
-    if (!genre) {
-        return { size: 0, identifier: "plex", mediaTagPrefix: "", mediaTagVersion: "", Metadata: [] };
-    }
+	if (!genre) {
+		return {
+			size: 0,
+			identifier: "plex",
+			mediaTagPrefix: "",
+			mediaTagVersion: "",
+			Metadata: [],
+		};
+	}
 
-    // Prefer Plex-provided tag path when available, as it may include required internal params.
-    const directTagPath = normalizeLibraryTagPath(genre.key);
-    if (directTagPath) {
-        const result = await fetchPlex<{ MediaContainer: PlexContainer }>(directTagPath);
-        return result.MediaContainer;
-    }
+	// Prefer Plex-provided tag path when available, as it may include required internal params.
+	const directTagPath = normalizeLibraryTagPath(genre.key);
+	if (directTagPath) {
+		const result = await fetchPlex<{ MediaContainer: PlexContainer }>(
+			directTagPath,
+		);
+		return result.MediaContainer;
+	}
 
-    const genreFilterValue = extractFilterValueFromTagKey(genre.key, "genre");
-    const result = await fetchPlex<{ MediaContainer: PlexContainer }>(`/library/sections/${sectionId}/all?genre=${encodeURIComponent(genreFilterValue)}`);
-    return result.MediaContainer;
+	const genreFilterValue = extractFilterValueFromTagKey(genre.key, "genre");
+	const result = await fetchPlex<{ MediaContainer: PlexContainer }>(
+		`/library/sections/${sectionId}/all?genre=${encodeURIComponent(genreFilterValue)}`,
+	);
+	return result.MediaContainer;
 }
 
-export async function getItemsByCountry(sectionId: string, countryName: string): Promise<PlexContainer> {
-    if (isProxyEnabled()) return executeOnProxy("plex", "getItemsByCountry", [sectionId, countryName]);
-    const countries = await getLibraryCountries(sectionId);
-    const normalizedInput = countryName.toLowerCase().trim();
-    const mappedName = normalizeCountryName(countryName);
+export async function getItemsByCountry(
+	sectionId: string,
+	countryName: string,
+): Promise<PlexContainer> {
+	if (isProxyEnabled())
+		return executeOnProxy("plex", "getItemsByCountry", [
+			sectionId,
+			countryName,
+		]);
+	const countries = await getLibraryCountries(sectionId);
+	const normalizedInput = countryName.toLowerCase().trim();
+	const mappedName = normalizeCountryName(countryName);
 
-    // 1. Try exact match (noun or adjective)
-    let country = countries.find((c: any) =>
-        c.title.toLowerCase() === normalizedInput ||
-        c.title.toLowerCase() === mappedName
-    );
+	// 1. Try exact match (noun or adjective)
+	let country = countries.find(
+		(c: any) =>
+			c.title.toLowerCase() === normalizedInput ||
+			c.title.toLowerCase() === mappedName,
+	);
 
-    // 2. Try fuzzy match (if input is part of title or vice versa)
-    if (!country) {
-        country = countries.find((c: any) => {
-            const title = c.title.toLowerCase();
-            return title.includes(normalizedInput) || normalizedInput.includes(title) ||
-                title.includes(mappedName) || mappedName.includes(title);
-        });
-    }
+	// 2. Try fuzzy match (if input is part of title or vice versa)
+	if (!country) {
+		country = countries.find((c: any) => {
+			const title = c.title.toLowerCase();
+			return (
+				title.includes(normalizedInput) ||
+				normalizedInput.includes(title) ||
+				title.includes(mappedName) ||
+				mappedName.includes(title)
+			);
+		});
+	}
 
-    if (!country) {
-        return { size: 0, identifier: "plex", mediaTagPrefix: "", mediaTagVersion: "", Metadata: [] };
-    }
+	if (!country) {
+		return {
+			size: 0,
+			identifier: "plex",
+			mediaTagPrefix: "",
+			mediaTagVersion: "",
+			Metadata: [],
+		};
+	}
 
-    // Prefer Plex-provided tag path when available, as it may include required internal params.
-    const directTagPath = normalizeLibraryTagPath(country.key);
-    if (directTagPath) {
-        const result = await fetchPlex<{ MediaContainer: PlexContainer }>(directTagPath);
-        return result.MediaContainer;
-    }
+	// Prefer Plex-provided tag path when available, as it may include required internal params.
+	const directTagPath = normalizeLibraryTagPath(country.key);
+	if (directTagPath) {
+		const result = await fetchPlex<{ MediaContainer: PlexContainer }>(
+			directTagPath,
+		);
+		return result.MediaContainer;
+	}
 
-    const countryFilterValue = extractFilterValueFromTagKey(country.key, "country");
-    const result = await fetchPlex<{ MediaContainer: PlexContainer }>(`/library/sections/${sectionId}/all?country=${encodeURIComponent(countryFilterValue)}`);
-    return result.MediaContainer;
+	const countryFilterValue = extractFilterValueFromTagKey(
+		country.key,
+		"country",
+	);
+	const result = await fetchPlex<{ MediaContainer: PlexContainer }>(
+		`/library/sections/${sectionId}/all?country=${encodeURIComponent(countryFilterValue)}`,
+	);
+	return result.MediaContainer;
 }
 
 export async function getLibraryGenres(sectionId: string): Promise<any> {
-    if (isProxyEnabled()) return executeOnProxy("plex", "getLibraryGenres", [sectionId]);
-    const result = await fetchPlex<any>(`/library/sections/${sectionId}/genre`);
-    return result.MediaContainer?.Directory || [];
+	if (isProxyEnabled())
+		return executeOnProxy("plex", "getLibraryGenres", [sectionId]);
+	const result = await fetchPlex<any>(`/library/sections/${sectionId}/genre`);
+	return result.MediaContainer?.Directory || [];
 }
 
 export async function getLibraryCountries(sectionId: string): Promise<any> {
-    if (isProxyEnabled()) return executeOnProxy("plex", "getLibraryCountries", [sectionId]);
-    const result = await fetchPlex<any>(`/library/sections/${sectionId}/country`);
-    return result.MediaContainer?.Directory || [];
+	if (isProxyEnabled())
+		return executeOnProxy("plex", "getLibraryCountries", [sectionId]);
+	const result = await fetchPlex<any>(`/library/sections/${sectionId}/country`);
+	return result.MediaContainer?.Directory || [];
 }
 
 export async function getLibrarySize(sectionId: string): Promise<number> {
-    if (isProxyEnabled()) return executeOnProxy("plex", "getLibrarySize", [sectionId]);
-    const result = await fetchPlex<{ MediaContainer: PlexContainer }>(`/library/sections/${sectionId}/all?X-Plex-Container-Start=0&X-Plex-Container-Size=0`);
-    return result.MediaContainer?.totalSize ?? result.MediaContainer?.size ?? 0;
+	if (isProxyEnabled())
+		return executeOnProxy("plex", "getLibrarySize", [sectionId]);
+	const result = await fetchPlex<{ MediaContainer: PlexContainer }>(
+		`/library/sections/${sectionId}/all?X-Plex-Container-Start=0&X-Plex-Container-Size=0`,
+	);
+	return result.MediaContainer?.totalSize ?? result.MediaContainer?.size ?? 0;
 }
 
-export async function getItemsByDuration(sectionId: string): Promise<PlexContainer> {
-    if (isProxyEnabled()) return executeOnProxy("plex", "getItemsByDuration", [sectionId]);
-    // First, get the total count to know how many to fetch
-    const initialResult = await fetchPlex<{ MediaContainer: PlexContainer }>(
-        `/library/sections/${sectionId}/all?X-Plex-Container-Start=0&X-Plex-Container-Size=0`
-    );
+export async function getItemsByDuration(
+	sectionId: string,
+): Promise<PlexContainer> {
+	if (isProxyEnabled())
+		return executeOnProxy("plex", "getItemsByDuration", [sectionId]);
+	// First, get the total count to know how many to fetch
+	const initialResult = await fetchPlex<{ MediaContainer: PlexContainer }>(
+		`/library/sections/${sectionId}/all?X-Plex-Container-Start=0&X-Plex-Container-Size=0`,
+	);
 
-    const totalSize = initialResult.MediaContainer.totalSize || initialResult.MediaContainer.size || 0;
+	const totalSize =
+		initialResult.MediaContainer.totalSize ||
+		initialResult.MediaContainer.size ||
+		0;
 
-    if (totalSize === 0) {
-        return { size: 0, identifier: "plex", mediaTagPrefix: "", mediaTagVersion: "", Metadata: [] };
-    }
+	if (totalSize === 0) {
+		return {
+			size: 0,
+			identifier: "plex",
+			mediaTagPrefix: "",
+			mediaTagVersion: "",
+			Metadata: [],
+		};
+	}
 
-    // Plex typically returns up to 100 items per request
-    const batchSize = 100;
-    const allMetadata: any[] = [];
+	// Plex typically returns up to 100 items per request
+	const batchSize = 100;
+	const allMetadata: any[] = [];
 
-    // If we have initial metadata (when totalSize is 0 but size > 0), include it
-    if (initialResult.MediaContainer.Metadata) {
-        allMetadata.push(...initialResult.MediaContainer.Metadata);
-    }
+	// If we have initial metadata (when totalSize is 0 but size > 0), include it
+	if (initialResult.MediaContainer.Metadata) {
+		allMetadata.push(...initialResult.MediaContainer.Metadata);
+	}
 
-    // Fetch remaining items in batches
-    for (let start = allMetadata.length; start < totalSize; start += batchSize) {
-        const result = await fetchPlex<{ MediaContainer: PlexContainer }>(
-            `/library/sections/${sectionId}/all?X-Plex-Container-Start=${start}&X-Plex-Container-Size=${batchSize}`
-        );
-        if (result.MediaContainer.Metadata) {
-            allMetadata.push(...result.MediaContainer.Metadata);
-        }
-    }
+	// Fetch remaining items in batches
+	for (let start = allMetadata.length; start < totalSize; start += batchSize) {
+		const result = await fetchPlex<{ MediaContainer: PlexContainer }>(
+			`/library/sections/${sectionId}/all?X-Plex-Container-Start=${start}&X-Plex-Container-Size=${batchSize}`,
+		);
+		if (result.MediaContainer.Metadata) {
+			allMetadata.push(...result.MediaContainer.Metadata);
+		}
+	}
 
-    return {
-        size: allMetadata.length,
-        totalSize: totalSize,
-        identifier: "plex",
-        mediaTagPrefix: initialResult.MediaContainer.mediaTagPrefix || "",
-        mediaTagVersion: initialResult.MediaContainer.mediaTagVersion || "",
-        Metadata: allMetadata,
-    };
+	return {
+		size: allMetadata.length,
+		totalSize: totalSize,
+		identifier: "plex",
+		mediaTagPrefix: initialResult.MediaContainer.mediaTagPrefix || "",
+		mediaTagVersion: initialResult.MediaContainer.mediaTagVersion || "",
+		Metadata: allMetadata,
+	};
 }
 
-export async function getUnwatchedEpisodes(seriesRatingKey: string): Promise<any[]> {
-    if (isProxyEnabled()) return executeOnProxy("plex", "getUnwatchedEpisodes", [seriesRatingKey]);
-    const result = await fetchPlex<{ MediaContainer: PlexContainer }>(`/library/metadata/${seriesRatingKey}/allLeaves?viewCount=0`);
-    return result.MediaContainer?.Metadata || [];
+export async function getUnwatchedEpisodes(
+	seriesRatingKey: string,
+): Promise<any[]> {
+	if (isProxyEnabled())
+		return executeOnProxy("plex", "getUnwatchedEpisodes", [seriesRatingKey]);
+	const result = await fetchPlex<{ MediaContainer: PlexContainer }>(
+		`/library/metadata/${seriesRatingKey}/allLeaves?viewCount=0`,
+	);
+	return result.MediaContainer?.Metadata || [];
 }
 
 export async function getPlexWatchlist(): Promise<any[]> {
-    if (isProxyEnabled()) return executeOnProxy("plex", "getPlexWatchlist", []);
-    const apiKey = process.env.PLEX_TOKEN?.trim() || "";
-    if (!apiKey) throw new Error("PLEX_TOKEN is not configured");
+	if (isProxyEnabled()) return executeOnProxy("plex", "getPlexWatchlist", []);
+	const apiKey = process.env.PLEX_TOKEN?.trim() || "";
+	if (!apiKey) throw new Error("PLEX_TOKEN is not configured");
 
-    const url = `https://discover.provider.plex.tv/library/sections/watchlist/all?X-Plex-Token=${apiKey}`;
-    const res = await fetch(url, {
-        headers: {
-            "Accept": "application/json",
-            "X-Plex-Client-Identifier": "agentic-media-bot"
-        }
-    });
+	const url = `https://discover.provider.plex.tv/library/sections/watchlist/all?X-Plex-Token=${apiKey}`;
+	const res = await fetch(url, {
+		headers: {
+			Accept: "application/json",
+			"X-Plex-Client-Identifier": "agentic-media-bot",
+		},
+	});
 
-    if (!res.ok) {
-        throw new Error(`Failed to fetch Plex watchlist: HTTP ${res.status} ${res.statusText}`);
-    }
+	if (!res.ok) {
+		throw new Error(
+			`Failed to fetch Plex watchlist: HTTP ${res.status} ${res.statusText}`,
+		);
+	}
 
-    const data = await res.json() as any;
-    return data.MediaContainer?.Metadata || [];
+	const data = (await res.json()) as any;
+	return data.MediaContainer?.Metadata || [];
 }
 
-export async function searchPlexDiscover(query: string, limit: number = 10): Promise<any[]> {
-    if (isProxyEnabled()) return executeOnProxy("plex", "searchPlexDiscover", [query, limit]);
-    const apiKey = process.env.PLEX_TOKEN?.trim() || "";
-    if (!apiKey) throw new Error("PLEX_TOKEN is not configured");
+export async function searchPlexDiscover(
+	query: string,
+	limit: number = 10,
+): Promise<any[]> {
+	if (isProxyEnabled())
+		return executeOnProxy("plex", "searchPlexDiscover", [query, limit]);
+	const apiKey = process.env.PLEX_TOKEN?.trim() || "";
+	if (!apiKey) throw new Error("PLEX_TOKEN is not configured");
 
-    const url = `https://discover.provider.plex.tv/library/search?query=${encodeURIComponent(query)}&limit=${limit}&searchProviders=discover&searchTypes=movies,tv&includeMetadata=1&X-Plex-Token=${apiKey}`;
-    const res = await fetch(url, {
-        headers: {
-            "Accept": "application/json",
-            "X-Plex-Client-Identifier": "agentic-media-bot"
-        }
-    });
+	const url = `https://discover.provider.plex.tv/library/search?query=${encodeURIComponent(query)}&limit=${limit}&searchProviders=discover&searchTypes=movies,tv&includeMetadata=1&X-Plex-Token=${apiKey}`;
+	const res = await fetch(url, {
+		headers: {
+			Accept: "application/json",
+			"X-Plex-Client-Identifier": "agentic-media-bot",
+		},
+	});
 
-    if (!res.ok) {
-        throw new Error(`Failed to search Plex Discover: HTTP ${res.status} ${res.statusText}`);
-    }
+	if (!res.ok) {
+		throw new Error(
+			`Failed to search Plex Discover: HTTP ${res.status} ${res.statusText}`,
+		);
+	}
 
-    const data = await res.json() as any;
-    const searchResults = data.MediaContainer?.SearchResults || [];
-    const group = searchResults.find((s: any) => s.id === "external");
-    return group?.SearchResult?.map((r: any) => r.Metadata) || [];
+	const data = (await res.json()) as any;
+	const searchResults = data.MediaContainer?.SearchResults || [];
+	const group = searchResults.find((s: any) => s.id === "external");
+	return group?.SearchResult?.map((r: any) => r.Metadata) || [];
 }
 
 export async function getPlexDiscoverMetadata(ratingKey: string): Promise<any> {
-    if (isProxyEnabled()) return executeOnProxy("plex", "getPlexDiscoverMetadata", [ratingKey]);
-    const apiKey = process.env.PLEX_TOKEN?.trim() || "";
-    if (!apiKey) throw new Error("PLEX_TOKEN is not configured");
+	if (isProxyEnabled())
+		return executeOnProxy("plex", "getPlexDiscoverMetadata", [ratingKey]);
+	const apiKey = process.env.PLEX_TOKEN?.trim() || "";
+	if (!apiKey) throw new Error("PLEX_TOKEN is not configured");
 
-    const url = `https://discover.provider.plex.tv/library/metadata/${ratingKey}?X-Plex-Token=${apiKey}`;
-    const res = await fetch(url, {
-        headers: {
-            "Accept": "application/json",
-            "X-Plex-Client-Identifier": "agentic-media-bot"
-        }
-    });
+	const url = `https://discover.provider.plex.tv/library/metadata/${ratingKey}?X-Plex-Token=${apiKey}`;
+	const res = await fetch(url, {
+		headers: {
+			Accept: "application/json",
+			"X-Plex-Client-Identifier": "agentic-media-bot",
+		},
+	});
 
-    if (!res.ok) {
-        throw new Error(`Failed to fetch Plex Discover metadata: HTTP ${res.status} ${res.statusText}`);
-    }
+	if (!res.ok) {
+		throw new Error(
+			`Failed to fetch Plex Discover metadata: HTTP ${res.status} ${res.statusText}`,
+		);
+	}
 
-    const data = await res.json() as any;
-    return data.MediaContainer?.Metadata?.[0] || null;
+	const data = (await res.json()) as any;
+	return data.MediaContainer?.Metadata?.[0] || null;
 }
 
 export async function addToPlexWatchlist(ratingKey: string): Promise<boolean> {
-    if (isProxyEnabled()) return executeOnProxy("plex", "addToPlexWatchlist", [ratingKey]);
-    const apiKey = process.env.PLEX_TOKEN?.trim() || "";
-    if (!apiKey) throw new Error("PLEX_TOKEN is not configured");
+	if (isProxyEnabled())
+		return executeOnProxy("plex", "addToPlexWatchlist", [ratingKey]);
+	const apiKey = process.env.PLEX_TOKEN?.trim() || "";
+	if (!apiKey) throw new Error("PLEX_TOKEN is not configured");
 
-    const url = `https://discover.provider.plex.tv/actions/addToWatchlist?ratingKey=${ratingKey}&X-Plex-Token=${apiKey}`;
-    const res = await fetch(url, {
-        method: "PUT",
-        headers: {
-            "Accept": "application/json",
-            "X-Plex-Client-Identifier": "agentic-media-bot"
-        }
-    });
+	const url = `https://discover.provider.plex.tv/actions/addToWatchlist?ratingKey=${ratingKey}&X-Plex-Token=${apiKey}`;
+	const res = await fetch(url, {
+		method: "PUT",
+		headers: {
+			Accept: "application/json",
+			"X-Plex-Client-Identifier": "agentic-media-bot",
+		},
+	});
 
-    return res.ok;
+	return res.ok;
 }
 
-export async function removeFromPlexWatchlist(ratingKey: string): Promise<boolean> {
-    if (isProxyEnabled()) return executeOnProxy("plex", "removeFromPlexWatchlist", [ratingKey]);
-    const apiKey = process.env.PLEX_TOKEN?.trim() || "";
-    if (!apiKey) throw new Error("PLEX_TOKEN is not configured");
+export async function removeFromPlexWatchlist(
+	ratingKey: string,
+): Promise<boolean> {
+	if (isProxyEnabled())
+		return executeOnProxy("plex", "removeFromPlexWatchlist", [ratingKey]);
+	const apiKey = process.env.PLEX_TOKEN?.trim() || "";
+	if (!apiKey) throw new Error("PLEX_TOKEN is not configured");
 
-    const url = `https://discover.provider.plex.tv/actions/removeFromWatchlist?ratingKey=${ratingKey}&X-Plex-Token=${apiKey}`;
-    const res = await fetch(url, {
-        method: "PUT",
-        headers: {
-            "Accept": "application/json",
-            "X-Plex-Client-Identifier": "agentic-media-bot"
-        }
-    });
+	const url = `https://discover.provider.plex.tv/actions/removeFromWatchlist?ratingKey=${ratingKey}&X-Plex-Token=${apiKey}`;
+	const res = await fetch(url, {
+		method: "PUT",
+		headers: {
+			Accept: "application/json",
+			"X-Plex-Client-Identifier": "agentic-media-bot",
+		},
+	});
 
-    return res.ok;
+	return res.ok;
 }
 
-export async function syncWatchlist(): Promise<{ added: number, removed: number }> {
-    if (isProxyEnabled()) return executeOnProxy("plex", "syncWatchlist", []);
-    
-    const plexItems = await getPlexWatchlist();
-    const localItems = getLocalWatchlist();
-    const localMap = new Map(localItems.map(l => [l.rating_key, l]));
-    const plexRatingKeys = new Set(plexItems.map(p => p.ratingKey));
+export async function syncWatchlist(): Promise<{
+	added: number;
+	removed: number;
+}> {
+	if (isProxyEnabled()) return executeOnProxy("plex", "syncWatchlist", []);
 
-    let added = 0;
-    let removed = 0;
+	const plexItems = await getPlexWatchlist();
+	const localItems = getLocalWatchlist();
+	const localMap = new Map(localItems.map((l) => [l.rating_key, l]));
+	const plexRatingKeys = new Set(plexItems.map((p) => p.ratingKey));
 
-    // 1. Sync from Plex Watchlist to SQLite Watchlist
-    for (const item of plexItems) {
-        if (!localMap.has(item.ratingKey)) {
-            try {
-                const meta = await getPlexDiscoverMetadata(item.ratingKey);
-                const imdb = meta?.Guid?.find((g: any) => g.id.startsWith("imdb://"))?.id?.replace("imdb://", "") || null;
-                const tmdb = meta?.Guid?.find((g: any) => g.id.startsWith("tmdb://"))?.id?.replace("tmdb://", "") || null;
-                const tvdb = meta?.Guid?.find((g: any) => g.id.startsWith("tvdb://"))?.id?.replace("tvdb://", "") || null;
-                
-                addToLocalWatchlist({
-                    title: item.title,
-                    media_type: item.type === "movie" ? "movie" : "show",
-                    rating_key: item.ratingKey,
-                    imdb_id: imdb,
-                    tmdb_id: tmdb ? parseInt(tmdb) : null,
-                    tvdb_id: tvdb ? parseInt(tvdb) : null,
-                    status: "pending"
-                });
-                added++;
-            } catch (err: any) {
-                console.error(`Error fetching detailed discover metadata for ${item.title} (${item.ratingKey}):`, err.message);
-                // Still add to local DB even if metadata call fails (without external IDs)
-                addToLocalWatchlist({
-                    title: item.title,
-                    media_type: item.type === "movie" ? "movie" : "show",
-                    rating_key: item.ratingKey,
-                    status: "pending"
-                });
-                added++;
-            }
-        }
-    }
+	let added = 0;
+	let removed = 0;
 
-    // 2. Remove local database items that have a rating_key but were removed on Plex
-    for (const local of localItems) {
-        if (local.rating_key && !plexRatingKeys.has(local.rating_key)) {
-            removeFromLocalWatchlist(local.rating_key);
-            removed++;
-        }
-    }
+	// 1. Sync from Plex Watchlist to SQLite Watchlist
+	for (const item of plexItems) {
+		if (!localMap.has(item.ratingKey)) {
+			try {
+				const meta = await getPlexDiscoverMetadata(item.ratingKey);
+				const imdb =
+					meta?.Guid?.find((g: any) => g.id.startsWith("imdb://"))?.id?.replace(
+						"imdb://",
+						"",
+					) || null;
+				const tmdb =
+					meta?.Guid?.find((g: any) => g.id.startsWith("tmdb://"))?.id?.replace(
+						"tmdb://",
+						"",
+					) || null;
+				const tvdb =
+					meta?.Guid?.find((g: any) => g.id.startsWith("tvdb://"))?.id?.replace(
+						"tvdb://",
+						"",
+					) || null;
 
-    return { added, removed };
+				addToLocalWatchlist({
+					title: item.title,
+					media_type: item.type === "movie" ? "movie" : "show",
+					rating_key: item.ratingKey,
+					imdb_id: imdb,
+					tmdb_id: tmdb ? parseInt(tmdb) : null,
+					tvdb_id: tvdb ? parseInt(tvdb) : null,
+					status: "pending",
+				});
+				added++;
+			} catch (err: any) {
+				console.error(
+					`Error fetching detailed discover metadata for ${item.title} (${item.ratingKey}):`,
+					err.message,
+				);
+				// Still add to local DB even if metadata call fails (without external IDs)
+				addToLocalWatchlist({
+					title: item.title,
+					media_type: item.type === "movie" ? "movie" : "show",
+					rating_key: item.ratingKey,
+					status: "pending",
+				});
+				added++;
+			}
+		}
+	}
+
+	// 2. Remove local database items that have a rating_key but were removed on Plex
+	for (const local of localItems) {
+		if (local.rating_key && !plexRatingKeys.has(local.rating_key)) {
+			removeFromLocalWatchlist(local.rating_key);
+			removed++;
+		}
+	}
+
+	return { added, removed };
 }
 
 export async function getPlexSessions(): Promise<PlexSession[]> {
-    if (isProxyEnabled()) return executeOnProxy("plex", "getPlexSessions", []);
-    
-    const result = await fetchPlex<{ MediaContainer: { size: number; Metadata?: any[] } }>("/status/sessions");
-    const metadata = result.MediaContainer?.Metadata || [];
-    
-    return metadata.map(item => {
-        let displayTitle = item.title || "Unknown Title";
-        if (item.type === "episode") {
-            const show = item.grandparentTitle || "Unknown Show";
-            const season = item.parentIndex !== undefined ? `S${item.parentIndex.toString().padStart(2, "0")}` : "";
-            const episode = item.index !== undefined ? `E${item.index.toString().padStart(2, "0")}` : "";
-            const epTitle = item.title ? ` - ${item.title}` : "";
-            displayTitle = `${show} - ${season}${episode}${epTitle}`;
-        } else if (item.type === "movie" && item.year) {
-            displayTitle = `${item.title} (${item.year})`;
-        }
-        
-        const viewOffset = item.viewOffset || 0;
-        const duration = item.duration || 0;
-        const progressPercent = duration > 0 ? parseFloat(((viewOffset / duration) * 100).toFixed(1)) : 0;
-        
-        return {
-            sessionKey: item.sessionKey || item.ratingKey || "",
-            title: displayTitle,
-            type: item.type || "unknown",
-            state: item.Player?.state || "unknown",
-            user: item.User?.title || "Unknown User",
-            player: item.Player?.title || "Unknown Device",
-            viewOffset,
-            duration,
-            progressPercent
-        };
-    });
+	if (isProxyEnabled()) return executeOnProxy("plex", "getPlexSessions", []);
+
+	const result = await fetchPlex<{
+		MediaContainer: { size: number; Metadata?: any[] };
+	}>("/status/sessions");
+	const metadata = result.MediaContainer?.Metadata || [];
+
+	return metadata.map((item) => {
+		let displayTitle = item.title || "Unknown Title";
+		if (item.type === "episode") {
+			const show = item.grandparentTitle || "Unknown Show";
+			const season =
+				item.parentIndex !== undefined
+					? `S${item.parentIndex.toString().padStart(2, "0")}`
+					: "";
+			const episode =
+				item.index !== undefined
+					? `E${item.index.toString().padStart(2, "0")}`
+					: "";
+			const epTitle = item.title ? ` - ${item.title}` : "";
+			displayTitle = `${show} - ${season}${episode}${epTitle}`;
+		} else if (item.type === "movie" && item.year) {
+			displayTitle = `${item.title} (${item.year})`;
+		}
+
+		const viewOffset = item.viewOffset || 0;
+		const duration = item.duration || 0;
+		const progressPercent =
+			duration > 0 ? parseFloat(((viewOffset / duration) * 100).toFixed(1)) : 0;
+
+		return {
+			sessionKey: item.sessionKey || item.ratingKey || "",
+			title: displayTitle,
+			type: item.type || "unknown",
+			state: item.Player?.state || "unknown",
+			user: item.User?.title || "Unknown User",
+			player: item.Player?.title || "Unknown Device",
+			viewOffset,
+			duration,
+			progressPercent,
+		};
+	});
 }
-
-

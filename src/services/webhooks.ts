@@ -1,13 +1,20 @@
-import { areNotificationsEnabled, getPlaybackState, updatePlaybackState, saveMediaEvent, getEventAlertConfig, getPendingNotifications, markNotificationSent } from "./database";
+import { type Bot, InputFile } from "grammy";
+import { clearCache } from "../agent/tools";
+import type { RadarrWebhookPayload } from "../types/radarr";
+import type { SonarrWebhookPayload } from "../types/sonarr";
+import {
+	areNotificationsEnabled,
+	getEventAlertConfig,
+	getPendingNotifications,
+	getPlaybackState,
+	markNotificationSent,
+	saveMediaEvent,
+	updatePlaybackState,
+} from "./database";
+import { webhookEventQueue } from "./eventQueue";
 import { getItemMetadata, getPosterUrl } from "./plex";
 import { searchMovie } from "./radarr";
 import { searchSeries } from "./sonarr";
-import { clearCache } from "../agent/tools";
-import { Bot, InputFile } from "grammy";
-import type { RadarrWebhookPayload } from "../types/radarr";
-import type { SonarrWebhookPayload } from "../types/sonarr";
-import { webhookEventQueue } from "./eventQueue";
-
 
 /**
  * Returns the list of Telegram chat IDs that should receive webhook notifications.
@@ -16,463 +23,590 @@ import { webhookEventQueue } from "./eventQueue";
  * - Otherwise → ALL IDs from ALLOWED_USER_IDS so every allowed user gets notified.
  */
 function getNotifyTargets(): string[] {
-    const explicit = process.env.WEBHOOK_NOTIFY_CHAT_ID?.trim();
-    if (explicit) return [explicit];
-    const allowed = process.env.ALLOWED_USER_IDS?.split(",").map(id => id.trim()).filter(Boolean) ?? [];
-    return allowed;
+	const explicit = process.env.WEBHOOK_NOTIFY_CHAT_ID?.trim();
+	if (explicit) return [explicit];
+	const allowed =
+		process.env.ALLOWED_USER_IDS?.split(",")
+			.map((id) => id.trim())
+			.filter(Boolean) ?? [];
+	return allowed;
 }
 
 export interface PlexWebhookPayload {
-    event: string;
-    user: boolean;
-    owner: boolean;
-    Account: {
-        id: number;
-        thumb: string;
-        title: string;
-    };
-    Server: {
-        title: string;
-        uuid: string;
-    };
-    Player: {
-        local: boolean;
-        publicAddress: string;
-        title: string;
-        uuid: string;
-    };
-    Metadata: {
-        librarySectionType: string;
-        ratingKey: string;
-        key: string;
-        parentRatingKey?: string;
-        grandparentRatingKey?: string;
-        guid: string;
-        librarySectionID: number;
-        type: string;
-        title: string;
-        originalTitle?: string;
-        grandparentKey?: string;
-        parentKey?: string;
-        grandparentTitle?: string;
-        parentTitle?: string;
-        summary: string;
-        index?: number;
-        parentIndex?: number;
-        ratingCount?: number;
-        thumb: string;
-        art: string;
-        parentThumb?: string;
-        grandparentThumb?: string;
-        grandparentArt?: string;
-        addedAt: number;
-        updatedAt: number;
-        year?: number;
-    };
+	event: string;
+	user: boolean;
+	owner: boolean;
+	Account: {
+		id: number;
+		thumb: string;
+		title: string;
+	};
+	Server: {
+		title: string;
+		uuid: string;
+	};
+	Player: {
+		local: boolean;
+		publicAddress: string;
+		title: string;
+		uuid: string;
+	};
+	Metadata: {
+		librarySectionType: string;
+		ratingKey: string;
+		key: string;
+		parentRatingKey?: string;
+		grandparentRatingKey?: string;
+		guid: string;
+		librarySectionID: number;
+		type: string;
+		title: string;
+		originalTitle?: string;
+		grandparentKey?: string;
+		parentKey?: string;
+		grandparentTitle?: string;
+		parentTitle?: string;
+		summary: string;
+		index?: number;
+		parentIndex?: number;
+		ratingCount?: number;
+		thumb: string;
+		art: string;
+		parentThumb?: string;
+		grandparentThumb?: string;
+		grandparentArt?: string;
+		addedAt: number;
+		updatedAt: number;
+		year?: number;
+	};
 }
 
 export interface NZBGetWebhookPayload {
-    event: string;
-    title: string;
-    speed?: number | string;
-    eta?: string;
+	event: string;
+	title: string;
+	speed?: number | string;
+	eta?: string;
 }
 
-
 export async function handlePlexWebhook(request: Request, bot: Bot) {
-    try {
-        const formData = await request.formData();
-        const payloadStr = formData.get("payload") as string;
-        if (!payloadStr) {
-            return new Response("Missing payload", { status: 400 });
-        }
+	try {
+		const formData = await request.formData();
+		const payloadStr = formData.get("payload") as string;
+		if (!payloadStr) {
+			return new Response("Missing payload", { status: 400 });
+		}
 
-        const payload: PlexWebhookPayload = JSON.parse(payloadStr);
+		const payload: PlexWebhookPayload = JSON.parse(payloadStr);
 
-        if (payload.Metadata && !payload.Metadata.originalTitle && payload.Metadata.ratingKey) {
-            try {
-                const fullMetadata = await getItemMetadata(payload.Metadata.ratingKey);
-                if (fullMetadata?.originalTitle) {
-                    payload.Metadata.originalTitle = fullMetadata.originalTitle;
-                }
-            } catch (err) {
-                console.warn(`⚠️ Failed to enrich metadata from Plex API for ${payload.Metadata.ratingKey}:`, (err as Error).message);
-            }
-        }
+		if (
+			payload.Metadata &&
+			!payload.Metadata.originalTitle &&
+			payload.Metadata.ratingKey
+		) {
+			try {
+				const fullMetadata = await getItemMetadata(payload.Metadata.ratingKey);
+				if (fullMetadata?.originalTitle) {
+					payload.Metadata.originalTitle = fullMetadata.originalTitle;
+				}
+			} catch (err) {
+				console.warn(
+					`⚠️ Failed to enrich metadata from Plex API for ${payload.Metadata.ratingKey}:`,
+					(err as Error).message,
+				);
+			}
+		}
 
-        // Cross-Service Alias Recovery (Radarr/Sonarr fallback for non-Latin titles)
-        if (payload.Metadata && !payload.Metadata.originalTitle && isNonLatinTitle(payload.Metadata.title)) {
-            try {
-                const metadata = payload.Metadata;
-                if (metadata.librarySectionType === "movie") {
-                    const results = await searchMovie(metadata.title);
-                    // Try to match by year if available
-                    const match = metadata.year
-                        ? results.find((r: any) => r.year === metadata.year)
-                        : results[0];
+		// Cross-Service Alias Recovery (Radarr/Sonarr fallback for non-Latin titles)
+		if (
+			payload.Metadata &&
+			!payload.Metadata.originalTitle &&
+			isNonLatinTitle(payload.Metadata.title)
+		) {
+			try {
+				const metadata = payload.Metadata;
+				if (metadata.librarySectionType === "movie") {
+					const results = await searchMovie(metadata.title);
+					// Try to match by year if available
+					const match = metadata.year
+						? results.find((r: any) => r.year === metadata.year)
+						: results[0];
 
-                    if (match && match.title !== metadata.title) {
-                        payload.Metadata.originalTitle = match.title;
-                    }
-                } else if (metadata.librarySectionType === "show") {
-                    const searchTerm = metadata.grandparentTitle || metadata.title;
-                    const results = await searchSeries(searchTerm);
-                    const firstMatch = results[0];
-                    if (firstMatch && firstMatch.title !== metadata.title) {
-                        const originalTitle = firstMatch.title;
-                        if (payload.Metadata) {
-                            payload.Metadata.originalTitle = originalTitle;
-                        }
-                    }
-                }
-            } catch (err) {
-                console.warn(`⚠️ Cross-service enrichment failed for "${payload.Metadata?.title}":`, (err as Error).message);
-            }
-        }
+					if (match && match.title !== metadata.title) {
+						payload.Metadata.originalTitle = match.title;
+					}
+				} else if (metadata.librarySectionType === "show") {
+					const searchTerm = metadata.grandparentTitle || metadata.title;
+					const results = await searchSeries(searchTerm);
+					const firstMatch = results[0];
+					if (firstMatch && firstMatch.title !== metadata.title) {
+						const originalTitle = firstMatch.title;
+						if (payload.Metadata) {
+							payload.Metadata.originalTitle = originalTitle;
+						}
+					}
+				}
+			} catch (err) {
+				console.warn(
+					`⚠️ Cross-service enrichment failed for "${payload.Metadata?.title}":`,
+					(err as Error).message,
+				);
+			}
+		}
 
-        // Invalidate cache when library content changes
-        if (payload.event === "library.new") {
-            console.log("🗂️ Plex library updated, invalidating cache...");
-            clearCache();
-        }
+		// Invalidate cache when library content changes
+		if (payload.event === "library.new") {
+			console.log("🗂️ Plex library updated, invalidating cache...");
+			clearCache();
+		}
 
-        const sessionId = getSessionId(payload);
-        const prevState = getPlaybackState(sessionId);
+		const sessionId = getSessionId(payload);
+		const prevState = getPlaybackState(sessionId);
 
-        // Update persistent state
-        updatePlaybackState(sessionId, payload.event);
+		// Update persistent state
+		updatePlaybackState(sessionId, payload.event);
 
-        const notifyTargets = getNotifyTargets();
+		const notifyTargets = getNotifyTargets();
 
-        if (notifyTargets.length === 0) {
-            console.warn("⚠️ No notification chat IDs configured for webhooks.");
-            return new Response("No notification target", { status: 200 });
-        }
+		if (notifyTargets.length === 0) {
+			console.warn("⚠️ No notification chat IDs configured for webhooks.");
+			return new Response("No notification target", { status: 200 });
+		}
 
-        const message = formatWebhookMessage(payload, prevState);
+		const message = formatWebhookMessage(payload, prevState);
 
-        // Build the DB-save closure (used by queue worker).
-        let eventTitle = payload.Metadata?.title || payload.event;
-        const dbMessage = message ? message.replace(/[_*`]/g, "") : `Plex Event: ${payload.event} - ${eventTitle}`;
+		// Build the DB-save closure (used by queue worker).
+		const eventTitle = payload.Metadata?.title || payload.event;
+		const dbMessage = message
+			? message.replace(/[_*`]/g, "")
+			: `Plex Event: ${payload.event} - ${eventTitle}`;
 
-        if (message) {
-            // Pre-fetch the thumbnail so the HTTP response to Plex is not delayed by
-            // the image download; the buffer is captured in the send closure.
-            const PLEX_URL = process.env.PLEX_URL?.trim();
-            const PLEX_TOKEN = process.env.PLEX_TOKEN?.trim();
-            const thumb = payload.Metadata?.thumb || payload.Metadata?.parentThumb || payload.Metadata?.grandparentThumb;
-            const thumbUrl = (thumb && PLEX_URL && PLEX_TOKEN) ? getPosterUrl(thumb) : undefined;
+		if (message) {
+			// Pre-fetch the thumbnail so the HTTP response to Plex is not delayed by
+			// the image download; the buffer is captured in the send closure.
+			const PLEX_URL = process.env.PLEX_URL?.trim();
+			const PLEX_TOKEN = process.env.PLEX_TOKEN?.trim();
+			const thumb =
+				payload.Metadata?.thumb ||
+				payload.Metadata?.parentThumb ||
+				payload.Metadata?.grandparentThumb;
+			const thumbUrl =
+				thumb && PLEX_URL && PLEX_TOKEN ? getPosterUrl(thumb) : undefined;
 
-            let imageBuffer: ArrayBuffer | null = null;
-            let imageExtension = "jpg";
+			let imageBuffer: ArrayBuffer | null = null;
+			let imageExtension = "jpg";
 
-            if (thumbUrl) {
-                let lastError: Error | null = null;
-                for (let attempt = 1; attempt <= 3; attempt++) {
-                    try {
-                        const controller = new AbortController();
-                        const timeoutId = setTimeout(() => controller.abort(), 10000);
-                        const response = await fetch(thumbUrl, {
-                            signal: controller.signal,
-                            headers: { 'User-Agent': 'agentic-media-bot/1.0' }
-                        });
-                        clearTimeout(timeoutId);
-                        if (response.ok) {
-                            imageBuffer = await response.arrayBuffer();
-                            imageExtension = thumbUrl.split("?")[0]?.split(".").pop() || "jpg";
-                            break;
-                        } else {
-                            lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
-                        }
-                    } catch (err) {
-                        lastError = err as Error;
-                        console.warn(`Webhook image fetch attempt ${attempt} failed:`, lastError.message);
-                    }
-                    if (attempt < 3) {
-                        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt - 1) * 1000));
-                    }
-                }
-                if (!imageBuffer) {
-                    console.warn(`Failed to fetch Plex thumb after 3 attempts: ${lastError?.message || 'Unknown error'}`);
-                }
-            }
+			if (thumbUrl) {
+				let lastError: Error | null = null;
+				for (let attempt = 1; attempt <= 3; attempt++) {
+					try {
+						const controller = new AbortController();
+						const timeoutId = setTimeout(() => controller.abort(), 10000);
+						const response = await fetch(thumbUrl, {
+							signal: controller.signal,
+							headers: { "User-Agent": "agentic-media-bot/1.0" },
+						});
+						clearTimeout(timeoutId);
+						if (response.ok) {
+							imageBuffer = await response.arrayBuffer();
+							imageExtension =
+								thumbUrl.split("?")[0]?.split(".").pop() || "jpg";
+							break;
+						} else {
+							lastError = new Error(
+								`HTTP ${response.status}: ${response.statusText}`,
+							);
+						}
+					} catch (err) {
+						lastError = err as Error;
+						console.warn(
+							`Webhook image fetch attempt ${attempt} failed:`,
+							lastError.message,
+						);
+					}
+					if (attempt < 3) {
+						await new Promise((resolve) =>
+							setTimeout(resolve, 2 ** (attempt - 1) * 1000),
+						);
+					}
+				}
+				if (!imageBuffer) {
+					console.warn(
+						`Failed to fetch Plex thumb after 3 attempts: ${lastError?.message || "Unknown error"}`,
+					);
+				}
+			}
 
-            // Capture everything needed by the queue worker in closures.
-            const capturedMessage = message;
-            const capturedImageBuffer = imageBuffer;
-            const capturedImageExtension = imageExtension;
-            const capturedEventTitle = eventTitle;
-            const capturedEvent = payload.event;
+			// Capture everything needed by the queue worker in closures.
+			const capturedMessage = message;
+			const capturedImageBuffer = imageBuffer;
+			const capturedImageExtension = imageExtension;
+			const capturedEventTitle = eventTitle;
+			const capturedEvent = payload.event;
 
-            webhookEventQueue.enqueue({
-                key: `plex:${capturedEvent}:${capturedEventTitle}`.toLowerCase(),
-                label: `Plex/${capturedEvent}/${capturedEventTitle}`,
-                dbSave: () => saveMediaEvent("plex", capturedEvent, capturedEventTitle, dbMessage),
-                send: async () => {
-                    if (!areNotificationsEnabled()) {
-                        console.log(`Plex Webhook: Notifications are disabled, skipping alert for ${capturedEvent}`);
-                        return;
-                    }
-                    if (!getEventAlertConfig("plex", capturedEvent)) {
-                        console.log(`Plex Webhook: Notifications for event ${capturedEvent} are disabled in settings.`);
-                        return;
-                    }
-                    const targets = getNotifyTargets();
-                    for (const target of targets) {
-                        try {
-                            if (capturedImageBuffer) {
-                                await bot.api.sendPhoto(
-                                    target,
-                                    new InputFile(Buffer.from(capturedImageBuffer), `thumb.${capturedImageExtension}`),
-                                    { caption: capturedMessage, parse_mode: "Markdown" }
-                                );
-                            } else {
-                                await bot.api.sendMessage(target, capturedMessage, { parse_mode: "Markdown" });
-                            }
-                        } catch (err) {
-                            console.error(`Failed to send Plex notification to ${target}:`, (err as Error).message);
-                            try {
-                                await bot.api.sendMessage(target, capturedMessage.replace(/[_*`]/g, ""));
-                            } catch (fallbackErr) {
-                                console.error(`Failed fallback to ${target}:`, (fallbackErr as Error).message);
-                            }
-                        }
-                    }
-                }
-            });
-        } else {
-            // No notification message but still persist the event to the history DB.
-            saveMediaEvent("plex", payload.event, eventTitle, dbMessage);
-        }
+			webhookEventQueue.enqueue({
+				key: `plex:${capturedEvent}:${capturedEventTitle}`.toLowerCase(),
+				label: `Plex/${capturedEvent}/${capturedEventTitle}`,
+				dbSave: () =>
+					saveMediaEvent("plex", capturedEvent, capturedEventTitle, dbMessage),
+				send: async () => {
+					if (!areNotificationsEnabled()) {
+						console.log(
+							`Plex Webhook: Notifications are disabled, skipping alert for ${capturedEvent}`,
+						);
+						return;
+					}
+					if (!getEventAlertConfig("plex", capturedEvent)) {
+						console.log(
+							`Plex Webhook: Notifications for event ${capturedEvent} are disabled in settings.`,
+						);
+						return;
+					}
+					const targets = getNotifyTargets();
+					for (const target of targets) {
+						try {
+							if (capturedImageBuffer) {
+								await bot.api.sendPhoto(
+									target,
+									new InputFile(
+										Buffer.from(capturedImageBuffer),
+										`thumb.${capturedImageExtension}`,
+									),
+									{ caption: capturedMessage, parse_mode: "Markdown" },
+								);
+							} else {
+								await bot.api.sendMessage(target, capturedMessage, {
+									parse_mode: "Markdown",
+								});
+							}
+						} catch (err) {
+							console.error(
+								`Failed to send Plex notification to ${target}:`,
+								(err as Error).message,
+							);
+							try {
+								await bot.api.sendMessage(
+									target,
+									capturedMessage.replace(/[_*`]/g, ""),
+								);
+							} catch (fallbackErr) {
+								console.error(
+									`Failed fallback to ${target}:`,
+									(fallbackErr as Error).message,
+								);
+							}
+						}
+					}
+				},
+			});
+		} else {
+			// No notification message but still persist the event to the history DB.
+			saveMediaEvent("plex", payload.event, eventTitle, dbMessage);
+		}
 
-        return new Response("OK", { status: 200 });
-    } catch (error) {
-        const err = error as Error;
-        console.error("Error processing Plex webhook:", err.message);
-        return new Response("Internal Server Error", { status: 500 });
-    }
+		return new Response("OK", { status: 200 });
+	} catch (error) {
+		const err = error as Error;
+		console.error("Error processing Plex webhook:", err.message);
+		return new Response("Internal Server Error", { status: 500 });
+	}
 }
 
 export async function handleRadarrWebhook(request: Request, bot: Bot) {
-    try {
-        const payload = (await request.json()) as RadarrWebhookPayload;
-        const { eventType, movie, release } = payload;
+	try {
+		const payload = (await request.json()) as RadarrWebhookPayload;
+		const { eventType, movie, release } = payload;
 
-        if (eventType === "Test") {
-            return new Response("OK", { status: 200 });
-        }
+		if (eventType === "Test") {
+			return new Response("OK", { status: 200 });
+		}
 
-        if (!movie) {
-            console.warn(`Radarr Webhook: Received payload without movie object for event: ${eventType}`);
-            return new Response("OK", { status: 200 });
-        }
+		if (!movie) {
+			console.warn(
+				`Radarr Webhook: Received payload without movie object for event: ${eventType}`,
+			);
+			return new Response("OK", { status: 200 });
+		}
 
-        let message = "";
-        let eventTitle = `${movie.title} (${movie.year})`;
+		let message = "";
+		const eventTitle = `${movie.title} (${movie.year})`;
 
-        if (eventType === "Grab") {
-            message = `📥 *Radarr*: Grabbed *${eventTitle}*\n\n`;
-            const grabQualityObj = release?.quality;
-            const grabQualityName = typeof grabQualityObj === "object" && grabQualityObj !== null
-                ? (grabQualityObj as any)?.quality?.name
-                : grabQualityObj;
-            if (grabQualityName) message += `▫️ *Quality*: ${grabQualityName}\n`;
-            if (release?.releaseTitle) message += `▫️ *Release*: \`${release.releaseTitle}\`\n`;
-            if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
-        } else if (eventType === "Download") {
-            message = `✅ *Radarr*: Download complete for *${eventTitle}*\n\n`;
-            const qualityObj = payload.movieFile?.quality;
-            const qualityName = typeof qualityObj === "object" && qualityObj !== null
-                ? (qualityObj.quality?.name || release?.quality)
-                : (qualityObj || release?.quality);
-            if (qualityName) message += `▫️ *Quality*: ${qualityName}\n`;
-            if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
+		if (eventType === "Grab") {
+			message = `📥 *Radarr*: Grabbed *${eventTitle}*\n\n`;
+			const grabQualityObj = release?.quality;
+			const grabQualityName =
+				typeof grabQualityObj === "object" && grabQualityObj !== null
+					? (grabQualityObj as any)?.quality?.name
+					: grabQualityObj;
+			if (grabQualityName) message += `▫️ *Quality*: ${grabQualityName}\n`;
+			if (release?.releaseTitle)
+				message += `▫️ *Release*: \`${release.releaseTitle}\`\n`;
+			if (payload.downloadClient)
+				message += `▫️ *Client*: ${payload.downloadClient}`;
+		} else if (eventType === "Download") {
+			message = `✅ *Radarr*: Download complete for *${eventTitle}*\n\n`;
+			const qualityObj = payload.movieFile?.quality;
+			const qualityName =
+				typeof qualityObj === "object" && qualityObj !== null
+					? qualityObj.quality?.name || release?.quality
+					: qualityObj || release?.quality;
+			if (qualityName) message += `▫️ *Quality*: ${qualityName}\n`;
+			if (payload.downloadClient)
+				message += `▫️ *Client*: ${payload.downloadClient}`;
 
-            // Check for individual user notification subscriptions
-            try {
-                const pending = getPendingNotifications('movie', movie.tmdbId);
-                for (const sub of pending) {
-                    const personalMsg = `🔔 *Notification*: Your movie *${sub.title}* has finished downloading and is now available! 🍿`;
-                    await bot.api.sendMessage(sub.user_id, personalMsg, { parse_mode: "Markdown" });
-                    markNotificationSent(sub.id);
-                }
-            } catch (err) {
-                console.error("Failed to process pending Radarr notifications:", (err as Error).message);
-            }
-        }
+			// Check for individual user notification subscriptions
+			try {
+				const pending = getPendingNotifications("movie", movie.tmdbId);
+				for (const sub of pending) {
+					const personalMsg = `🔔 *Notification*: Your movie *${sub.title}* has finished downloading and is now available! 🍿`;
+					await bot.api.sendMessage(sub.user_id, personalMsg, {
+						parse_mode: "Markdown",
+					});
+					markNotificationSent(sub.id);
+				}
+			} catch (err) {
+				console.error(
+					"Failed to process pending Radarr notifications:",
+					(err as Error).message,
+				);
+			}
+		}
 
-        // Build notification and enqueue for serial delivery.
-        const dbMessage = message ? message.replace(/[_*`]/g, "") : `Radarr Event: ${eventType} - ${eventTitle}`;
+		// Build notification and enqueue for serial delivery.
+		const dbMessage = message
+			? message.replace(/[_*`]/g, "")
+			: `Radarr Event: ${eventType} - ${eventTitle}`;
 
-        if (message) {
-            const capturedMessage = message;
-            const capturedEventTitle = eventTitle;
-            const capturedEventType = eventType;
+		if (message) {
+			const capturedMessage = message;
+			const capturedEventTitle = eventTitle;
+			const capturedEventType = eventType;
 
-            webhookEventQueue.enqueue({
-                key: `radarr:${capturedEventType.toLowerCase()}:${capturedEventTitle}`.toLowerCase(),
-                label: `Radarr/${capturedEventType}/${capturedEventTitle}`,
-                dbSave: () => saveMediaEvent("radarr", capturedEventType.toLowerCase(), capturedEventTitle, dbMessage),
-                send: async () => {
-                    if (!areNotificationsEnabled() || !getEventAlertConfig("radarr", capturedEventType.toLowerCase())) return;
-                    const targets = getNotifyTargets();
-                    for (const target of targets) {
-                        try {
-                            await bot.api.sendMessage(target, capturedMessage, { parse_mode: "Markdown" });
-                        } catch (err) {
-                            console.error(`Failed to send Radarr notification to ${target}:`, (err as Error).message);
-                        }
-                    }
-                }
-            });
-        } else {
-            saveMediaEvent("radarr", eventType.toLowerCase(), eventTitle, dbMessage);
-        }
+			webhookEventQueue.enqueue({
+				key: `radarr:${capturedEventType.toLowerCase()}:${capturedEventTitle}`.toLowerCase(),
+				label: `Radarr/${capturedEventType}/${capturedEventTitle}`,
+				dbSave: () =>
+					saveMediaEvent(
+						"radarr",
+						capturedEventType.toLowerCase(),
+						capturedEventTitle,
+						dbMessage,
+					),
+				send: async () => {
+					if (
+						!areNotificationsEnabled() ||
+						!getEventAlertConfig("radarr", capturedEventType.toLowerCase())
+					)
+						return;
+					const targets = getNotifyTargets();
+					for (const target of targets) {
+						try {
+							await bot.api.sendMessage(target, capturedMessage, {
+								parse_mode: "Markdown",
+							});
+						} catch (err) {
+							console.error(
+								`Failed to send Radarr notification to ${target}:`,
+								(err as Error).message,
+							);
+						}
+					}
+				},
+			});
+		} else {
+			saveMediaEvent("radarr", eventType.toLowerCase(), eventTitle, dbMessage);
+		}
 
-        return new Response("OK", { status: 200 });
-    } catch (err) {
-        console.error("Error processing Radarr webhook:", (err as Error).message);
-        return new Response("Internal Server Error", { status: 500 });
-    }
+		return new Response("OK", { status: 200 });
+	} catch (err) {
+		console.error("Error processing Radarr webhook:", (err as Error).message);
+		return new Response("Internal Server Error", { status: 500 });
+	}
 }
 
 export async function handleSonarrWebhook(request: Request, bot: Bot) {
-    try {
-        const payload = (await request.json()) as SonarrWebhookPayload;
-        const { eventType, series, episodes, release } = payload;
+	try {
+		const payload = (await request.json()) as SonarrWebhookPayload;
+		const { eventType, series, episodes, release } = payload;
 
-        if (eventType === "Test") {
-            return new Response("OK", { status: 200 });
-        }
+		if (eventType === "Test") {
+			return new Response("OK", { status: 200 });
+		}
 
-        if (!series) {
-            console.warn(`Sonarr Webhook: Received payload without series object for event: ${eventType}`);
-            return new Response("OK", { status: 200 });
-        }
+		if (!series) {
+			console.warn(
+				`Sonarr Webhook: Received payload without series object for event: ${eventType}`,
+			);
+			return new Response("OK", { status: 200 });
+		}
 
-        let message = "";
-        const episodesLabel = episodes && episodes.length > 0
-            ? episodes.map(e => `S${e.seasonNumber.toString().padStart(2, '0')}E${e.episodeNumber.toString().padStart(2, '0')}`).join(", ")
-            : "";
-        let eventTitle = `${series.title}${episodesLabel ? ` - ${episodesLabel}` : ""}`;
+		let message = "";
+		const episodesLabel =
+			episodes && episodes.length > 0
+				? episodes
+						.map(
+							(e) =>
+								`S${e.seasonNumber.toString().padStart(2, "0")}E${e.episodeNumber.toString().padStart(2, "0")}`,
+						)
+						.join(", ")
+				: "";
+		const eventTitle = `${series.title}${episodesLabel ? ` - ${episodesLabel}` : ""}`;
 
-        if (eventType === "Grab") {
-            message = `📥 *Sonarr*: Grabbed *${eventTitle}*\n\n`;
-            const grabQualityObj = release?.quality;
-            const grabQualityName = typeof grabQualityObj === "object" && grabQualityObj !== null
-                ? (grabQualityObj as any)?.quality?.name
-                : grabQualityObj;
-            if (grabQualityName) message += `▫️ *Quality*: ${grabQualityName}\n`;
-            if (release?.releaseTitle) message += `▫️ *Release*: \`${release.releaseTitle}\`\n`;
-            if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
-        } else if (eventType === "Download") {
-            message = `✅ *Sonarr*: Download complete for *${eventTitle}*\n\n`;
-            const qualityObj = payload.episodeFile?.quality;
-            const qualityName = typeof qualityObj === "object" && qualityObj !== null
-                ? (qualityObj.quality?.name || release?.quality)
-                : (qualityObj || release?.quality);
-            if (qualityName) message += `▫️ *Quality*: ${qualityName}\n`;
-            if (payload.downloadClient) message += `▫️ *Client*: ${payload.downloadClient}`;
+		if (eventType === "Grab") {
+			message = `📥 *Sonarr*: Grabbed *${eventTitle}*\n\n`;
+			const grabQualityObj = release?.quality;
+			const grabQualityName =
+				typeof grabQualityObj === "object" && grabQualityObj !== null
+					? (grabQualityObj as any)?.quality?.name
+					: grabQualityObj;
+			if (grabQualityName) message += `▫️ *Quality*: ${grabQualityName}\n`;
+			if (release?.releaseTitle)
+				message += `▫️ *Release*: \`${release.releaseTitle}\`\n`;
+			if (payload.downloadClient)
+				message += `▫️ *Client*: ${payload.downloadClient}`;
+		} else if (eventType === "Download") {
+			message = `✅ *Sonarr*: Download complete for *${eventTitle}*\n\n`;
+			const qualityObj = payload.episodeFile?.quality;
+			const qualityName =
+				typeof qualityObj === "object" && qualityObj !== null
+					? qualityObj.quality?.name || release?.quality
+					: qualityObj || release?.quality;
+			if (qualityName) message += `▫️ *Quality*: ${qualityName}\n`;
+			if (payload.downloadClient)
+				message += `▫️ *Client*: ${payload.downloadClient}`;
 
-            // Check for individual user notification subscriptions
-            try {
-                const pending = getPendingNotifications('series', series.tvdbId);
-                for (const sub of pending) {
-                    const personalMsg = `🔔 *Notification*: The show *${sub.title}* has finished downloading and is now available! 📺`;
-                    await bot.api.sendMessage(sub.user_id, personalMsg, { parse_mode: "Markdown" });
-                    markNotificationSent(sub.id);
-                }
-            } catch (err) {
-                console.error("Failed to process pending Sonarr notifications:", (err as Error).message);
-            }
-        } else if (eventType === "SeriesAdd") {
-            message = `📺 *Sonarr*: Added new series *${eventTitle}*\n`;
-        }
+			// Check for individual user notification subscriptions
+			try {
+				const pending = getPendingNotifications("series", series.tvdbId);
+				for (const sub of pending) {
+					const personalMsg = `🔔 *Notification*: The show *${sub.title}* has finished downloading and is now available! 📺`;
+					await bot.api.sendMessage(sub.user_id, personalMsg, {
+						parse_mode: "Markdown",
+					});
+					markNotificationSent(sub.id);
+				}
+			} catch (err) {
+				console.error(
+					"Failed to process pending Sonarr notifications:",
+					(err as Error).message,
+				);
+			}
+		} else if (eventType === "SeriesAdd") {
+			message = `📺 *Sonarr*: Added new series *${eventTitle}*\n`;
+		}
 
-        // Build notification and enqueue for serial delivery.
-        const dbMessage = message ? message.replace(/[_*`]/g, "") : `Sonarr Event: ${eventType} - ${eventTitle}`;
+		// Build notification and enqueue for serial delivery.
+		const dbMessage = message
+			? message.replace(/[_*`]/g, "")
+			: `Sonarr Event: ${eventType} - ${eventTitle}`;
 
-        if (message) {
-            const capturedMessage = message;
-            const capturedEventTitle = eventTitle;
-            const capturedEventType = eventType;
+		if (message) {
+			const capturedMessage = message;
+			const capturedEventTitle = eventTitle;
+			const capturedEventType = eventType;
 
-            webhookEventQueue.enqueue({
-                key: `sonarr:${capturedEventType.toLowerCase()}:${capturedEventTitle}`.toLowerCase(),
-                label: `Sonarr/${capturedEventType}/${capturedEventTitle}`,
-                dbSave: () => saveMediaEvent("sonarr", capturedEventType.toLowerCase(), capturedEventTitle, dbMessage),
-                send: async () => {
-                    if (!areNotificationsEnabled() || !getEventAlertConfig("sonarr", capturedEventType.toLowerCase())) return;
-                    const targets = getNotifyTargets();
-                    for (const target of targets) {
-                        try {
-                            await bot.api.sendMessage(target, capturedMessage, { parse_mode: "Markdown" });
-                        } catch (err) {
-                            console.error(`Failed to send Sonarr notification to ${target}:`, (err as Error).message);
-                        }
-                    }
-                }
-            });
-        } else {
-            saveMediaEvent("sonarr", eventType.toLowerCase(), eventTitle, dbMessage);
-        }
+			webhookEventQueue.enqueue({
+				key: `sonarr:${capturedEventType.toLowerCase()}:${capturedEventTitle}`.toLowerCase(),
+				label: `Sonarr/${capturedEventType}/${capturedEventTitle}`,
+				dbSave: () =>
+					saveMediaEvent(
+						"sonarr",
+						capturedEventType.toLowerCase(),
+						capturedEventTitle,
+						dbMessage,
+					),
+				send: async () => {
+					if (
+						!areNotificationsEnabled() ||
+						!getEventAlertConfig("sonarr", capturedEventType.toLowerCase())
+					)
+						return;
+					const targets = getNotifyTargets();
+					for (const target of targets) {
+						try {
+							await bot.api.sendMessage(target, capturedMessage, {
+								parse_mode: "Markdown",
+							});
+						} catch (err) {
+							console.error(
+								`Failed to send Sonarr notification to ${target}:`,
+								(err as Error).message,
+							);
+						}
+					}
+				},
+			});
+		} else {
+			saveMediaEvent("sonarr", eventType.toLowerCase(), eventTitle, dbMessage);
+		}
 
-        return new Response("OK", { status: 200 });
-    } catch (err) {
-        console.error("Error processing Sonarr webhook:", (err as Error).message);
-        return new Response("Internal Server Error", { status: 500 });
-    }
+		return new Response("OK", { status: 200 });
+	} catch (err) {
+		console.error("Error processing Sonarr webhook:", (err as Error).message);
+		return new Response("Internal Server Error", { status: 500 });
+	}
 }
 
 export async function handleNZBGetWebhook(request: Request, bot: Bot) {
-    try {
-        const payload = (await request.json()) as NZBGetWebhookPayload;
-        const { event, title, speed, eta } = payload;
+	try {
+		const payload = (await request.json()) as NZBGetWebhookPayload;
+		const { event, title, speed, eta } = payload;
 
-        const eventType = event || "added";
-        let message = "";
+		const eventType = event || "added";
+		let message = "";
 
-        if (eventType === "added") {
-            message = `📥 *NZBGet*: Added *${title}*\n\n`;
-            if (speed) message += `▫️ *Speed*: ${speed} MB/s\n`;
-            if (eta) message += `▫️ *Calculated ETA*: ${eta}`;
-        } else if (eventType === "success") {
-            message = `✅ *NZBGet*: Download finished *${title}*`;
-        }
+		if (eventType === "added") {
+			message = `📥 *NZBGet*: Added *${title}*\n\n`;
+			if (speed) message += `▫️ *Speed*: ${speed} MB/s\n`;
+			if (eta) message += `▫️ *Calculated ETA*: ${eta}`;
+		} else if (eventType === "success") {
+			message = `✅ *NZBGet*: Download finished *${title}*`;
+		}
 
-        // Build notification and enqueue for serial delivery.
-        const dbMessage = message ? message.replace(/[_*`]/g, "") : `NZBGet Event: ${eventType} - ${title}`;
+		// Build notification and enqueue for serial delivery.
+		const dbMessage = message
+			? message.replace(/[_*`]/g, "")
+			: `NZBGet Event: ${eventType} - ${title}`;
 
-        if (message) {
-            const capturedMessage = message;
-            const capturedTitle = title;
-            const capturedEventType = eventType;
+		if (message) {
+			const capturedMessage = message;
+			const capturedTitle = title;
+			const capturedEventType = eventType;
 
-            webhookEventQueue.enqueue({
-                key: `nzbget:${capturedEventType}:${capturedTitle}`.toLowerCase(),
-                label: `NZBGet/${capturedEventType}/${capturedTitle}`,
-                dbSave: () => saveMediaEvent("nzbget", capturedEventType, capturedTitle, dbMessage),
-                send: async () => {
-                    if (!areNotificationsEnabled() || !getEventAlertConfig("nzbget", capturedEventType)) return;
-                    const targets = getNotifyTargets();
-                    for (const target of targets) {
-                        try {
-                            await bot.api.sendMessage(target, capturedMessage, { parse_mode: "Markdown" });
-                        } catch (err) {
-                            console.error(`Failed to send NZBGet notification to ${target}:`, (err as Error).message);
-                        }
-                    }
-                }
-            });
-        } else {
-            saveMediaEvent("nzbget", eventType, title, dbMessage);
-        }
+			webhookEventQueue.enqueue({
+				key: `nzbget:${capturedEventType}:${capturedTitle}`.toLowerCase(),
+				label: `NZBGet/${capturedEventType}/${capturedTitle}`,
+				dbSave: () =>
+					saveMediaEvent("nzbget", capturedEventType, capturedTitle, dbMessage),
+				send: async () => {
+					if (
+						!areNotificationsEnabled() ||
+						!getEventAlertConfig("nzbget", capturedEventType)
+					)
+						return;
+					const targets = getNotifyTargets();
+					for (const target of targets) {
+						try {
+							await bot.api.sendMessage(target, capturedMessage, {
+								parse_mode: "Markdown",
+							});
+						} catch (err) {
+							console.error(
+								`Failed to send NZBGet notification to ${target}:`,
+								(err as Error).message,
+							);
+						}
+					}
+				},
+			});
+		} else {
+			saveMediaEvent("nzbget", eventType, title, dbMessage);
+		}
 
-        return new Response("OK", { status: 200 });
-    } catch (err) {
-        console.error("Error processing NZBGet webhook:", (err as Error).message);
-        return new Response("Internal Server Error", { status: 500 });
-    }
+		return new Response("OK", { status: 200 });
+	} catch (err) {
+		console.error("Error processing NZBGet webhook:", (err as Error).message);
+		return new Response("Internal Server Error", { status: 500 });
+	}
 }
 
 /**
@@ -480,72 +614,88 @@ export async function handleNZBGetWebhook(request: Request, bot: Bot) {
  * indicating it may be a non-English/non-Spanish title (e.g. Japanese, Korean, Chinese, Arabic).
  */
 export function isNonLatinTitle(title: string): boolean {
-    // Match any character outside Basic Latin, Latin-1 Supplement, and common Latin Extended blocks
-    return /[^\u0000-\u024F\u1E00-\u1EFF]/.test(title);
+	// Match any character outside Basic Latin, Latin-1 Supplement, and common Latin Extended blocks
+	return /[^\u0000-\u024F\u1E00-\u1EFF]/.test(title);
 }
 
-export function withEnglishTitle(displayedTitle: string, originalTitle: string | undefined): string {
-    if (!originalTitle) return displayedTitle;
-    if (originalTitle === displayedTitle) return displayedTitle;
-    // Show original title in parentheses whenever it differs from the displayed title
-    return `${displayedTitle} (${originalTitle})`;
+export function withEnglishTitle(
+	displayedTitle: string,
+	originalTitle: string | undefined,
+): string {
+	if (!originalTitle) return displayedTitle;
+	if (originalTitle === displayedTitle) return displayedTitle;
+	// Show original title in parentheses whenever it differs from the displayed title
+	return `${displayedTitle} (${originalTitle})`;
 }
 
 /**
  * Generates a unique session ID for tracking playback state.
  */
 function getSessionId(payload: PlexWebhookPayload): string {
-    const accountId = payload.Account?.id || "anon";
-    const playerUuid = payload.Player?.uuid || "unknown_player";
-    const ratingKey = payload.Metadata?.ratingKey || "unknown_item";
-    return `plex_${accountId}_${playerUuid}_${ratingKey}`;
+	const accountId = payload.Account?.id || "anon";
+	const playerUuid = payload.Player?.uuid || "unknown_player";
+	const ratingKey = payload.Metadata?.ratingKey || "unknown_item";
+	return `plex_${accountId}_${playerUuid}_${ratingKey}`;
 }
 
-function formatWebhookMessage(payload: PlexWebhookPayload, previousState: string | null): string | undefined {
-    const { event, Metadata, Account } = payload;
-    const user = Account?.title || "Someone";
-    const typeLabel = Metadata?.librarySectionType === "show" ? "an episode of" : "the movie";
+function formatWebhookMessage(
+	payload: PlexWebhookPayload,
+	previousState: string | null,
+): string | undefined {
+	const { event, Metadata, Account } = payload;
+	const user = Account?.title || "Someone";
+	const typeLabel =
+		Metadata?.librarySectionType === "show" ? "an episode of" : "the movie";
 
-    switch (event) {
-        case "media.play":
-            return `🎬 *${user}* started watching ${typeLabel} *${getFullTitle(Metadata)}*`;
+	switch (event) {
+		case "media.play":
+			return `🎬 *${user}* started watching ${typeLabel} *${getFullTitle(Metadata)}*`;
 
-        case "media.resume":
-            // Only notify if the previous action was NOT a pause (Title: "Continue" logic)
-            if (previousState === "media.pause") {
-                console.log(`Plex Webhook: Skipping redundant resume for ${Metadata?.title}`);
-                return undefined;
-            }
-            return `▶️ *${user}* resumed watching ${typeLabel} *${getFullTitle(Metadata)}*`;
+		case "media.resume":
+			// Only notify if the previous action was NOT a pause (Title: "Continue" logic)
+			if (previousState === "media.pause") {
+				console.log(
+					`Plex Webhook: Skipping redundant resume for ${Metadata?.title}`,
+				);
+				return undefined;
+			}
+			return `▶️ *${user}* resumed watching ${typeLabel} *${getFullTitle(Metadata)}*`;
 
-        case "media.pause":
-            // We update state in handlePlexWebhook but never notify on pause to reduce noise
-            console.log(`Plex Webhook: Ignored event ${event} (state updated)`);
-            return undefined;
+		case "media.pause":
+			// We update state in handlePlexWebhook but never notify on pause to reduce noise
+			console.log(`Plex Webhook: Ignored event ${event} (state updated)`);
+			return undefined;
 
-        case "media.scrobble":
-            return `✅ *${user}* finished watching ${typeLabel} *${getFullTitle(Metadata)}*`;
+		case "media.scrobble":
+			return `✅ *${user}* finished watching ${typeLabel} *${getFullTitle(Metadata)}*`;
 
-        case "library.new":
-            const itemType = Metadata?.type === 'episode' ? 'Episode' : 'Movie';
-            return `🆕 *New ${itemType} added!*\n\n*${getFullTitle(Metadata)}* is now ready to watch.`;
+		case "library.new": {
+			const itemType = Metadata?.type === "episode" ? "Episode" : "Movie";
+			return `🆕 *New ${itemType} added!*\n\n*${getFullTitle(Metadata)}* is now ready to watch.`;
+		}
 
-        default:
-            console.log(`Plex Webhook: Ignored event ${event}`);
-            return undefined;
-    }
+		default:
+			console.log(`Plex Webhook: Ignored event ${event}`);
+			return undefined;
+	}
 }
 
 function getFullTitle(metadata: PlexWebhookPayload["Metadata"]): string {
-    const title = metadata.title || "Unknown Item";
-    const originalTitle = metadata.originalTitle;
+	const title = metadata.title || "Unknown Item";
+	const originalTitle = metadata.originalTitle;
 
-    if (metadata.type === "episode") {
-        const episodeTitle = withEnglishTitle(title, originalTitle);
-        const season = metadata.parentIndex !== undefined ? `S${metadata.parentIndex.toString().padStart(2, '0')}` : 'S??';
-        const episode = metadata.index !== undefined ? `E${metadata.index.toString().padStart(2, '0')}` : 'E??';
-        return `${metadata.grandparentTitle} - ${season}${episode} - ${episodeTitle}`;
-    }
+	if (metadata.type === "episode") {
+		const episodeTitle = withEnglishTitle(title, originalTitle);
+		const season =
+			metadata.parentIndex !== undefined
+				? `S${metadata.parentIndex.toString().padStart(2, "0")}`
+				: "S??";
+		const episode =
+			metadata.index !== undefined
+				? `E${metadata.index.toString().padStart(2, "0")}`
+				: "E??";
+		return `${metadata.grandparentTitle} - ${season}${episode} - ${episodeTitle}`;
+	}
 
-    return withEnglishTitle(title, originalTitle);
+	return withEnglishTitle(title, originalTitle);
 }
