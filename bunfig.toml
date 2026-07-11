@@ -1,0 +1,6 @@
+[test]
+# Preload jsdom + jest-dom matchers so React component tests in proxy-ui/
+# work under bun's native test runner (no jsdom environment built-in in 1.3.5).
+preload = ["./proxy-ui/src/test-preload.ts"]
+
+

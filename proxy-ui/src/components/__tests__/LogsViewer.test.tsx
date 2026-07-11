@@ -1,35 +1,35 @@
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
-import { LogsViewer } from '../LogsViewer';
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it, mock, spyOn } from "bun:test";
+import { LogsViewer } from "../LogsViewer";
 
-describe('LogsViewer', () => {
-    it('displays "No logs available" when empty', () => {
-        render(<LogsViewer logs={[]} />);
-        expect(screen.getByText('No logs available')).toBeInTheDocument();
-    });
+describe("LogsViewer", () => {
+	it('displays "No logs available" when empty', () => {
+		render(<LogsViewer logs={[]} />);
+		expect(screen.getByText("No logs available")).toBeInTheDocument();
+	});
 
-    it('renders provided log messages', () => {
-        const sampleLogs = [
-            "INFO: Bot starting up",
-            "ERROR: Connection failed",
-            "WARN: High latency"
-        ];
-        render(<LogsViewer logs={sampleLogs} />);
+	it("renders provided log messages", () => {
+		const sampleLogs = [
+			"INFO: Bot starting up",
+			"ERROR: Connection failed",
+			"WARN: High latency",
+		];
+		render(<LogsViewer logs={sampleLogs} />);
 
-        sampleLogs.forEach(log => {
-            expect(screen.getByText(log)).toBeInTheDocument();
-        });
-    });
+		for (const log of sampleLogs) {
+			expect(screen.getByText(log)).toBeInTheDocument();
+		}
+	});
 
-    it('calls scrollIntoView on new logs with block: "nearest"', () => {
-        const scrollSpy = vi.fn();
-        window.HTMLElement.prototype.scrollIntoView = scrollSpy;
+	it('calls scrollIntoView on new logs with block: "nearest"', () => {
+		const scrollSpy = mock(() => {});
+		window.HTMLElement.prototype.scrollIntoView = scrollSpy;
 
-        const { rerender } = render(<LogsViewer logs={["Log 1"]} />);
-        expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'nearest' });
+		const { rerender } = render(<LogsViewer logs={["Log 1"]} />);
+		expect(scrollSpy).toHaveBeenCalledWith({ behavior: "smooth", block: "nearest" });
 
-        rerender(<LogsViewer logs={["Log 1", "Log 2"]} />);
-        expect(scrollSpy).toHaveBeenCalledTimes(2);
-        expect(scrollSpy).toHaveBeenLastCalledWith({ behavior: 'smooth', block: 'nearest' });
-    });
+		rerender(<LogsViewer logs={["Log 1", "Log 2"]} />);
+		expect(scrollSpy).toHaveBeenCalledTimes(2);
+		expect(scrollSpy).toHaveBeenLastCalledWith({ behavior: "smooth", block: "nearest" });
+	});
 });

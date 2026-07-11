@@ -1,112 +1,120 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { NotificationSettings } from '../NotificationSettings';
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { NotificationSettings } from "../NotificationSettings";
 
-// Mock fetch globally
-const mockFetch = vi.fn();
-window.fetch = mockFetch;
+// Mock fetch — scoped to this describe block via beforeEach/afterEach
+const mockFetch = mock(async () => ({
+	ok: true,
+	json: async () => ({
+		radarr: { grab: true, download: false },
+		sonarr: { grab: false, download: true },
+		plex: { play: true, resume: false, scrobble: true, library: false },
+	}),
+}));
 
-describe('NotificationSettings', () => {
-    beforeEach(() => {
-        mockFetch.mockReset();
-        // Default success response for fetchSettings
-        mockFetch.mockResolvedValue({
-            ok: true,
-            json: async () => ({
-                radarr: { grab: true, download: false },
-                sonarr: { grab: false, download: true },
-                plex: { play: true, resume: false, scrobble: true, library: false }
-            })
-        });
+const originalFetch = globalThis.fetch;
 
-        // Mock import.meta.env
-        vi.stubGlobal('import', {
-            meta: {
-                env: {
-                    DEV: true,
-                    VITE_PROXY_SECRET_KEY: 'test_secret'
-                }
-            }
-        });
-    });
+describe("NotificationSettings", () => {
+	beforeEach(() => {
+		// Install mock fetch before each test
+		globalThis.fetch = mockFetch as unknown as typeof fetch;
+		mockFetch.mockReset();
+		// Default success response for fetchSettings
+		mockFetch.mockImplementation(async () => ({
+			ok: true,
+			json: async () => ({
+				radarr: { grab: true, download: false },
+				sonarr: { grab: false, download: true },
+				plex: { play: true, resume: false, scrobble: true, library: false },
+			}),
+		}));
+	});
 
-    it('renders loading state initially', () => {
-        mockFetch.mockImplementationOnce(() => new Promise(resolve => setTimeout(resolve, 100)));
-        render(<NotificationSettings />);
-        const spinner = document.querySelector('.spinner');
-        expect(spinner).toBeInTheDocument();
-    });
+	afterEach(() => {
+		// Restore the original fetch so other test files aren't affected
+		globalThis.fetch = originalFetch;
+	});
 
-    it('renders settings after successful fetch', async () => {
-        render(<NotificationSettings />);
+	it("renders loading state initially", () => {
+		mockFetch.mockImplementationOnce(
+			() => new Promise((resolve) => setTimeout(resolve, 100)) as ReturnType<typeof mockFetch>,
+		);
+		render(<NotificationSettings />);
+		const spinner = document.querySelector(".spinner");
+		expect(spinner).toBeInTheDocument();
+	});
 
-        await waitFor(() => {
-            expect(screen.getByText('Notification Alerts')).toBeInTheDocument();
-            expect(screen.getByText('Radarr (Movies)')).toBeInTheDocument();
-            expect(screen.getByText('Sonarr (TV Shows)')).toBeInTheDocument();
-            expect(screen.getByText('Plex (Streaming)')).toBeInTheDocument();
-        });
+	it("renders settings after successful fetch", async () => {
+		render(<NotificationSettings />);
 
-        const checkboxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
-        expect(checkboxes).toHaveLength(8);
+		await waitFor(() => {
+			expect(screen.getByText("Notification Alerts")).toBeInTheDocument();
+			expect(screen.getByText("Radarr (Movies)")).toBeInTheDocument();
+			expect(screen.getByText("Sonarr (TV Shows)")).toBeInTheDocument();
+			expect(screen.getByText("Plex (Streaming)")).toBeInTheDocument();
+		});
 
-        // Radarr
-        expect(checkboxes[0].checked).toBe(true); // Grab
-        expect(checkboxes[1].checked).toBe(false); // Download
-        // Sonarr
-        expect(checkboxes[2].checked).toBe(false); // Grab
-        expect(checkboxes[3].checked).toBe(true); // Download
-        // Plex
-        expect(checkboxes[4].checked).toBe(true); // Play
-        expect(checkboxes[5].checked).toBe(false); // Resume
-        expect(checkboxes[6].checked).toBe(true); // Scrobble
-        expect(checkboxes[7].checked).toBe(false); // Library
-    });
+		const checkboxes = screen.getAllByRole("checkbox") as HTMLInputElement[];
+		expect(checkboxes).toHaveLength(8);
 
-    it('toggles settings when clicked', async () => {
-        const user = userEvent.setup();
-        render(<NotificationSettings />);
+		// Radarr
+		expect(checkboxes[0].checked).toBe(true); // Grab
+		expect(checkboxes[1].checked).toBe(false); // Download
+		// Sonarr
+		expect(checkboxes[2].checked).toBe(false); // Grab
+		expect(checkboxes[3].checked).toBe(true); // Download
+		// Plex
+		expect(checkboxes[4].checked).toBe(true); // Play
+		expect(checkboxes[5].checked).toBe(false); // Resume
+		expect(checkboxes[6].checked).toBe(true); // Scrobble
+		expect(checkboxes[7].checked).toBe(false); // Library
+	});
 
-        await waitFor(() => {
-            expect(screen.getByText('Notification Alerts')).toBeInTheDocument();
-        });
+	it("toggles settings when clicked", async () => {
+		const user = userEvent.setup();
+		render(<NotificationSettings />);
 
-        const checkboxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
-        const plexResume = checkboxes[5];
+		await waitFor(() => {
+			expect(screen.getByText("Notification Alerts")).toBeInTheDocument();
+		});
 
-        expect(plexResume.checked).toBe(false);
-        await user.click(plexResume);
-        expect(plexResume.checked).toBe(true);
-    });
+		const checkboxes = screen.getAllByRole("checkbox") as HTMLInputElement[];
+		const plexResume = checkboxes[5];
 
-    it('submits correctly on save', async () => {
-        const user = userEvent.setup();
-        render(<NotificationSettings />);
+		expect(plexResume.checked).toBe(false);
+		await user.click(plexResume);
+		expect(plexResume.checked).toBe(true);
+	});
 
-        await waitFor(() => {
-            expect(screen.getByText('Notification Alerts')).toBeInTheDocument();
-        });
+	it("submits correctly on save", async () => {
+		const user = userEvent.setup();
+		render(<NotificationSettings />);
 
-        mockFetch.mockResolvedValueOnce({
-            ok: true,
-            json: async () => ({ success: true })
-        });
+		await waitFor(() => {
+			expect(screen.getByText("Notification Alerts")).toBeInTheDocument();
+		});
 
-        const saveButton = screen.getByRole('button', { name: /save changes/i });
-        await user.click(saveButton);
+		mockFetch.mockImplementationOnce(async () => ({
+			ok: true,
+			json: async () => ({ success: true }),
+		}));
 
-        expect(mockFetch).toHaveBeenCalledTimes(2);
-        expect(mockFetch).toHaveBeenLastCalledWith(
-            'http://localhost:1111/api/settings/notifications',
-            expect.objectContaining({
-                method: 'POST',
-                body: JSON.stringify({
-                    radarr: { grab: true, download: false },
-                    sonarr: { grab: false, download: true },
-                    plex: { play: true, resume: false, scrobble: true, library: false }
-                })
-            })
-        );
-    });
+		const saveButton = screen.getByRole("button", { name: /save changes/i });
+		await user.click(saveButton);
+
+		expect(mockFetch).toHaveBeenCalledTimes(2);
+		expect(mockFetch).toHaveBeenLastCalledWith(
+			expect.stringContaining("/api/settings/notifications"),
+			expect.objectContaining({
+				method: "POST",
+				body: JSON.stringify({
+					radarr: { grab: true, download: false },
+					sonarr: { grab: false, download: true },
+					plex: { play: true, resume: false, scrobble: true, library: false },
+				}),
+			}),
+		);
+
+	});
 });
