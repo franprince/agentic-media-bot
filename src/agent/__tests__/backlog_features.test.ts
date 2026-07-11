@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it, spyOn } from "bun:test";
+import * as ai from "ai";
 import {
 	addReportSubscription,
 	getReportSubscriptions,
@@ -12,14 +13,23 @@ import {
 // Mock the Vercel AI SDK generateText function
 process.env.GOOGLE_GENERATIVE_AI_API_KEY = "mock-api-key";
 
-mock.module("ai", () => ({
-	generateText: async (options: any) => {
-		// Return dummy transcription response for tests
-		return {
-			text: "transcribed test query",
-		};
-	},
-}));
+const spies: any[] = [];
+
+beforeAll(() => {
+	spies.push(
+		spyOn(ai, "generateText").mockImplementation(async (options: any) => {
+			return {
+				text: "transcribed test query",
+			} as any;
+		}),
+	);
+});
+
+afterAll(() => {
+	for (const spy of spies) {
+		spy.mockRestore();
+	}
+});
 
 describe("Voice Message Transcription & Scheduling tests", () => {
 	it("should perform SQLite CRUD for report subscriptions", () => {

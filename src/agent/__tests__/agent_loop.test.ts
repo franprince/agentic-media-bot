@@ -1,28 +1,55 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import {
+	afterAll,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	mock,
+	spyOn,
+} from "bun:test";
+import * as ai from "ai";
+import * as database from "../../services/database";
+import * as plex from "../../services/plex";
 import { processUserMessage } from "../index";
 
-// Mock database
+// Mock data
 let mockHistoryVal: any[] = [];
-mock.module("../../services/database.ts", () => ({
-	getHistory: () => mockHistoryVal,
-	saveHistory: (userId: number, history: any[]) => {
-		mockHistoryVal = history;
-	},
-	getUserName: () => "Fran",
-	savePendingNotification: () => {},
-}));
-
-// Mock plex normalization
-mock.module("../../services/plex", () => ({
-	normalizeCountryName: (c: string) =>
-		c.toLowerCase() === "japanese" ? "japan" : c,
-}));
-
-// Mock ai SDK
 const mockGenerateText = mock();
-mock.module("ai", () => ({
-	generateText: mockGenerateText,
-}));
+const spies: any[] = [];
+
+beforeAll(() => {
+	spies.push(
+		spyOn(database, "getHistory").mockImplementation(() => mockHistoryVal),
+	);
+	spies.push(
+		spyOn(database, "saveHistory").mockImplementation(
+			(userId: number, history: any[]) => {
+				mockHistoryVal = history;
+			},
+		),
+	);
+	spies.push(spyOn(database, "getUserName").mockImplementation(() => "Fran"));
+	spies.push(
+		spyOn(database, "savePendingNotification").mockImplementation(() => {}),
+	);
+
+	spies.push(
+		spyOn(plex, "normalizeCountryName").mockImplementation((c: string) =>
+			c.toLowerCase() === "japanese" ? "japan" : c,
+		),
+	);
+
+	spies.push(
+		spyOn(ai, "generateText").mockImplementation(mockGenerateText as any),
+	);
+});
+
+afterAll(() => {
+	for (const spy of spies) {
+		spy.mockRestore();
+	}
+});
 
 describe("Agent E2E - Origin Search & Language", () => {
 	beforeEach(() => {
