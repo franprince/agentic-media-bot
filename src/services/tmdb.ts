@@ -67,10 +67,61 @@ export interface TmdbResult {
 	posterPath: string | null;
 }
 
-/** Extract a 4-digit year from a free-text query string */
-function extractYear(query: string): number | null {
-	const match = query.match(/\b(20\d{2})\b/);
-	return match ? parseInt(match[1], 10) : null;
+interface YearRange {
+	gte: string | null;
+	lte: string | null;
+}
+
+/** Extract a year range from a free-text query string */
+export function extractYearRange(query: string): YearRange {
+	const rangeMatch = query.match(/(?:^|\s+)(20\d{2})\s*(?:-|to|a|y|until)\s*(20\d{2})(?:\s+|$)/i);
+	if (rangeMatch) {
+		const y1 = parseInt(rangeMatch[1], 10);
+		const y2 = parseInt(rangeMatch[2], 10);
+		const minYear = Math.min(y1, y2);
+		const maxYear = Math.max(y1, y2);
+		return {
+			gte: `${minYear}-01-01`,
+			lte: `${maxYear}-12-31`,
+		};
+	}
+
+	const lastYearsMatch = query.match(/(?:^|\s+)(?:last|últimos|ultimos)\s+(\d{1,2})\s+(?:years|años)(?:\s+|$)/i);
+	if (lastYearsMatch) {
+		const years = parseInt(lastYearsMatch[1], 10);
+		const thisYear = new Date().getFullYear();
+		return {
+			gte: `${thisYear - years}-01-01`,
+			lte: `${thisYear}-12-31`,
+		};
+	}
+
+	const sinceMatch = query.match(/(?:^|\s+)(?:since|desde)\s+(20\d{2})(?:\s+|$)/i);
+	if (sinceMatch) {
+		return {
+			gte: `${sinceMatch[1]}-01-01`,
+			lte: null,
+		};
+	}
+
+	const untilMatch = query.match(/(?:^|\s+)(?:until|hasta)\s+(20\d{2})(?:\s+|$)/i);
+	if (untilMatch) {
+		return {
+			gte: null,
+			lte: `${untilMatch[1]}-12-31`,
+		};
+	}
+
+	const singleMatch = query.match(/(?:^|\s+)(20\d{2})(?:\s+|$)/);
+	if (singleMatch) {
+		const year = singleMatch[1];
+		return {
+			gte: `${year}-01-01`,
+			lte: `${year}-12-31`,
+		};
+	}
+
+	return { gte: null, lte: null };
 }
 
 /** Determine whether the query is asking for movies, TV, or both */
@@ -198,22 +249,27 @@ function parseYear(dateStr?: string): number | null {
 
 /** Discover movies matching year/genre constraints */
 async function discoverMovies(
-	year: number | null,
+	yearRange: YearRange,
 	genreIds: number[],
+	sortBy: string,
+	voteCountGte: number,
 	page = 1,
 ): Promise<{ results: TmdbDiscoverMovie[]; totalResults: number }> {
 	const params: Record<string, string | number> = {
 		language: "en-US",
-		sort_by: "vote_average.desc",
-		"vote_count.gte": 50,
+		sort_by: sortBy,
+		"vote_count.gte": voteCountGte,
 		page,
 	};
-	if (year) {
-		params["primary_release_year"] = year;
+	if (yearRange.gte) {
+		params["primary_release_date.gte"] = yearRange.gte;
 	} else {
 		// Default to last 2 years when no year specified
 		const thisYear = new Date().getFullYear();
 		params["primary_release_date.gte"] = `${thisYear - 1}-01-01`;
+	}
+	if (yearRange.lte) {
+		params["primary_release_date.lte"] = yearRange.lte;
 	}
 	if (genreIds.length > 0) params["with_genres"] = genreIds.join(",");
 
@@ -226,21 +282,26 @@ async function discoverMovies(
 
 /** Discover TV shows matching year/genre constraints */
 async function discoverTv(
-	year: number | null,
+	yearRange: YearRange,
 	genreIds: number[],
+	sortBy: string,
+	voteCountGte: number,
 	page = 1,
 ): Promise<{ results: TmdbDiscoverTv[]; totalResults: number }> {
 	const params: Record<string, string | number> = {
 		language: "en-US",
-		sort_by: "vote_average.desc",
-		"vote_count.gte": 20,
+		sort_by: sortBy,
+		"vote_count.gte": voteCountGte,
 		page,
 	};
-	if (year) {
-		params["first_air_date_year"] = year;
+	if (yearRange.gte) {
+		params["first_air_date.gte"] = yearRange.gte;
 	} else {
 		const thisYear = new Date().getFullYear();
 		params["first_air_date.gte"] = `${thisYear - 1}-01-01`;
+	}
+	if (yearRange.lte) {
+		params["first_air_date.lte"] = yearRange.lte;
 	}
 	if (genreIds.length > 0) params["with_genres"] = genreIds.join(",");
 
@@ -261,15 +322,20 @@ export async function discoverMedia(
 	query: string,
 	limit = 10,
 ): Promise<TmdbResult[]> {
-	const year = extractYear(query);
+	const yearRange = extractYearRange(query);
 	const mediaType = extractMediaType(query);
+
+	const isAcclaimedQuery = /acclaimed|aclamad|best|mejor|top|rating|valorad/i.test(query);
+	const sortBy = isAcclaimedQuery ? "vote_average.desc" : "popularity.desc";
+	const movieVoteCount = isAcclaimedQuery ? 300 : 50;
+	const tvVoteCount = isAcclaimedQuery ? 100 : 20;
 
 	const results: TmdbResult[] = [];
 
 	if (mediaType === "movie" || mediaType === "both") {
 		const genreIds = extractGenreIds(query, "movie");
 		const genreMap = await fetchGenreMap("movie");
-		const { results: movies } = await discoverMovies(year, genreIds);
+		const { results: movies } = await discoverMovies(yearRange, genreIds, sortBy, movieVoteCount);
 		for (const m of movies.slice(0, limit)) {
 			results.push({
 				id: m.id,
@@ -290,7 +356,7 @@ export async function discoverMedia(
 	if (mediaType === "tv" || mediaType === "both") {
 		const genreIds = extractGenreIds(query, "tv");
 		const genreMap = await fetchGenreMap("tv");
-		const { results: shows } = await discoverTv(year, genreIds);
+		const { results: shows } = await discoverTv(yearRange, genreIds, sortBy, tvVoteCount);
 		for (const s of shows.slice(0, limit)) {
 			results.push({
 				id: s.id,

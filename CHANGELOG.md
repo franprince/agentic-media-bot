@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.42.4] - 2026-07-11
+
+### Fixed
+- **TMDB Discover Year Ranges & Niche Sorting**: Upgraded the TMDB `discoverMedia` tool to parse year ranges (e.g. `2016-2026`, `last 5 years`) and relative boundaries. Adjusted sorting dynamically to use `popularity.desc` by default for standard queries, and `vote_average.desc` with higher vote count thresholds (300 for movies, 100 for TV) for acclaimed queries, resolving obscure/unrecognized recommendations.
+
 ## [4.42.3] - 2026-07-11
 
 ### Fixed
