@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.42.2] - 2026-07-11
+
+### Fixed
+- **Type errors in proxy-ui test environment**: Resolved TypeScript compilation errors in the `proxy-ui` subdirectory by adding `node` and `bun` to the TS compiler's `types` configuration in `tsconfig.app.json`, installing `@types/jsdom`, creating a `matchers.d.ts` declaration file to map `jest-dom` matcher types to `bun:test`, and cleaning up a type mismatch and an unused import in the test files.
+
 ## [4.42.1] - 2026-07-11
 
 ### Fixed

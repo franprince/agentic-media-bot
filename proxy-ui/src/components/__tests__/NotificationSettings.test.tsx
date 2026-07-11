@@ -10,7 +10,7 @@ const mockFetch = mock(async () => ({
 		radarr: { grab: true, download: false },
 		sonarr: { grab: false, download: true },
 		plex: { play: true, resume: false, scrobble: true, library: false },
-	}),
+	} as unknown),
 }));
 
 const originalFetch = globalThis.fetch;
@@ -97,7 +97,7 @@ describe("NotificationSettings", () => {
 
 		mockFetch.mockImplementationOnce(async () => ({
 			ok: true,
-			json: async () => ({ success: true }),
+			json: async () => ({ success: true } as unknown),
 		}));
 
 		const saveButton = screen.getByRole("button", { name: /save changes/i });
