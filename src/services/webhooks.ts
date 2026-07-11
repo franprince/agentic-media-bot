@@ -508,8 +508,6 @@ function formatWebhookMessage(payload: PlexWebhookPayload, previousState: string
 
     switch (event) {
         case "media.play":
-
-        case "media.play":
             return `🎬 *${user}* started watching ${typeLabel} *${getFullTitle(Metadata)}*`;
 
         case "media.resume":
