@@ -42,9 +42,9 @@ describe("Voice Message Transcription & Scheduling tests", () => {
 
 		const listAfterAdd = getReportSubscriptions(userId);
 		expect(listAfterAdd.length).toBe(1);
-		expect(listAfterAdd[0].report_type).toBe("summary");
-		expect(listAfterAdd[0].cron_expression).toBe("0 9 * * *");
-		expect(listAfterAdd[0].days).toBe(1);
+		expect(listAfterAdd[0]?.report_type).toBe("summary");
+		expect(listAfterAdd[0]?.cron_expression).toBe("0 9 * * *");
+		expect(listAfterAdd[0]?.days).toBe(1);
 
 		removeReportSubscription(subId);
 		const listAfterDelete = getReportSubscriptions(userId);
