@@ -23,6 +23,7 @@ import {
 	sendPhotoSmart,
 } from "./bot/messages.ts";
 import { splitTelegramMessage } from "./bot/utils.ts";
+import { processUserMessage } from "./agent/index.ts";
 import {
 	getAllConversations,
 	getMetadata,
