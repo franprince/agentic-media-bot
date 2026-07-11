@@ -1,6 +1,6 @@
 {
   "name": "agentic-media-bot",
-  "version": "4.42.0",
+  "version": "4.42.1",
   "module": "index.ts",
   "type": "module",
   "private": true,
@@ -10,7 +10,10 @@
     "proxy": "bun run src/proxy.ts",
     "proxy:ui:dev": "cd proxy-ui && bun run dev",
     "proxy:ui:build": "cd proxy-ui && bun run build",
-    "check:bot-parse": "bun build src/bot.ts --target bun --outfile /tmp/bot-parse-check.js"
+    "check:bot-parse": "bun build src/bot.ts --target bun --outfile /tmp/bot-parse-check.js",
+    "test": "bun test src/ && cd proxy-ui && bun run test",
+    "test:bot": "bun test src/",
+    "test:ui": "cd proxy-ui && bun run test"
   },
   "devDependencies": {
     "@types/bun": "latest",

@@ -31,6 +31,8 @@ describe("Tool Integrity", () => {
 
 		for (const [name, tool] of Object.entries(toolMapping)) {
 			expect(tool).toBeDefined();
+			expect(tool.description).toBeDefined();
+			expect(typeof tool.description).toBe("string");
 		}
 	});
 });
