@@ -1,28 +1,47 @@
-import { beforeEach, describe, expect, spyOn, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import * as radarr from "../../services/radarr";
 import * as sonarr from "../../services/sonarr";
 import { addMovieTool, addSeriesTool, clearCache } from "../tools";
 
 describe("IMDb Validation", () => {
+	const spies: any[] = [];
+
 	beforeEach(() => {
 		// Clear config cache to prevent test-to-test pollution
 		clearCache();
 		// Mock profiles and folders
-		spyOn(radarr, "getQualityProfiles").mockImplementation(async () => [
-			{ id: 1, name: "HD" },
-		]);
-		spyOn(radarr, "getRootFolders").mockImplementation(async () => [
-			{ id: 1, path: "/movies", freeSpace: 1000 },
-		]);
-		spyOn(sonarr, "getQualityProfiles").mockImplementation(async () => [
-			{ id: 1, name: "HD" },
-		]);
-		spyOn(sonarr, "getLanguageProfiles").mockImplementation(async () => [
-			{ id: 1, name: "English" },
-		]);
-		spyOn(sonarr, "getRootFolders").mockImplementation(async () => [
-			{ id: 1, path: "/tv", freeSpace: 1000 },
-		]);
+		spies.push(
+			spyOn(radarr, "getQualityProfiles").mockImplementation(async () => [
+				{ id: 1, name: "HD" },
+			]),
+		);
+		spies.push(
+			spyOn(radarr, "getRootFolders").mockImplementation(async () => [
+				{ id: 1, path: "/movies", freeSpace: 1000 },
+			]),
+		);
+		spies.push(
+			spyOn(sonarr, "getQualityProfiles").mockImplementation(async () => [
+				{ id: 1, name: "HD" },
+			]),
+		);
+		spies.push(
+			spyOn(sonarr, "getLanguageProfiles").mockImplementation(async () => [
+				{ id: 1, name: "English" },
+			]),
+		);
+		spies.push(
+			spyOn(sonarr, "getRootFolders").mockImplementation(async () => [
+				{ id: 1, path: "/tv", freeSpace: 1000 },
+			]),
+		);
+	});
+
+	afterEach(() => {
+		while (spies.length > 0) {
+			const s = spies.pop();
+			if (s && s.mockRestore) s.mockRestore();
+		}
 	});
 
 	describe("addMovieTool", () => {
@@ -44,6 +63,7 @@ describe("IMDb Validation", () => {
 					return [];
 				},
 			);
+			spies.push(radarrSearchSpy);
 
 			const result = await addMovieTool.execute(
 				{
@@ -64,7 +84,7 @@ describe("IMDb Validation", () => {
 		});
 
 		test("should proceed normally if titles match", async () => {
-			spyOn(radarr, "searchMovie").mockImplementation(
+			const searchSpy = spyOn(radarr, "searchMovie").mockImplementation(
 				async () =>
 					[
 						{
@@ -77,6 +97,7 @@ describe("IMDb Validation", () => {
 						},
 					] as any,
 			);
+			spies.push(searchSpy);
 
 			const result = await addMovieTool.execute(
 				{
@@ -95,11 +116,16 @@ describe("IMDb Validation", () => {
 		});
 
 		test("should default to Full-HD or Better profile if available", async () => {
-			spyOn(radarr, "getQualityProfiles").mockImplementation(async () => [
+			const getQualitySpy = spyOn(
+				radarr,
+				"getQualityProfiles",
+			).mockImplementation(async () => [
 				{ id: 1, name: "Any" },
 				{ id: 7, name: "Full-HD or Better (NO REMUX)" },
 			]);
-			spyOn(radarr, "searchMovie").mockImplementation(
+			spies.push(getQualitySpy);
+
+			const searchSpy = spyOn(radarr, "searchMovie").mockImplementation(
 				async () =>
 					[
 						{
@@ -112,6 +138,7 @@ describe("IMDb Validation", () => {
 						},
 					] as any,
 			);
+			spies.push(searchSpy);
 
 			const result = await addMovieTool.execute(
 				{
@@ -131,6 +158,8 @@ describe("IMDb Validation", () => {
 			const addMovieSpy = spyOn(radarr, "addMovie").mockImplementation(
 				async () => ({ title: "Inception" }) as any,
 			);
+			spies.push(addMovieSpy);
+
 			const confirmResult = await addMovieTool.execute(
 				{
 					title: "Inception",
@@ -174,9 +203,13 @@ describe("IMDb Validation", () => {
 					return [];
 				},
 			);
+			spies.push(sonarrSearchSpy);
 
 			// Mock getSeriesByTvdbId for the later part of the tool
-			spyOn(sonarr, "getSeriesByTvdbId").mockImplementation(
+			const getSeriesSpy = spyOn(
+				sonarr,
+				"getSeriesByTvdbId",
+			).mockImplementation(
 				async () =>
 					({
 						title: "Breaking Bad",
@@ -187,6 +220,7 @@ describe("IMDb Validation", () => {
 						seasons: [{ seasonNumber: 1, monitored: true }],
 					}) as any,
 			);
+			spies.push(getSeriesSpy);
 
 			const result = await addSeriesTool.execute(
 				{
@@ -206,15 +240,25 @@ describe("IMDb Validation", () => {
 		});
 
 		test("should default to Full HD or Better profile and Original language profile if available", async () => {
-			spyOn(sonarr, "getQualityProfiles").mockImplementation(async () => [
+			const getProfilesSpy = spyOn(
+				sonarr,
+				"getQualityProfiles",
+			).mockImplementation(async () => [
 				{ id: 1, name: "Any" },
 				{ id: 7, name: "Full HD or Better" },
 			]);
-			spyOn(sonarr, "getLanguageProfiles").mockImplementation(async () => [
+			spies.push(getProfilesSpy);
+
+			const getLangSpy = spyOn(
+				sonarr,
+				"getLanguageProfiles",
+			).mockImplementation(async () => [
 				{ id: 1, name: "English" },
 				{ id: 2, name: "Original Language" },
 			]);
-			spyOn(sonarr, "searchSeries").mockImplementation(
+			spies.push(getLangSpy);
+
+			const searchSpy = spyOn(sonarr, "searchSeries").mockImplementation(
 				async () =>
 					[
 						{
@@ -228,7 +272,12 @@ describe("IMDb Validation", () => {
 						},
 					] as any,
 			);
-			spyOn(sonarr, "getSeriesByTvdbId").mockImplementation(
+			spies.push(searchSpy);
+
+			const getSeriesSpy = spyOn(
+				sonarr,
+				"getSeriesByTvdbId",
+			).mockImplementation(
 				async () =>
 					({
 						title: "Breaking Bad",
@@ -239,6 +288,7 @@ describe("IMDb Validation", () => {
 						seasons: [{ seasonNumber: 1, monitored: true }],
 					}) as any,
 			);
+			spies.push(getSeriesSpy);
 
 			const result = await addSeriesTool.execute(
 				{
@@ -257,6 +307,8 @@ describe("IMDb Validation", () => {
 			const addSeriesSpy = spyOn(sonarr, "addSeries").mockImplementation(
 				async () => ({ title: "Breaking Bad" }) as any,
 			);
+			spies.push(addSeriesSpy);
+
 			const confirmResult = await addSeriesTool.execute(
 				{
 					title: "Breaking Bad",
@@ -267,6 +319,7 @@ describe("IMDb Validation", () => {
 				{ abortSignal: undefined as any },
 			);
 
+			expect(confirmResult.success).toBe(true);
 			expect(addSeriesSpy).toHaveBeenCalledWith(
 				81189,
 				"Breaking Bad",
@@ -277,7 +330,6 @@ describe("IMDb Validation", () => {
 				"standard",
 				undefined,
 			);
-			expect(confirmResult.success).toBe(true);
 		});
 	});
 });
