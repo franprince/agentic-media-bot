@@ -61,8 +61,6 @@ export function hasNameIntent(text: string): boolean {
 }
 
 export function extractNameFromText(text: string): string | undefined {
-	const t = normalize(text);
-
 	// Spanish patterns
 	const esPatterns = [
 		/mi nombre es\s+(.+)/i,
@@ -81,7 +79,7 @@ export function extractNameFromText(text: string): string | undefined {
 
 	for (const pattern of patterns) {
 		const match = text.match(pattern);
-		if (match && match[1]) {
+		if (match?.[1]) {
 			let name = match[1].trim();
 			// Clean up common trailing words
 			name = name.replace(/,\s*(y|i).*$/i, "").trim();
