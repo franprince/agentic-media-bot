@@ -1,12 +1,4 @@
-import {
-	afterAll,
-	afterEach,
-	beforeAll,
-	beforeEach,
-	describe,
-	expect,
-	test,
-} from "bun:test";
+import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { HttpResponse, http } from "msw";
 import { server } from "../../mocks/server";
 import * as sonarr from "../sonarr";
@@ -14,15 +6,10 @@ import * as sonarr from "../sonarr";
 beforeAll(() => {
 	process.env.SONARR_URL = "http://localhost:8989";
 	process.env.SONARR_API_KEY = "test_key";
-	server.listen();
 });
 
 afterEach(() => {
 	server.resetHandlers();
-});
-
-afterAll(() => {
-	server.close();
 });
 
 describe("Sonarr Service", () => {

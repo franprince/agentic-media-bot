@@ -1,25 +1,10 @@
-import {
-	afterAll,
-	afterEach,
-	beforeAll,
-	describe,
-	expect,
-	test,
-} from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { HttpResponse, http } from "msw";
 import { server } from "../../mocks/server";
 import { fetchService } from "../api";
 
-beforeAll(() => {
-	server.listen();
-});
-
 afterEach(() => {
 	server.resetHandlers();
-});
-
-afterAll(() => {
-	server.close();
 });
 
 describe("API Service", () => {

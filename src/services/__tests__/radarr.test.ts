@@ -1,12 +1,4 @@
-import {
-	afterAll,
-	afterEach,
-	beforeAll,
-	beforeEach,
-	describe,
-	expect,
-	test,
-} from "bun:test";
+import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { HttpResponse, http } from "msw";
 import { server } from "../../mocks/server";
 import * as radarr from "../radarr";
@@ -14,15 +6,10 @@ import * as radarr from "../radarr";
 beforeAll(() => {
 	process.env.RADARR_URL = "http://localhost:7878";
 	process.env.RADARR_API_KEY = "test_key";
-	server.listen();
 });
 
 afterEach(() => {
 	server.resetHandlers();
-});
-
-afterAll(() => {
-	server.close();
 });
 
 describe("Radarr Service", () => {

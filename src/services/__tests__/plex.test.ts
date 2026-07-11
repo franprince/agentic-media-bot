@@ -1,27 +1,14 @@
-import {
-	afterAll,
-	afterEach,
-	beforeAll,
-	beforeEach,
-	describe,
-	expect,
-	test,
-} from "bun:test";
+import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { server } from "../../mocks/server";
 import * as plex from "../plex";
 
 beforeAll(() => {
 	process.env.PLEX_URL = "http://localhost:32400";
 	process.env.PLEX_TOKEN = "test_token";
-	server.listen();
 });
 
 afterEach(() => {
 	server.resetHandlers();
-});
-
-afterAll(() => {
-	server.close();
 });
 
 describe("Plex Service", () => {
