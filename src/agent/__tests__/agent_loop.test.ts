@@ -261,4 +261,99 @@ describe("Agent E2E - Origin Search & Language", () => {
 			"Perfect! I'll send you a Telegram message as soon as 'Elle' finishes downloading.",
 		);
 	});
+
+	it("should translate confirmation buttons to Spanish and filter out proactive notifications buttons when confirmation is required", async () => {
+		const userId = 12345;
+		mockHistoryVal = [];
+
+		// Mock first pass where search results are presented
+		mockGenerateText.mockResolvedValueOnce({
+			text: "Buscando 'Leviticus' en Radarr...",
+			toolCalls: [
+				{
+					toolName: "addMovie",
+					toolCallId: "call_add_1",
+					args: { tmdbId: 1012306, title: "Leviticus", year: 2026, confirm: false },
+				},
+			],
+			toolResults: [
+				{
+					toolName: "addMovie",
+					toolCallId: "call_add_1",
+					result: {
+						confirmationRequired: true,
+						message: "I found Leviticus (2026). Please confirm:",
+						buttons: [
+							{ text: "✅ Yes, Add Movie", data: "add movie 1012306 1" },
+							{ text: "❌ Cancel", data: "cancel add movie" },
+						],
+					},
+				},
+			],
+			response: {
+				messages: [
+					{ role: "assistant", content: [{ type: "text", text: "..." }] },
+					{
+						role: "tool",
+						content: [
+							{
+								type: "tool-result",
+								toolName: "addMovie",
+								result: {
+									confirmationRequired: true,
+									buttons: [
+										{ text: "✅ Yes, Add Movie", data: "add movie 1012306 1" },
+										{ text: "❌ Cancel", data: "cancel add movie" },
+									],
+								},
+							},
+						],
+					},
+				],
+			},
+		});
+
+		// Mock the synthesis model response where it falsely claims success and generates notification buttons
+		mockGenerateText.mockResolvedValueOnce({
+			text: "¡Listo! 'Leviticus' (2026) se ha añadido a Radarr. ¿Te gustaría que te notifique?\n\nBUTTON: Sí, notifícame! | notify_download_confirm_movie_1012306\nBUTTON: No, gracias | notify_download_decline",
+			toolResults: [],
+			response: {
+				messages: [
+					{
+						role: "assistant",
+						content: [
+							{
+								type: "text",
+								text: "¡Listo! 'Leviticus' (2026) se ha añadido a Radarr. ¿Te gustaría que te notifique?\n\nBUTTON: Sí, notifícame! | notify_download_confirm_movie_1012306\nBUTTON: No, gracias | notify_download_decline",
+							},
+						],
+					},
+				],
+			},
+		});
+
+		const result = await processUserMessage(
+			userId,
+			"Añadir Leviticus (2026)",
+		);
+
+		// Verification:
+		// 1. Tool buttons must be translated to Spanish.
+		// 2. Proactive notification buttons must be filtered out because confirmation is required.
+		expect(result.buttons).toBeDefined();
+		expect(result.buttons).toHaveLength(2);
+		expect(result.buttons![0].text).toBe("✅ Sí, añadir película");
+		expect(result.buttons![0].data).toBe("add movie 1012306 1");
+		expect(result.buttons![1].text).toBe("❌ Cancelar");
+		expect(result.buttons![1].data).toBe("cancel add movie");
+	});
+
+	it("should preserve callback data when language rewrite is triggered", () => {
+		const { buildLanguageRewritePrompt } = require("../utils");
+		const promptEs = buildLanguageRewritePrompt("es");
+		expect(promptEs.toLowerCase()).toContain("do not translate or modify the callback_data");
+		const promptEn = buildLanguageRewritePrompt("en");
+		expect(promptEn.toLowerCase()).toContain("do not translate or modify the callback_data");
+	});
 });
+

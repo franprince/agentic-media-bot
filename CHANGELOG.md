@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.42.5] - 2026-07-12
+
+### Fixed
+- **CTA Language Mixing & Duplicated Confirmation Buttons**: 
+  - Programmatically translate tool-suggested buttons (e.g. "✅ Yes, Add Movie", "❌ Cancel") to Spanish if the target language is Spanish.
+  - Automatically filter out proactive download notification buttons (e.g. "Sí, notifícame!") if the tool execution indicates confirmation is required, preventing confusing double-CTA states.
+  - Added a confirmation protocol to the system prompt to instruct the model to ask for confirmation instead of claiming success when confirmation is required.
+  - Updated the language rewrite prompt to prevent the model from translating or modifying structured `callback_data` payloads in button blocks.
+
 ## [4.42.4] - 2026-07-11
 
 ### Fixed

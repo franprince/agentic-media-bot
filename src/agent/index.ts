@@ -399,10 +399,27 @@ export async function processUserMessage(
 		}
 
 		// Extract buttons from tool results if any tool suggested them
+		let toolRequiresConfirmation = false;
 		for (const tr of toolResultsForCounts) {
-			if (tr.result && Array.isArray(tr.result.buttons)) {
-				buttons = tr.result.buttons;
-				break; // Use the first set of buttons found
+			if (
+				tr.result &&
+				(tr.result.confirmationRequired || tr.result.requiresConfirmation)
+			) {
+				toolRequiresConfirmation = true;
+			}
+			if (tr.result && Array.isArray(tr.result.buttons) && !buttons) {
+				buttons = tr.result.buttons.map((btn: any) => {
+					let btnText = btn.text;
+					if (statusLang === "es") {
+						if (btnText === "✅ Yes, Add Movie") btnText = "✅ Sí, añadir película";
+						else if (btnText === "✅ Yes, Add Series") btnText = "✅ Sí, añadir serie";
+						else if (btnText === "❌ Cancel") btnText = "❌ Cancelar";
+						else if (btnText === "✅ Remove from Radarr only") btnText = "✅ Solo eliminar de Radarr";
+						else if (btnText === "✅ Remove from Sonarr only") btnText = "✅ Solo eliminar de Sonarr";
+						else if (btnText === "🗑️ Remove and DELETE files") btnText = "🗑️ Eliminar y borrar archivos";
+					}
+					return { ...btn, text: btnText };
+				});
 			}
 		}
 
@@ -465,7 +482,15 @@ export async function processUserMessage(
 		}
 
 		if (extractedButtons.length > 0) {
-			buttons = buttons ? [...buttons, ...extractedButtons] : extractedButtons;
+			const filteredExtracted = toolRequiresConfirmation
+				? extractedButtons.filter(
+						(btn) =>
+							!btn.data.startsWith("notify_download_confirm_") &&
+							btn.data !== "notify_download_decline",
+					)
+				: extractedButtons;
+
+			buttons = buttons ? [...buttons, ...filteredExtracted] : filteredExtracted;
 			// Remove button lines from text
 			text = text.replace(/^\*?\*?BUTTON:.*$/gim, "").trim();
 		}

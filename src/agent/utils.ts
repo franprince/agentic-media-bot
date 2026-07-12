@@ -116,12 +116,14 @@ export function buildLanguageRewritePrompt(target: StatusLanguage): string {
 			"Reescribe el siguiente mensaje completamente en español.",
 			"Mantén exactamente el mismo contenido, números, títulos, viñetas, enlaces y formato Markdown.",
 			"No agregues ni quites elementos; solo cambia el idioma.",
+			"IMPORTANT: For button lines formatted as 'BUTTON: label | callback_data', you MUST translate the 'label' to Spanish but leave the 'callback_data' EXACTLY as it is. Do NOT translate or modify the callback_data.",
 		].join(" ");
 	}
 	return [
 		"Rewrite the following message fully in English.",
 		"Keep exactly the same facts, numbers, titles, bullet points, links, and Markdown formatting.",
 		"Do not add or remove items; only change language.",
+		"IMPORTANT: For button lines formatted as 'BUTTON: label | callback_data', you MUST translate the 'label' to English but leave the 'callback_data' EXACTLY as it is. Do NOT translate or modify the callback_data.",
 	].join(" ");
 }
 
