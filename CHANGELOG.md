@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.42.7] - 2026-07-12
+
+### Fixed
+- **Database service type safety checks**: Fixed a TypeScript compilation issue in `src/services/database.ts` where array indexing and undefined `msg` values triggered `noUncheckedIndexedAccess` type check warnings in `sanitizeConversationHistory`.
+
 ## [4.42.6] - 2026-07-12
 
 ### Added

@@ -105,6 +105,7 @@ function sanitizeConversationHistory(history: CoreMessage[]): CoreMessage[] {
 
 	for (let i = 0; i < history.length; i++) {
 		const msg = history[i];
+		if (!msg) continue;
 		const sanitizedMsg = { ...msg };
 
 		if (msg.role === "user") {
@@ -144,13 +145,13 @@ function sanitizeConversationHistory(history: CoreMessage[]): CoreMessage[] {
 			}) as any;
 		}
 
+		const lastMsg = sanitized[sanitized.length - 1];
 		// Merge consecutive user messages to maintain strict alternation
 		if (
 			sanitizedMsg.role === "user" &&
-			sanitized.length > 0 &&
-			sanitized[sanitized.length - 1].role === "user"
+			lastMsg &&
+			lastMsg.role === "user"
 		) {
-			const lastMsg = sanitized[sanitized.length - 1];
 			if (
 				typeof lastMsg.content === "string" &&
 				typeof sanitizedMsg.content === "string"
@@ -160,7 +161,7 @@ function sanitizeConversationHistory(history: CoreMessage[]): CoreMessage[] {
 			}
 		}
 
-		sanitized.push(sanitizedMsg);
+		sanitized.push(sanitizedMsg as CoreMessage);
 
 		// If a tool message is followed by a user message, insert a dummy assistant message
 		// to preserve Gemini's strict alternating turn structure (User -> Model -> User -> Model).
