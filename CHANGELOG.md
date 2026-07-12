@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.42.6] - 2026-07-12
+
+### Added
+- **Start Downloading Notifications & qBittorrent Webhook Support:**
+  - Implemented a `/qbittorrent-webhook` endpoint in proxy and bot to support direct webhook callbacks from qBittorrent on started and completed events.
+  - Enabled personal download-start (Grab) notifications for subscribed users: when Radarr/Sonarr grabs a release, or when direct NZBGet/qBittorrent webhooks report a download started, the bot queries pending subscriptions (by TMDB/TVDB ID or title-matching) and immediately notifies the requesting user.
+
 ## [4.42.5] - 2026-07-12
 
 ### Fixed

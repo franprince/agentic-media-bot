@@ -31,7 +31,7 @@ beforeAll(() => {
 	);
 	spies.push(spyOn(database, "getUserName").mockImplementation(() => "Fran"));
 	spies.push(
-		spyOn(database, "savePendingNotification").mockImplementation(() => {}),
+		spyOn(database, "savePendingNotification").mockImplementation(() => { }),
 	);
 
 	spies.push(
@@ -342,10 +342,10 @@ describe("Agent E2E - Origin Search & Language", () => {
 		// 2. Proactive notification buttons must be filtered out because confirmation is required.
 		expect(result.buttons).toBeDefined();
 		expect(result.buttons).toHaveLength(2);
-		expect(result.buttons![0].text).toBe("✅ Sí, añadir película");
-		expect(result.buttons![0].data).toBe("add movie 1012306 1");
-		expect(result.buttons![1].text).toBe("❌ Cancelar");
-		expect(result.buttons![1].data).toBe("cancel add movie");
+		expect(result.buttons![0]!.text).toBe("✅ Sí, añadir película");
+		expect(result.buttons![0]!.data).toBe("add movie 1012306 1");
+		expect(result.buttons![1]!.text).toBe("❌ Cancelar");
+		expect(result.buttons![1]!.data).toBe("cancel add movie");
 	});
 
 	it("should preserve callback data when language rewrite is triggered", () => {

@@ -6,6 +6,7 @@ import {
 	areNotificationsEnabled,
 	getEventAlertConfig,
 	getPendingNotifications,
+	getAllPendingNotifications,
 	getPlaybackState,
 	markNotificationSent,
 	saveMediaEvent,
@@ -342,6 +343,22 @@ export async function handleRadarrWebhook(request: Request, bot: Bot) {
 				message += `▫️ *Release*: \`${release.releaseTitle}\`\n`;
 			if (payload.downloadClient)
 				message += `▫️ *Client*: ${payload.downloadClient}`;
+
+			// Check for individual user notification subscriptions
+			try {
+				const pending = getPendingNotifications("movie", movie.tmdbId);
+				for (const sub of pending) {
+					const personalMsg = `📥 *Notification*: Your movie *${sub.title}* has started downloading via ${payload.downloadClient || "download client"}! 🚀`;
+					await bot.api.sendMessage(sub.user_id, personalMsg, {
+						parse_mode: "Markdown",
+					});
+				}
+			} catch (err) {
+				console.error(
+					"Failed to process pending Radarr Grab notifications:",
+					(err as Error).message,
+				);
+			}
 		} else if (eventType === "Download") {
 			message = `✅ *Radarr*: Download complete for *${eventTitle}*\n\n`;
 			const qualityObj = payload.movieFile?.quality;
@@ -463,6 +480,22 @@ export async function handleSonarrWebhook(request: Request, bot: Bot) {
 				message += `▫️ *Release*: \`${release.releaseTitle}\`\n`;
 			if (payload.downloadClient)
 				message += `▫️ *Client*: ${payload.downloadClient}`;
+
+			// Check for individual user notification subscriptions
+			try {
+				const pending = getPendingNotifications("series", series.tvdbId);
+				for (const sub of pending) {
+					const personalMsg = `📥 *Notification*: Your series *${sub.title}* has started downloading via ${payload.downloadClient || "download client"}! 🚀`;
+					await bot.api.sendMessage(sub.user_id, personalMsg, {
+						parse_mode: "Markdown",
+					});
+				}
+			} catch (err) {
+				console.error(
+					"Failed to process pending Sonarr Grab notifications:",
+					(err as Error).message,
+				);
+			}
 		} else if (eventType === "Download") {
 			message = `✅ *Sonarr*: Download complete for *${eventTitle}*\n\n`;
 			const qualityObj = payload.episodeFile?.quality;
@@ -558,6 +591,25 @@ export async function handleNZBGetWebhook(request: Request, bot: Bot) {
 			message = `📥 *NZBGet*: Added *${title}*\n\n`;
 			if (speed) message += `▫️ *Speed*: ${speed} MB/s\n`;
 			if (eta) message += `▫️ *Calculated ETA*: ${eta}`;
+
+			// Check for individual user notification subscriptions by title matching
+			try {
+				const pending = getAllPendingNotifications();
+				const normalizedTitle = title.toLowerCase();
+				for (const sub of pending) {
+					if (normalizedTitle.includes(sub.title.toLowerCase())) {
+						const personalMsg = `📥 *Notification*: Your ${sub.media_type} *${sub.title}* has started downloading via NZBGet! 🚀`;
+						await bot.api.sendMessage(sub.user_id, personalMsg, {
+							parse_mode: "Markdown",
+						});
+					}
+				}
+			} catch (err) {
+				console.error(
+					"Failed to process pending NZBGet title-matching notifications:",
+					(err as Error).message,
+				);
+			}
 		} else if (eventType === "success") {
 			message = `✅ *NZBGet*: Download finished *${title}*`;
 		}
@@ -608,6 +660,101 @@ export async function handleNZBGetWebhook(request: Request, bot: Bot) {
 		return new Response("Internal Server Error", { status: 500 });
 	}
 }
+
+export interface QBittorrentWebhookPayload {
+	event: string;
+	title: string;
+	hash?: string;
+}
+
+export async function handleQBittorrentWebhook(request: Request, bot: Bot) {
+	try {
+		let payload: any = {};
+		const contentType = request.headers.get("content-type") || "";
+		if (contentType.includes("application/json")) {
+			payload = await request.json();
+		} else {
+			const text = await request.text();
+			const params = new URLSearchParams(text);
+			payload = Object.fromEntries(params.entries());
+		}
+
+		const { event, title, hash } = payload;
+		const eventType = event || "added";
+		let message = "";
+
+		if (eventType === "added" || eventType === "started") {
+			message = `📥 *qBittorrent*: Started downloading *${title}*\n\n`;
+			if (hash) message += `▫️ *Hash*: \`${hash}\``;
+
+			// Check for individual user notification subscriptions by title matching
+			try {
+				const pending = getAllPendingNotifications();
+				const normalizedTitle = title.toLowerCase();
+				for (const sub of pending) {
+					if (normalizedTitle.includes(sub.title.toLowerCase())) {
+						const personalMsg = `📥 *Notification*: Your ${sub.media_type} *${sub.title}* has started downloading via qBittorrent! 🚀`;
+						await bot.api.sendMessage(sub.user_id, personalMsg, {
+							parse_mode: "Markdown",
+						});
+					}
+				}
+			} catch (err) {
+				console.error(
+					"Failed to process pending qBittorrent title-matching notifications:",
+					(err as Error).message,
+				);
+			}
+		} else if (eventType === "completed") {
+			message = `✅ *qBittorrent*: Download finished *${title}*`;
+		}
+
+		const dbMessage = message
+			? message.replace(/[_*`]/g, "")
+			: `qBittorrent Event: ${eventType} - ${title}`;
+
+		if (message) {
+			const capturedMessage = message;
+			const capturedTitle = title;
+			const capturedEventType = eventType;
+
+			webhookEventQueue.enqueue({
+				key: `qbittorrent:${capturedEventType}:${capturedTitle}`.toLowerCase(),
+				label: `qBittorrent/${capturedEventType}/${capturedTitle}`,
+				dbSave: () =>
+					saveMediaEvent("qbittorrent", capturedEventType, capturedTitle, dbMessage),
+				send: async () => {
+					if (
+						!areNotificationsEnabled() ||
+						!getEventAlertConfig("qbittorrent", capturedEventType)
+					)
+						return;
+					const targets = getNotifyTargets();
+					for (const target of targets) {
+						try {
+							await bot.api.sendMessage(target, capturedMessage, {
+								parse_mode: "Markdown",
+							});
+						} catch (err) {
+							console.error(
+								`Failed to send qBittorrent notification to ${target}:`,
+								(err as Error).message,
+							);
+						}
+					}
+				},
+			});
+		} else {
+			saveMediaEvent("qbittorrent", eventType, title, dbMessage);
+		}
+
+		return new Response("OK", { status: 200 });
+	} catch (err) {
+		console.error("Error processing qBittorrent webhook:", (err as Error).message);
+		return new Response("Internal Server Error", { status: 500 });
+	}
+}
+
 
 /**
  * Returns true if the given string contains characters outside the Latin/ASCII range,

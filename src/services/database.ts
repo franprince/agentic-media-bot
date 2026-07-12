@@ -513,6 +513,26 @@ export function getPendingNotifications(
 	}[];
 }
 
+export function getAllPendingNotifications(): {
+	id: string;
+	user_id: number;
+	media_type: "movie" | "series";
+	media_id: number;
+	title: string;
+}[] {
+	return db
+		.query(
+			"SELECT id, user_id, media_type, media_id, title FROM pending_notifications WHERE status = 'pending'",
+		)
+		.all() as {
+		id: string;
+		user_id: number;
+		media_type: "movie" | "series";
+		media_id: number;
+		title: string;
+	}[];
+}
+
 export function markNotificationSent(id: string) {
 	db.run("UPDATE pending_notifications SET status = 'sent' WHERE id = ?", [id]);
 }

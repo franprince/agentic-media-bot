@@ -37,6 +37,7 @@ import {
 	handlePlexWebhook,
 	handleRadarrWebhook,
 	handleSonarrWebhook,
+	handleQBittorrentWebhook,
 } from "./services/webhooks.ts";
 import { verifyConfig } from "./verify-config";
 
@@ -104,6 +105,9 @@ Bun.serve({
 			}
 			if (url.pathname === "/nzbget-webhook") {
 				return handleNZBGetWebhook(req, bot);
+			}
+			if (url.pathname === "/qbittorrent-webhook") {
+				return handleQBittorrentWebhook(req, bot);
 			}
 		}
 		return new Response("Not Found", { status: 404 });

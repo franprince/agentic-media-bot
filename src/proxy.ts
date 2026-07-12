@@ -270,7 +270,7 @@ serve({
 						}
 
 						message = `Plex Event: ${event} - ${title}`;
-					} else if (url.pathname === "/api/nzbget-webhook") {
+					} else if (url.pathname === "/api/nzbget-webhook" || url.pathname === "/nzbget-webhook") {
 						service = "nzbget";
 						const payload = (await clonedReq.json()) as any;
 						event = payload.event || "added";
@@ -278,6 +278,23 @@ serve({
 						const speed = payload.speed ? ` (${payload.speed} MB/s)` : "";
 						const eta = payload.eta ? ` [ETA: ${payload.eta}]` : "";
 						message = `NZBGet Event: ${event} - ${title}${speed}${eta}`;
+					} else if (
+						url.pathname === "/qbittorrent-webhook" ||
+						url.pathname === "/api/qbittorrent-webhook"
+					) {
+						service = "qbittorrent";
+						let payload: any = {};
+						const contentType = clonedReq.headers.get("content-type") || "";
+						if (contentType.includes("application/json")) {
+							payload = await clonedReq.json();
+						} else {
+							const text = await clonedReq.text();
+							const params = new URLSearchParams(text);
+							payload = Object.fromEntries(params.entries());
+						}
+						event = payload.event || "added";
+						title = payload.title || "Unknown Torrent";
+						message = `qBittorrent Event: ${event} - ${title}`;
 					} else {
 						service = url.pathname.includes("radarr") ? "radarr" : "sonarr";
 						const payload = (await clonedReq.json()) as any;
