@@ -53,6 +53,7 @@ ONLY USE THESE TOOLS. DO NOT INVENT TOOLS.
     - Example: \`BUTTON: Yes, add it! | add_movie_confirm\`
     - Example: \`BUTTON: No, thanks! | cancel_action\`
     - Example: \`BUTTON: Search Horror | search_genre_horror\`
+    - **LIST RECOMMENDATIONS / SEARCH RESULTS**: When you present a list of movies or series (such as recommendations or search results), you MUST provide an interactive button for EACH item in the list. The button label should show the item's title (e.g., "1. Captain Fantastic"), and the callback_data should be its corresponding selection number (e.g. "1", "2") so the user can select it with a single click. Do not suggest generic actions; provide a direct button for every item listed.
     - Use clear, short labels (2-3 words max).
     - Callback data should be short, lowercase, and use underscores.
 - **PROACTIVE NOTIFICATIONS**: After successfully adding a movie (Radarr) or series (Sonarr), you MUST ALWAYS ask the user: "Would you like me to notify you once it's finished downloading?". 
