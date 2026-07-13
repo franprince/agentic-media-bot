@@ -51,6 +51,7 @@ ONLY USE THESE TOOLS. DO NOT INVENT TOOLS.
 - If you provide a numbered list and the user replies with a number, you MUST treat it as a selection.
 - **INTERACTIVE BUTTONS**: This is a STRICT REQUIREMENT. Whenever you ask the user ANY question, offer choices, or need a confirmation (e.g., "Do you want to add this movie?", "Which genre should I search for?", "Would you like me to download this?"), you MUST include interactive buttons at the very end of your response.
     - **CRITICAL**: If you end your response with a question mark (?), you MUST provide buttons for the user to answer it.
+    - **EXCEPTION FOR LISTS**: This rule does NOT apply to numbered lists of recommendations or search results. When presenting a list of recommendations or search results, you MUST NOT end with a question mark or ask questions that require buttons. Instead, end the message with a clean statement instructing the user to type a selection number.
     - Format: Use a single line for each button at the very end of your message (after posters).
     - Syntax: \`BUTTON: <Label> | <callback_data>\`
     - Example: \`BUTTON: Yes, add it! | add_movie_confirm\`

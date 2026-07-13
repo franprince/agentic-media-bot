@@ -399,7 +399,7 @@ export async function discoverMedia(
 			yearInstruction += ` Your recommendations MUST be released in or before ${lteYear}.`;
 		}
 	}
-	yearInstruction += " Try to provide a diverse selection spread across the requested years rather than focusing on a single year.";
+	yearInstruction += " CRITICAL: You MUST suggest movies from a variety of release years within the requested range (e.g. a balanced mix across different years like 2021, 2022, 2023, 2024, 2025, and 2026). Do NOT suggest movies/shows that are all from the same year.";
 
 	const model = getCapableModel();
 
