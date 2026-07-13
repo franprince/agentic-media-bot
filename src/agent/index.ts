@@ -235,10 +235,18 @@ export async function processUserMessage(
 			);
 		}
 
+		const currentDate = new Date().toLocaleDateString("en-US", {
+			weekday: "long",
+			year: "numeric",
+			month: "long",
+			day: "numeric",
+		});
+
 		const firstPassParams = {
 			model: modelFast as any,
 			system: DEFAULT_SYSTEM_PROMPT.replace("{{userId}}", userId.toString())
 				.replace("{{userName}}", userName)
+				.replace("{{currentDate}}", currentDate)
 				.trim(),
 			messages: history,
 			tools: finalTools,
@@ -325,6 +333,7 @@ export async function processUserMessage(
 				)
 					.replace("{{userId}}", userId.toString())
 					.replace("{{userName}}", userName)
+					.replace("{{currentDate}}", currentDate)
 					.trim(),
 				messages: [...history, ...firstPass.response.messages],
 			});

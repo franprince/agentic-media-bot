@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.42.8] - 2026-07-12
+
+### Added
+- **Current date context in agent prompt**: Made the agent aware of the current date (year, month, day, and weekday) in the system prompt. This fixes the issue where queries for new/recent media defaults to the model's knowledge cutoff year (the previous year) instead of the actual current calendar year.
+
 ## [4.42.7] - 2026-07-12
 
 ### Fixed
