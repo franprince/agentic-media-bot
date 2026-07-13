@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.42.11] - 2026-07-12
+
+### Changed
+- **Conditional Poster Rendering**: Prevented attaching a movie/series poster when recommending or listing multiple media items. Posters are now only included when discussing a specific movie/series or recommending a single top pick.
+
 ## [4.42.10] - 2026-07-12
 
 ### Added

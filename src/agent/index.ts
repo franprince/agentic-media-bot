@@ -456,12 +456,20 @@ export async function processUserMessage(
 						: [];
 
 				if (items.length > 0) {
+					// Count how many items from the tool results are mentioned in the text
+					const mentionedItems = items.filter(
+						(item: any) =>
+							typeof item?.title === "string" &&
+							text.toLowerCase().includes(item.title.toLowerCase()),
+					);
+
+					// If more than 1 item is mentioned, it's a list. Do not attach a poster via fallback.
+					if (mentionedItems.length > 1) {
+						continue;
+					}
+
 					const matchedItem =
-						items.find(
-							(item: any) =>
-								item.title &&
-								text.toLowerCase().includes(item.title.toLowerCase()),
-						) || items[0];
+						mentionedItems[0] || (items.length === 1 ? items[0] : null);
 
 					if (
 						matchedItem &&
