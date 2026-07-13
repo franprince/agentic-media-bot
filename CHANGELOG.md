@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.42.18] - 2026-07-12
+
+### Changed
+- **Forced Tool Calling**: Added a prompt rule to force the bot to always call the `discoverMedia` tool when asked for recommendations, preventing it from summarizing recommendations from chat history or memory.
+- **Current Year Enforcement**: Explicitly instructed the LLM that the current year is 2026, preventing hallucinations that the year is 2025.
+
 ## [4.42.17] - 2026-07-12
 
 ### Changed
