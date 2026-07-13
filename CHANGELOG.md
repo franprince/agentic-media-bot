@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.42.14] - 2026-07-12
+
+### Changed
+- **Ollama Enforcement in Discovery**: Configured the recommendation discovery system (`discoverMedia`) to always use the Ollama provider to avoid Gemini API credit card restrictions.
+
 ## [4.42.13] - 2026-07-12
 
 ### Changed

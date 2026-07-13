@@ -1,4 +1,3 @@
-import { google } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { z } from "zod";
@@ -318,22 +317,17 @@ async function discoverTv(
 }
 
 function getCapableModel() {
-	const isOllama = process.env.AI_PROVIDER === "ollama";
 	const ollamaBaseUrl = (
 		process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434"
 	).replace(/\/$/, "");
 	const modelCapableName =
 		process.env.AI_MODEL_CAPABLE || process.env.AI_MODEL || "minimax-m2.7:cloud";
 
-	if (isOllama) {
-		const ollamaProvider = createOpenAI({
-			baseURL: `${ollamaBaseUrl}/v1`,
-			apiKey: "ollama",
-		});
-		return ollamaProvider(modelCapableName);
-	} else {
-		return google(modelCapableName);
-	}
+	const ollamaProvider = createOpenAI({
+		baseURL: `${ollamaBaseUrl}/v1`,
+		apiKey: "ollama",
+	});
+	return ollamaProvider(modelCapableName);
 }
 
 async function searchTmdbMovie(
