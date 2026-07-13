@@ -80,8 +80,8 @@ interface YearRange {
 export function extractYearRange(query: string): YearRange {
 	const rangeMatch = query.match(/(?:^|\s+)(20\d{2})\s*(?:-|to|a|y|until)\s*(20\d{2})(?:\s+|$)/i);
 	if (rangeMatch) {
-		const y1 = parseInt(rangeMatch[1], 10);
-		const y2 = parseInt(rangeMatch[2], 10);
+		const y1 = parseInt(rangeMatch[1]!, 10);
+		const y2 = parseInt(rangeMatch[2]!, 10);
 		const minYear = Math.min(y1, y2);
 		const maxYear = Math.max(y1, y2);
 		return {
@@ -92,7 +92,7 @@ export function extractYearRange(query: string): YearRange {
 
 	const lastYearsMatch = query.match(/(?:^|\s+)(?:last|últimos|ultimos)\s+(\d{1,2})\s+(?:years|años)(?:\s+|$)/i);
 	if (lastYearsMatch) {
-		const years = parseInt(lastYearsMatch[1], 10);
+		const years = parseInt(lastYearsMatch[1]!, 10);
 		const thisYear = new Date().getFullYear();
 		return {
 			gte: `${thisYear - years}-01-01`,
@@ -247,7 +247,7 @@ interface TmdbDiscoverTv {
 
 function parseYear(dateStr?: string): number | null {
 	if (!dateStr) return null;
-	const y = parseInt(dateStr.split("-")[0], 10);
+	const y = parseInt(dateStr.split("-")[0]!, 10);
 	return isNaN(y) ? null : y;
 }
 
@@ -385,13 +385,12 @@ export async function discoverMedia(
 
 	const model = getCapableModel();
 
-	const prompt = `You are a movie and TV show recommendation assistant. Suggest a list of up to ${limit} highly-rated and popular ${
-		mediaType === "both"
-			? "movies or TV shows"
-			: mediaType === "movie"
-				? "movies"
-				: "TV shows/series"
-	} that match the following criteria: "${query}".
+	const prompt = `You are a movie and TV show recommendation assistant. Suggest a list of up to ${limit} highly-rated and popular ${mediaType === "both"
+		? "movies or TV shows"
+		: mediaType === "movie"
+			? "movies"
+			: "TV shows/series"
+		} that match the following criteria: "${query}".
 
 CRITICAL: Your recommendations MUST be based on IMDb ratings and popularity. Only recommend titles that are critically acclaimed, widely recognized, and have a high IMDb rating (ideally 7.0+ or higher) and a large number of votes on IMDb. Do NOT suggest obscure, low-rating, or unreleased titles.`;
 
@@ -452,7 +451,7 @@ CRITICAL: Your recommendations MUST be based on IMDb ratings and popularity. Onl
 				if (resolved) {
 					results.push({
 						id: resolved.id,
-						title: resolved.title,
+						title: resolved.name,
 						mediaType: "tv",
 						year: parseYear(resolved.first_air_date),
 						overview: resolved.overview,
