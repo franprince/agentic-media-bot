@@ -36,7 +36,7 @@ export async function sendPhotoSmart(
 	ctx: any,
 	userId: number | string,
 	imageUrl: string | undefined,
-	options: any,
+	options?: any,
 ) {
 	if (!imageUrl) return;
 
@@ -98,46 +98,85 @@ export async function safeReply(
 		});
 	}
 
-	try {
-		if (imageUrl) {
-			console.log(
-				`🤖 Bot Reply Photo [@${user}]: ${imageUrl} - ${text.slice(0, 50)}...`,
-			);
-			await sendPhotoSmart(ctx, ctx.chat.id, imageUrl, {
-				caption: text,
-				parse_mode: "Markdown",
-				reply_markup: keyboard,
-			});
+	if (imageUrl) {
+		console.log(
+			`🤖 Bot Reply Photo [@${user}]: ${imageUrl} - ${text.slice(0, 50)}...`,
+		);
+		if (text.length > 1024) {
+			// Caption is too long for photo. Send photo first (never fails on markdown), then text.
+			await sendPhotoSmart(ctx, ctx.chat.id, imageUrl);
+			try {
+				await ctx.reply(text, {
+					parse_mode: "Markdown",
+					reply_markup: keyboard,
+				});
+			} catch (error: any) {
+				if (
+					error.description &&
+					error.description.includes("can't parse entities")
+				) {
+					console.warn(
+						`⚠️ Markdown parsing failed for [@${user}], retrying in plain text:`,
+						error.description,
+					);
+					await ctx.reply(text, {
+						reply_markup: keyboard,
+					});
+				} else {
+					throw error;
+				}
+			}
 		} else {
-			console.log(
-				`🤖 Bot Reply Text [@${user}]: ${text.slice(0, 100)}${text.length > 100 ? "..." : ""}`,
-			);
+			// Caption is within limits. Send photo with caption.
+			try {
+				await sendPhotoSmart(ctx, ctx.chat.id, imageUrl, {
+					caption: text,
+					parse_mode: "Markdown",
+					reply_markup: keyboard,
+				});
+			} catch (error: any) {
+				if (
+					error.description &&
+					error.description.includes("can't parse entities")
+				) {
+					console.warn(
+						`⚠️ Markdown parsing failed for [@${user}], retrying in plain text:`,
+						error.description,
+					);
+					await sendPhotoSmart(ctx, ctx.chat.id, imageUrl, {
+						caption: text,
+						reply_markup: keyboard,
+					});
+				} else {
+					throw error;
+				}
+			}
+		}
+	} else {
+		// No image. Send text message.
+		console.log(
+			`🤖 Bot Reply Text [@${user}]: ${text.slice(0, 100)}${text.length > 100 ? "..." : ""}`,
+		);
+		try {
 			await ctx.reply(text, {
 				parse_mode: "Markdown",
 				reply_markup: keyboard,
 			});
-		}
-	} catch (error: any) {
-		if (
-			error.description &&
-			error.description.includes("can't parse entities")
-		) {
-			console.warn(
-				`⚠️ Markdown parsing failed for [@${user}], retrying in plain text:`,
-				error.description,
-			);
-			if (imageUrl) {
-				await sendPhotoSmart(ctx, ctx.chat.id, imageUrl, {
-					caption: text,
-					reply_markup: keyboard,
-				});
-			} else {
+		} catch (error: any) {
+			if (
+				error.description &&
+				error.description.includes("can't parse entities")
+			) {
+				console.warn(
+					`⚠️ Markdown parsing failed for [@${user}], retrying in plain text:`,
+					error.description,
+				);
 				await ctx.reply(text, {
 					reply_markup: keyboard,
 				});
+			} else {
+				throw error;
 			}
-		} else {
-			throw error;
 		}
 	}
 }

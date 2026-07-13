@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.42.9] - 2026-07-12
+
+### Fixed
+- **Photo message caption limit fallback**: Solved Grammy error "Bad Request: message caption is too long" in `safeReply` by automatically splitting the output when the caption exceeds Telegram's 1024-character limit. The photo is now sent first without a caption, and the full markdown text is delivered as a separate follow-up message.
+
+## [4.42.9] - 2026-07-12
+
+### Fixed
+- **Type error in photo sending logic**: Made the `options` parameter optional in `sendPhotoSmart` signature in `src/bot/messages.ts` to prevent TypeScript compilation errors when calling it with only 3 arguments.
+
 ## [4.42.8] - 2026-07-12
 
 ### Added
