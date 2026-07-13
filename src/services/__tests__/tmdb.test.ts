@@ -6,13 +6,13 @@ import { server } from "../../mocks/server";
 let mockGenerateObjectResponse: any = {
 	recommendations: []
 };
-let lastPrompt = "";
+let promptsSent: string[] = [];
 
 // Mock generateObject from the 'ai' package
 mock.module("ai", () => {
 	return {
 		generateObject: async (options: any) => {
-			lastPrompt = options.prompt;
+			promptsSent.push(options.prompt);
 			return {
 				object: mockGenerateObjectResponse,
 			};
@@ -84,6 +84,13 @@ describe("TMDB Service — discoverMedia constraints", () => {
 			http.get("*/search/movie", ({ request }) => {
 				const url = new URL(request.url);
 				const query = url.searchParams.get("query");
+				const yearParam = url.searchParams.get("primary_release_year");
+				
+				// Only return mocked movies for the year 2024 to simulate empty results for other years
+				if (yearParam !== "2024") {
+					return HttpResponse.json({ results: [] });
+				}
+
 				if (query === "Movie A") {
 					return HttpResponse.json({
 						results: [
@@ -154,19 +161,23 @@ describe("TMDB Service — discoverMedia constraints", () => {
 	});
 
 	test("should filter recommendations by vote count and rating and anchor to current year", async () => {
+		promptsSent = [];
 		mockGenerateObjectResponse = {
 			recommendations: [
-				{ title: "Movie A", year: 2024, mediaType: "movie", imdbRating: 8.0 },
-				{ title: "Movie B", year: 2024, mediaType: "movie", imdbRating: 7.2 },
-				{ title: "Movie C", year: 2024, mediaType: "movie", imdbRating: 6.0 },
-				{ title: "Movie D", year: 2024, mediaType: "movie", imdbRating: 8.5 },
+				{ title: "Movie A", mediaType: "movie", imdbRating: 8.0 },
+				{ title: "Movie B", mediaType: "movie", imdbRating: 7.2 },
+				{ title: "Movie C", mediaType: "movie", imdbRating: 6.0 },
+				{ title: "Movie D", mediaType: "movie", imdbRating: 8.5 },
 			]
 		};
 
 		const results = await discoverMedia("comedy movies from last 2 years", 10);
 
-		// Movie A (600 votes, rating 8.2) -> Kept, no warning.
-		// Movie B (200 votes, rating 7.8 >= 7.5) -> Kept with warning "Few votes".
+		// The test range is last 2 years, meaning 3 years (e.g. 2026, 2025, 2024).
+		// We expect 3 parallel queries.
+		// For each year, we only mock TMDB search returning movies if year is 2024.
+		// Movie A (600 votes, rating 8.2) -> Kept.
+		// Movie B (200 votes, rating 7.8 >= 7.5) -> Kept with warning.
 		// Movie C (200 votes, rating 7.2 < 7.5) -> Discarded.
 		// Movie D (30 votes < 50) -> Discarded.
 		expect(results.length).toBe(2);
@@ -181,9 +192,14 @@ describe("TMDB Service — discoverMedia constraints", () => {
 		expect(movieB?.rating).toBe(7.8); // Uses actual TMDB rating
 		expect(movieB?.warning).toBe("Few votes");
 
-		// Verify year instruction in LLM prompt contains current year (e.g. 2026) and range (2024-2026)
+		// Verify year instruction prompts contain each specific year
 		const currentYear = new Date().getFullYear();
-		expect(lastPrompt).toContain(`The current year is ${currentYear}.`);
-		expect(lastPrompt).toContain(`Your recommendations MUST be released between ${currentYear - 2} and ${currentYear}`);
+		expect(promptsSent.length).toBe(3);
+		expect(promptsSent).toContain(
+			`You are a movie and TV show recommendation assistant. Suggest a list of up to 3 highly-rated and popular movies released specifically in the year ${currentYear} that match the following criteria: "comedy movies from last 2 years".\n\nCRITICAL: Your recommendations MUST have been released in the year ${currentYear}. Only suggest well-known titles that have a large number of votes (at least 500+ votes) or highly-rated niche titles (7.5+ rating with 50+ votes). Avoid suggesting completely obscure titles.`
+		);
+		expect(promptsSent).toContain(
+			`You are a movie and TV show recommendation assistant. Suggest a list of up to 3 highly-rated and popular movies released specifically in the year ${currentYear - 2} that match the following criteria: "comedy movies from last 2 years".\n\nCRITICAL: Your recommendations MUST have been released in the year ${currentYear - 2}. Only suggest well-known titles that have a large number of votes (at least 500+ votes) or highly-rated niche titles (7.5+ rating with 50+ votes). Avoid suggesting completely obscure titles.`
+		);
 	});
 });

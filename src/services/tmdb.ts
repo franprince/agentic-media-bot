@@ -386,143 +386,151 @@ export async function discoverMedia(
 	const yearRange = extractYearRange(query);
 	const currentYear = new Date().getFullYear();
 
-	let yearInstruction = `The current year is ${currentYear}.`;
-	if (yearRange.gte || yearRange.lte) {
-		const gteYear = yearRange.gte ? parseInt(yearRange.gte.split("-")[0]!, 10) : null;
-		const lteYear = yearRange.lte ? parseInt(yearRange.lte.split("-")[0]!, 10) : null;
+	const gteYear = yearRange.gte ? parseInt(yearRange.gte.split("-")[0]!, 10) : null;
+	const lteYear = yearRange.lte ? parseInt(yearRange.lte.split("-")[0]!, 10) : null;
 
-		if (gteYear && lteYear) {
-			yearInstruction += ` Your recommendations MUST be released between ${gteYear} and ${lteYear} (inclusive).`;
-		} else if (gteYear) {
-			yearInstruction += ` Your recommendations MUST be released in or after ${gteYear}.`;
-		} else if (lteYear) {
-			yearInstruction += ` Your recommendations MUST be released in or before ${lteYear}.`;
+	// If a range is specified, we fetch year-by-year in parallel to avoid concentration.
+	let yearsToFetch: number[] = [];
+	if (gteYear && lteYear) {
+		const start = Math.min(gteYear, lteYear);
+		const end = Math.max(gteYear, lteYear);
+		// Cap the range to prevent excessive parallel requests (max 6 years)
+		const actualStart = Math.max(start, end - 5);
+		for (let y = end; y >= actualStart; y--) {
+			yearsToFetch.push(y);
+		}
+	} else if (gteYear) {
+		const start = gteYear;
+		const end = Math.min(currentYear, start + 2);
+		for (let y = end; y >= start; y--) {
+			yearsToFetch.push(y);
+		}
+	} else if (lteYear) {
+		const end = lteYear;
+		const start = end - 2;
+		for (let y = end; y >= start; y--) {
+			yearsToFetch.push(y);
+		}
+	} else {
+		for (let y = currentYear; y >= currentYear - 2; y--) {
+			yearsToFetch.push(y);
 		}
 	}
-	yearInstruction += " CRITICAL: You MUST suggest movies from a variety of release years within the requested range (e.g. a balanced mix across different years like 2021, 2022, 2023, 2024, 2025, and 2026). Do NOT suggest movies/shows that are all from the same year.";
 
 	const model = getCapableModel();
-
-	const prompt = `You are a movie and TV show recommendation assistant. Suggest a list of up to ${limit} highly-rated and popular ${mediaType === "both"
-		? "movies or TV shows"
-		: mediaType === "movie"
-			? "movies"
-			: "TV shows/series"
-		} that match the following criteria: "${query}".
-
-${yearInstruction}
-
-CRITICAL: Your recommendations MUST be based on IMDb ratings and popularity. Only suggest well-known titles that have a large number of votes (at least 500+ votes) or highly-rated niche titles (7.5+ rating with 50+ votes). Avoid suggesting completely obscure titles (less than 50 votes).`;
-
-	const response = await generateObject({
-		model,
-		schema: z.object({
-			recommendations: z.array(
-				z.object({
-					title: z
-						.string()
-						.describe("The exact English or localized title of the media"),
-					year: z.number().nullable().describe("The release year (e.g. 2024)"),
-					mediaType: z
-						.enum(["movie", "tv"])
-						.describe("Whether it is a movie or a TV show/series"),
-					imdbRating: z
-						.number()
-						.nullable()
-						.describe("Estimated/known IMDb rating (e.g. 8.2)"),
-				}),
-			),
-		}),
-		prompt,
-	});
-
-	const suggestions = response.object.recommendations || [];
-	const results: TmdbResult[] = [];
+	const allResults: TmdbResult[] = [];
 
 	const genreMaps: Record<"movie" | "tv", Record<number, string>> = {
 		movie: await fetchGenreMap("movie"),
 		tv: await fetchGenreMap("tv"),
 	};
 
-	// Resolve suggestions in parallel
+	// Fetch recommendations for each year in parallel
 	await Promise.all(
-		suggestions.map(async (item) => {
-			if (item.mediaType === "movie") {
-				const resolved = await searchTmdbMovie(item.title, item.year);
-				if (resolved) {
-					const rating = resolved.vote_average && resolved.vote_average > 0
-						? Math.round(resolved.vote_average * 10) / 10
-						: item.imdbRating ?? 0;
-					const voteCount = resolved.vote_count ?? 0;
+		yearsToFetch.map(async (year) => {
+			const prompt = `You are a movie and TV show recommendation assistant. Suggest a list of up to 3 highly-rated and popular ${mediaType === "both"
+				? "movies or TV shows"
+				: mediaType === "movie"
+					? "movies"
+					: "TV shows/series"
+				} released specifically in the year ${year} that match the following criteria: "${query}".
 
-					// Filter based on vote count and rating thresholds
-					if (voteCount < 50) {
-						return;
-					}
-					let warning: string | undefined;
-					if (voteCount < 500) {
-						if (rating >= 7.5) {
-							warning = "Few votes";
+CRITICAL: Your recommendations MUST have been released in the year ${year}. Only suggest well-known titles that have a large number of votes (at least 500+ votes) or highly-rated niche titles (7.5+ rating with 50+ votes). Avoid suggesting completely obscure titles.`;
+
+			try {
+				const response = await generateObject({
+					model,
+					schema: z.object({
+						recommendations: z.array(
+							z.object({
+								title: z.string().describe("The exact English or localized title of the media"),
+								mediaType: z.enum(["movie", "tv"]).describe("Whether it is a movie or a TV show/series"),
+								imdbRating: z.number().nullable().describe("Estimated/known IMDb rating (e.g. 8.2)"),
+							}),
+						),
+					}),
+					prompt,
+				});
+
+				const suggestions = response.object.recommendations || [];
+
+				await Promise.all(
+					suggestions.map(async (item) => {
+						if (item.mediaType === "movie") {
+							const resolved = await searchTmdbMovie(item.title, year);
+							if (resolved) {
+								const rating = resolved.vote_average && resolved.vote_average > 0
+									? Math.round(resolved.vote_average * 10) / 10
+									: item.imdbRating ?? 0;
+								const voteCount = resolved.vote_count ?? 0;
+
+								if (voteCount < 50) return;
+								let warning: string | undefined;
+								if (voteCount < 500) {
+									if (rating >= 7.5) {
+										warning = "Few votes";
+									} else {
+										return;
+									}
+								}
+
+								allResults.push({
+									id: resolved.id,
+									title: resolved.title,
+									mediaType: "movie",
+									year,
+									overview: resolved.overview,
+									rating,
+									voteCount,
+									genres: (resolved.genre_ids ?? [])
+										.map((id) => genreMaps.movie[id] ?? "")
+										.filter(Boolean),
+									posterPath: resolved.poster_path ?? null,
+									warning,
+								});
+							}
 						} else {
-							return;
+							const resolved = await searchTmdbTv(item.title, year);
+							if (resolved) {
+								const rating = resolved.vote_average && resolved.vote_average > 0
+									? Math.round(resolved.vote_average * 10) / 10
+									: item.imdbRating ?? 0;
+								const voteCount = resolved.vote_count ?? 0;
+
+								if (voteCount < 50) return;
+								let warning: string | undefined;
+								if (voteCount < 500) {
+									if (rating >= 7.5) {
+										warning = "Few votes";
+									} else {
+										return;
+									}
+								}
+
+								allResults.push({
+									id: resolved.id,
+									title: resolved.name,
+									mediaType: "tv",
+									year,
+									overview: resolved.overview,
+									rating,
+									voteCount,
+									genres: (resolved.genre_ids ?? [])
+										.map((id) => genreMaps.tv[id] ?? "")
+										.filter(Boolean),
+									posterPath: resolved.poster_path ?? null,
+									warning,
+								});
+							}
 						}
-					}
-
-					results.push({
-						id: resolved.id,
-						title: resolved.title,
-						mediaType: "movie",
-						year: parseYear(resolved.release_date),
-						overview: resolved.overview,
-						rating,
-						voteCount,
-						genres: (resolved.genre_ids ?? [])
-							.map((id) => genreMaps.movie[id] ?? "")
-							.filter(Boolean),
-						posterPath: resolved.poster_path ?? null,
-						warning,
-					});
-				}
-			} else {
-				const resolved = await searchTmdbTv(item.title, item.year);
-				if (resolved) {
-					const rating = resolved.vote_average && resolved.vote_average > 0
-						? Math.round(resolved.vote_average * 10) / 10
-						: item.imdbRating ?? 0;
-					const voteCount = resolved.vote_count ?? 0;
-
-					// Filter based on vote count and rating thresholds
-					if (voteCount < 50) {
-						return;
-					}
-					let warning: string | undefined;
-					if (voteCount < 500) {
-						if (rating >= 7.5) {
-							warning = "Few votes";
-						} else {
-							return;
-						}
-					}
-
-					results.push({
-						id: resolved.id,
-						title: resolved.name,
-						mediaType: "tv",
-						year: parseYear(resolved.first_air_date),
-						overview: resolved.overview,
-						rating,
-						voteCount,
-						genres: (resolved.genre_ids ?? [])
-							.map((id) => genreMaps.tv[id] ?? "")
-							.filter(Boolean),
-						posterPath: resolved.poster_path ?? null,
-						warning,
-					});
-				}
+					}),
+				);
+			} catch (err) {
+				console.error(`Error fetching recommendations for year ${year}:`, err);
 			}
 		}),
 	);
 
 	// Sort by rating descending and cap at limit
-	return results.sort((a, b) => b.rating - a.rating).slice(0, limit);
+	return allResults.sort((a, b) => b.rating - a.rating).slice(0, limit);
 }
