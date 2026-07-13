@@ -1,3 +1,8 @@
+import { google } from "@ai-sdk/google";
+import { createOpenAI } from "@ai-sdk/openai";
+import { generateObject } from "ai";
+import { z } from "zod";
+
 /**
  * TMDB (The Movie Database) API service.
  * Uses the v3 REST API authenticated with the Read Access Token (Bearer auth).
@@ -312,8 +317,68 @@ async function discoverTv(
 	return { results: data.results, totalResults: data.total_results };
 }
 
+function getCapableModel() {
+	const isOllama = process.env.AI_PROVIDER === "ollama";
+	const ollamaBaseUrl = (
+		process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434"
+	).replace(/\/$/, "");
+	const modelCapableName =
+		process.env.AI_MODEL_CAPABLE || process.env.AI_MODEL || "minimax-m2.7:cloud";
+
+	if (isOllama) {
+		const ollamaProvider = createOpenAI({
+			baseURL: `${ollamaBaseUrl}/v1`,
+			apiKey: "ollama",
+		});
+		return ollamaProvider(modelCapableName);
+	} else {
+		return google(modelCapableName);
+	}
+}
+
+async function searchTmdbMovie(
+	title: string,
+	year?: number | null,
+): Promise<TmdbDiscoverMovie | null> {
+	const params: Record<string, string | number> = {
+		query: title,
+		language: "en-US",
+	};
+	if (year) params.primary_release_year = year;
+	try {
+		const data = await tmdbFetch<{ results: TmdbDiscoverMovie[] }>(
+			"/search/movie",
+			params,
+		);
+		return data.results?.[0] || null;
+	} catch {
+		return null;
+	}
+}
+
+async function searchTmdbTv(
+	title: string,
+	year?: number | null,
+): Promise<TmdbDiscoverTv | null> {
+	const params: Record<string, string | number> = {
+		query: title,
+		language: "en-US",
+	};
+	if (year) params.first_air_date_year = year;
+	try {
+		const data = await tmdbFetch<{ results: TmdbDiscoverTv[] }>(
+			"/search/tv",
+			params,
+		);
+		return data.results?.[0] || null;
+	} catch {
+		return null;
+	}
+}
+
 /**
  * Main entry point: parse a free-text recommendation query and return TMDB results.
+ * Recommendations are generated based on IMDb highly-rated selections using LLM and resolved via TMDB search.
  *
  * @param query  e.g. "comedy movies 2025", "thriller series from 2026"
  * @param limit  Maximum number of results to return (default 10)
@@ -322,57 +387,94 @@ export async function discoverMedia(
 	query: string,
 	limit = 10,
 ): Promise<TmdbResult[]> {
-	const yearRange = extractYearRange(query);
 	const mediaType = extractMediaType(query);
 
-	const isAcclaimedQuery = /acclaimed|aclamad|best|mejor|top|rating|valorad/i.test(query);
-	const sortBy = isAcclaimedQuery ? "vote_average.desc" : "popularity.desc";
-	const movieVoteCount = isAcclaimedQuery ? 300 : 50;
-	const tvVoteCount = isAcclaimedQuery ? 100 : 20;
+	const model = getCapableModel();
 
+	const prompt = `You are a movie and TV show recommendation assistant. Suggest a list of up to ${limit} highly-rated and popular ${
+		mediaType === "both"
+			? "movies or TV shows"
+			: mediaType === "movie"
+				? "movies"
+				: "TV shows/series"
+	} that match the following criteria: "${query}".
+
+CRITICAL: Your recommendations MUST be based on IMDb ratings and popularity. Only recommend titles that are critically acclaimed, widely recognized, and have a high IMDb rating (ideally 7.0+ or higher) and a large number of votes on IMDb. Do NOT suggest obscure, low-rating, or unreleased titles.`;
+
+	const response = await generateObject({
+		model,
+		schema: z.object({
+			recommendations: z.array(
+				z.object({
+					title: z
+						.string()
+						.describe("The exact English or localized title of the media"),
+					year: z.number().nullable().describe("The release year (e.g. 2024)"),
+					mediaType: z
+						.enum(["movie", "tv"])
+						.describe("Whether it is a movie or a TV show/series"),
+					imdbRating: z
+						.number()
+						.nullable()
+						.describe("Estimated/known IMDb rating (e.g. 8.2)"),
+				}),
+			),
+		}),
+		prompt,
+	});
+
+	const suggestions = response.object.recommendations || [];
 	const results: TmdbResult[] = [];
 
-	if (mediaType === "movie" || mediaType === "both") {
-		const genreIds = extractGenreIds(query, "movie");
-		const genreMap = await fetchGenreMap("movie");
-		const { results: movies } = await discoverMovies(yearRange, genreIds, sortBy, movieVoteCount);
-		for (const m of movies.slice(0, limit)) {
-			results.push({
-				id: m.id,
-				title: m.title,
-				mediaType: "movie",
-				year: parseYear(m.release_date),
-				overview: m.overview,
-				rating: Math.round(m.vote_average * 10) / 10,
-				voteCount: m.vote_count,
-				genres: (m.genre_ids ?? [])
-					.map((id) => genreMap[id] ?? "")
-					.filter(Boolean),
-				posterPath: m.poster_path ?? null,
-			});
-		}
-	}
+	const genreMaps: Record<"movie" | "tv", Record<number, string>> = {
+		movie: await fetchGenreMap("movie"),
+		tv: await fetchGenreMap("tv"),
+	};
 
-	if (mediaType === "tv" || mediaType === "both") {
-		const genreIds = extractGenreIds(query, "tv");
-		const genreMap = await fetchGenreMap("tv");
-		const { results: shows } = await discoverTv(yearRange, genreIds, sortBy, tvVoteCount);
-		for (const s of shows.slice(0, limit)) {
-			results.push({
-				id: s.id,
-				title: s.name,
-				mediaType: "tv",
-				year: parseYear(s.first_air_date),
-				overview: s.overview,
-				rating: Math.round(s.vote_average * 10) / 10,
-				voteCount: s.vote_count,
-				genres: (s.genre_ids ?? [])
-					.map((id) => genreMap[id] ?? "")
-					.filter(Boolean),
-				posterPath: s.poster_path ?? null,
-			});
-		}
-	}
+	// Resolve suggestions in parallel
+	await Promise.all(
+		suggestions.map(async (item) => {
+			if (item.mediaType === "movie") {
+				const resolved = await searchTmdbMovie(item.title, item.year);
+				if (resolved) {
+					results.push({
+						id: resolved.id,
+						title: resolved.title,
+						mediaType: "movie",
+						year: parseYear(resolved.release_date),
+						overview: resolved.overview,
+						rating:
+							item.imdbRating ??
+							Math.round(resolved.vote_average * 10) / 10,
+						voteCount: resolved.vote_count,
+						genres: (resolved.genre_ids ?? [])
+							.map((id) => genreMaps.movie[id] ?? "")
+							.filter(Boolean),
+						posterPath: resolved.poster_path ?? null,
+					});
+				}
+			} else {
+				const resolved = await searchTmdbTv(item.title, item.year);
+				if (resolved) {
+					results.push({
+						id: resolved.id,
+						title: resolved.title,
+						mediaType: "tv",
+						year: parseYear(resolved.first_air_date),
+						overview: resolved.overview,
+						rating:
+							item.imdbRating ??
+							Math.round(resolved.vote_average * 10) / 10,
+						voteCount: resolved.vote_count,
+						genres: (resolved.genre_ids ?? [])
+							.map((id) => genreMaps.tv[id] ?? "")
+							.filter(Boolean),
+						posterPath: resolved.poster_path ?? null,
+					});
+				}
+			}
+		}),
+	);
 
 	// Sort by rating descending and cap at limit
 	return results.sort((a, b) => b.rating - a.rating).slice(0, limit);

@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.42.13] - 2026-07-12
+
+### Changed
+- **IMDb-Based Recommendations**: Re-implemented the recommendation discovery system (`discoverMedia`) to generate critically acclaimed and popular recommendations based on IMDb rating and votes using structured LLM output, resolving their poster and metadata via TMDB search in parallel.
+
 ## [4.42.12] - 2026-07-12
 
 ### Changed
