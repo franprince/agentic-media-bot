@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.42.12] - 2026-07-12
+
+### Changed
+- **Default Quality Profile Prioritization**: Prioritized the "Full-HD or Better (NO REMUX)" quality profile as the default choice when adding new movies (Radarr) or series (Sonarr) if configured.
+
 ## [4.42.11] - 2026-07-12
 
 ### Changed

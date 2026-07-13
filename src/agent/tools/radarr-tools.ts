@@ -15,6 +15,17 @@ export function getDefaultQualityProfile(
 	profiles: Array<{ id: number; name: string }>,
 ): { id: number; name: string } | undefined {
 	if (!profiles || profiles.length === 0) return undefined;
+
+	// Always prioritize "Full-HD or Better (NO REMUX)" (case-insensitively, with normalization)
+	const exactMatch = profiles.find((p) => {
+		const name = p.name.toLowerCase();
+		return (
+			name.includes("full-hd or better (no remux)") ||
+			name.replace(/[^a-z0-9]/g, "").includes("fullhdorbetternoremux")
+		);
+	});
+	if (exactMatch) return exactMatch;
+
 	const preferred =
 		profiles.find((p) => {
 			const name = p.name.toLowerCase();
