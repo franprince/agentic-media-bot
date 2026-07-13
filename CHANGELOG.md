@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.42.15] - 2026-07-12
+
+### Changed
+- **Recommendation Year & Rating Precision**: Configured the recommendation discovery system (`discoverMedia`) to explicitly pass the current year context and query release constraints to the LLM. Replaced LLM-hallucinated rating stars with actual TMDb user ratings (`vote_average`).
+- **Niche Recommendations & Vote Thresholding**: Implemented popularity filtering. Recommendations are now limited to popular titles (500+ votes) or highly-rated niche titles (7.5+ rating with 50-499 votes), which are flagged with a `(⚠️ Few votes)` warning. Obscure titles with fewer than 50 votes are discarded.
+- **Clean List UI**: Replaced list item callback buttons with a number selection prompt in the conversation flow, keeping the UI tidy and clear.
+
 ## [4.42.14] - 2026-07-12
 
 ### Changed

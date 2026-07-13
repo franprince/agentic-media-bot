@@ -79,6 +79,7 @@ export const discoverMediaTool = tool({
 					posterUrl: r.posterPath
 						? `https://image.tmdb.org/t/p/w500${r.posterPath}`
 						: null,
+					warning: r.warning ?? null,
 				})),
 				note: "Use 'searchMovie' or 'searchSeries' with the exact title to check availability or add to the download queue.",
 			};

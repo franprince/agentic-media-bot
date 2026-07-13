@@ -69,6 +69,7 @@ export interface TmdbResult {
 	voteCount: number;
 	genres: string[];
 	posterPath: string | null;
+	warning?: string;
 }
 
 interface YearRange {
@@ -382,6 +383,23 @@ export async function discoverMedia(
 	limit = 10,
 ): Promise<TmdbResult[]> {
 	const mediaType = extractMediaType(query);
+	const yearRange = extractYearRange(query);
+	const currentYear = new Date().getFullYear();
+
+	let yearInstruction = `The current year is ${currentYear}.`;
+	if (yearRange.gte || yearRange.lte) {
+		const gteYear = yearRange.gte ? parseInt(yearRange.gte.split("-")[0]!, 10) : null;
+		const lteYear = yearRange.lte ? parseInt(yearRange.lte.split("-")[0]!, 10) : null;
+
+		if (gteYear && lteYear) {
+			yearInstruction += ` Your recommendations MUST be released between ${gteYear} and ${lteYear} (inclusive).`;
+		} else if (gteYear) {
+			yearInstruction += ` Your recommendations MUST be released in or after ${gteYear}.`;
+		} else if (lteYear) {
+			yearInstruction += ` Your recommendations MUST be released in or before ${lteYear}.`;
+		}
+	}
+	yearInstruction += " Try to provide a diverse selection spread across the requested years rather than focusing on a single year.";
 
 	const model = getCapableModel();
 
@@ -392,7 +410,9 @@ export async function discoverMedia(
 			: "TV shows/series"
 		} that match the following criteria: "${query}".
 
-CRITICAL: Your recommendations MUST be based on IMDb ratings and popularity. Only recommend titles that are critically acclaimed, widely recognized, and have a high IMDb rating (ideally 7.0+ or higher) and a large number of votes on IMDb. Do NOT suggest obscure, low-rating, or unreleased titles.`;
+${yearInstruction}
+
+CRITICAL: Your recommendations MUST be based on IMDb ratings and popularity. Only suggest well-known titles that have a large number of votes (at least 500+ votes) or highly-rated niche titles (7.5+ rating with 50+ votes). Avoid suggesting completely obscure titles (less than 50 votes).`;
 
 	const response = await generateObject({
 		model,
@@ -430,39 +450,73 @@ CRITICAL: Your recommendations MUST be based on IMDb ratings and popularity. Onl
 			if (item.mediaType === "movie") {
 				const resolved = await searchTmdbMovie(item.title, item.year);
 				if (resolved) {
+					const rating = resolved.vote_average && resolved.vote_average > 0
+						? Math.round(resolved.vote_average * 10) / 10
+						: item.imdbRating ?? 0;
+					const voteCount = resolved.vote_count ?? 0;
+
+					// Filter based on vote count and rating thresholds
+					if (voteCount < 50) {
+						return;
+					}
+					let warning: string | undefined;
+					if (voteCount < 500) {
+						if (rating >= 7.5) {
+							warning = "Few votes";
+						} else {
+							return;
+						}
+					}
+
 					results.push({
 						id: resolved.id,
 						title: resolved.title,
 						mediaType: "movie",
 						year: parseYear(resolved.release_date),
 						overview: resolved.overview,
-						rating:
-							item.imdbRating ??
-							Math.round(resolved.vote_average * 10) / 10,
-						voteCount: resolved.vote_count,
+						rating,
+						voteCount,
 						genres: (resolved.genre_ids ?? [])
 							.map((id) => genreMaps.movie[id] ?? "")
 							.filter(Boolean),
 						posterPath: resolved.poster_path ?? null,
+						warning,
 					});
 				}
 			} else {
 				const resolved = await searchTmdbTv(item.title, item.year);
 				if (resolved) {
+					const rating = resolved.vote_average && resolved.vote_average > 0
+						? Math.round(resolved.vote_average * 10) / 10
+						: item.imdbRating ?? 0;
+					const voteCount = resolved.vote_count ?? 0;
+
+					// Filter based on vote count and rating thresholds
+					if (voteCount < 50) {
+						return;
+					}
+					let warning: string | undefined;
+					if (voteCount < 500) {
+						if (rating >= 7.5) {
+							warning = "Few votes";
+						} else {
+							return;
+						}
+					}
+
 					results.push({
 						id: resolved.id,
 						title: resolved.name,
 						mediaType: "tv",
 						year: parseYear(resolved.first_air_date),
 						overview: resolved.overview,
-						rating:
-							item.imdbRating ??
-							Math.round(resolved.vote_average * 10) / 10,
-						voteCount: resolved.vote_count,
+						rating,
+						voteCount,
 						genres: (resolved.genre_ids ?? [])
 							.map((id) => genreMaps.tv[id] ?? "")
 							.filter(Boolean),
 						posterPath: resolved.poster_path ?? null,
+						warning,
 					});
 				}
 			}
