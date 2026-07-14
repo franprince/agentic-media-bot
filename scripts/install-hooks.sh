@@ -15,6 +15,15 @@ cat > "$HOOKS_DIR/pre-push" << 'EOF'
 # pre-push git hook — automatically deploy after every successful push.
 # Output is logged to /tmp/agentic-media-bot-deploy.log so it never blocks the terminal.
 
+# Safety guard: Check for and kill any local running bot processes to prevent Telegram 409 clashes.
+BOT_PIDS=$(pgrep -f "bun.*bot\.(js|ts)" || true)
+if [ ! -z "$BOT_PIDS" ]; then
+    echo "⚠️ Warning: Found local running bot process(es) ($BOT_PIDS)."
+    echo "Stopping them to prevent conflicts with the production instance..."
+    kill -9 $BOT_PIDS 2>/dev/null || true
+    echo "✅ Local bot process(es) terminated."
+fi
+
 REPO_DIR="$(git rev-parse --show-toplevel)"
 DEPLOY_SCRIPT="$REPO_DIR/scripts/deploy-to-media-stack.sh"
 LOG_FILE="/tmp/agentic-media-bot-deploy.log"
