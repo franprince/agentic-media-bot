@@ -24,30 +24,44 @@ export async function executeOnProxy(
 
 	console.log(`[PROXY] Forwarding ${service}.${method} to ${targetUrl}`);
 
-	const response = await fetch(targetUrl, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			Authorization: `Bearer ${proxySecret}`,
-		},
-		body: JSON.stringify({ service, method, args }),
-	});
-
-	if (!response.ok) {
-		let errorText = "Unknown Proxy Error";
+	let lastError: any;
+	for (let attempt = 1; attempt <= 3; attempt++) {
 		try {
-			const errJson = (await response.json()) as any;
-			errorText = errJson.error || errorText;
-		} catch (_) {
-			errorText = await response.text();
+			const response = await fetch(targetUrl, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${proxySecret}`,
+				},
+				body: JSON.stringify({ service, method, args }),
+			});
+
+			if (!response.ok) {
+				let errorText = "Unknown Proxy Error";
+				try {
+					const errJson = (await response.json()) as any;
+					errorText = errJson.error || errorText;
+				} catch (_) {
+					errorText = await response.text();
+				}
+				throw new Error(`Proxy Execution Error (${response.status}): ${errorText}`);
+			}
+
+			const data = (await response.json()) as any;
+			if (!data.success) {
+				throw new Error(`Proxy Execution Failed: ${data.error || "Unknown Error"}`);
+			}
+
+			return data.result;
+		} catch (error: any) {
+			lastError = error;
+			console.warn(`[PROXY] Attempt ${attempt} failed for ${service}.${method}: ${error.message || error}`);
+			if (attempt < 3) {
+				// Wait 1 second before retrying
+				await new Promise((resolve) => setTimeout(resolve, 1000));
+			}
 		}
-		throw new Error(`Proxy Execution Error (${response.status}): ${errorText}`);
 	}
 
-	const data = (await response.json()) as any;
-	if (!data.success) {
-		throw new Error(`Proxy Execution Failed: ${data.error || "Unknown Error"}`);
-	}
-
-	return data.result;
+	throw new Error(`Proxy connection failed after 3 attempts. Last error: ${lastError.message || lastError}`);
 }
