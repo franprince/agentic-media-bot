@@ -3,6 +3,7 @@ import * as db from "../../services/database";
 import * as plex from "../../services/plex";
 import * as radarr from "../../services/radarr";
 import * as sonarr from "../../services/sonarr";
+import * as tmdb from "../../services/tmdb";
 import {
 	formatBytes,
 	formatDuration,
@@ -176,3 +177,114 @@ describe("Timezone-aware formatEventTimestamp", () => {
 		expect(formatted).toBe("04/07/2026 09:00:00");
 	});
 });
+
+describe("Plex/Radarr/Sonarr Recommendation Cross-Check Enrichment", () => {
+	let searchPlexSpy: any;
+	let searchMovieSpy: any;
+	let searchSeriesSpy: any;
+	let discoverMediaSpy: any;
+
+	beforeAll(() => {
+		searchPlexSpy = spyOn(plex, "searchPlex");
+		searchMovieSpy = spyOn(radarr, "searchMovie");
+		searchSeriesSpy = spyOn(sonarr, "searchSeries");
+		discoverMediaSpy = spyOn(tmdb, "discoverMedia");
+	});
+
+	afterAll(() => {
+		searchPlexSpy.mockRestore();
+		searchMovieSpy.mockRestore();
+		searchSeriesSpy.mockRestore();
+		discoverMediaSpy.mockRestore();
+	});
+
+	test("discoverMediaTool should enrich recommendations with library status (alreadyInLibrary)", async () => {
+		// Mock discovery results
+		discoverMediaSpy.mockImplementation(async () => [
+			{
+				title: "The Bear",
+				year: 2022,
+				mediaType: "tv",
+				rating: 8.6,
+				voteCount: 1200,
+				genres: ["Drama", "Comedy"],
+				overview: "Overview of The Bear",
+				posterPath: "/bear.jpg",
+			},
+			{
+				title: "Fallout",
+				year: 2024,
+				mediaType: "tv",
+				rating: 8.4,
+				voteCount: 1500,
+				genres: ["Sci-Fi", "Action"],
+				overview: "Overview of Fallout",
+				posterPath: "/fallout.jpg",
+			},
+			{
+				title: "Shōgun",
+				year: 2024,
+				mediaType: "tv",
+				rating: 8.7,
+				voteCount: 900,
+				genres: ["Drama", "War"],
+				overview: "Overview of Shōgun",
+				posterPath: "/shogun.jpg",
+			},
+		]);
+
+		// Mock Plex search: The Bear is in Plex, Fallout is not in Plex but in Sonarr, Shōgun is not in Plex or Sonarr
+		searchPlexSpy.mockImplementation(async (title: string) => {
+			if (title === "The Bear") {
+				return {
+					Metadata: [
+						{
+							title: "The Bear",
+							year: 2022,
+							guid: "tvdb://413380",
+						},
+					],
+				};
+			}
+			return { Metadata: [] };
+		});
+
+		// Mock Sonarr lookup: Fallout is in Sonarr (already added/monitored with id > 0)
+		searchSeriesSpy.mockImplementation(async (title: string) => {
+			if (title === "Fallout") {
+				return [
+					{
+						title: "Fallout",
+						year: 2024,
+						id: 42,
+						tvdbId: 418380,
+						monitored: true,
+					},
+				];
+			}
+			return [];
+		});
+
+		const { discoverMediaTool } = require("../tools");
+		const results = await discoverMediaTool.execute!({ query: "best series" }, {} as any);
+
+		expect(results.suggestions).toBeDefined();
+		expect(results.suggestions.length).toBe(3);
+
+		// The Bear should be flagged as already in library (from Plex)
+		const theBear = results.suggestions.find((s: any) => s.title === "The Bear");
+		expect(theBear).toBeDefined();
+		expect(theBear.alreadyInLibrary).toBe(true);
+
+		// Fallout should be flagged as already in library (from Sonarr)
+		const fallout = results.suggestions.find((s: any) => s.title === "Fallout");
+		expect(fallout).toBeDefined();
+		expect(fallout.alreadyInLibrary).toBe(true);
+
+		// Shōgun should NOT be flagged as already in library
+		const shogun = results.suggestions.find((s: any) => s.title === "Shōgun");
+		expect(shogun).toBeDefined();
+		expect(shogun.alreadyInLibrary).toBe(false);
+	});
+});
+
