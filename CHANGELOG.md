@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.42.23] - 2026-08-01
+
+### Changed
+- **Agent Import Hoisting**: Hoisted the mid-function `await import(...)` calls in `src/agent/index.ts` (`setUserName`, `trimHistory`, `isProxyEnabled`/`executeOnProxy`) to static top-level imports for clarity; no behavior change.
+
 ## [4.42.22] - 2026-08-01
 
 ### Added

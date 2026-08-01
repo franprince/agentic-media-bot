@@ -1,7 +1,13 @@
 import { google } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { type CoreMessage, generateText } from "ai";
-import { getHistory, getUserName, saveHistory } from "../services/database.ts";
+import {
+	getHistory,
+	getUserName,
+	saveHistory,
+	setUserName,
+	trimHistory,
+} from "../services/database.ts";
 import { normalizeCountryName } from "../services/plex";
 import {
 	extractNameFromText,
@@ -9,6 +15,7 @@ import {
 	shouldDisableAddActions,
 } from "./intent";
 import { DEFAULT_SYSTEM_PROMPT } from "./prompts";
+import { executeOnProxy, isProxyEnabled } from "./proxyClient";
 import {
 	buildExactCountPrefix,
 	buildPlexBrowseAuthoritativeText,
@@ -89,19 +96,13 @@ export async function processUserMessage(
 	if (userMessage && hasNameIntent(userMessage)) {
 		const name = extractNameFromText(userMessage);
 		if (name) {
-			// Save the name using the tool's execute function directly with proper arguments
-			const { setUserName } = await import("../services/database");
 			setUserName(userId, name);
-			// Update the userName variable for this session
-			// The name will be persisted in the database
 		}
 	}
 
 	// Add the user's message to the history ONLY if it's a new message
 	if (userMessage) {
 		// Clear history if it's too long or stale
-		const { trimHistory } = await import("../services/database");
-
 		// Check for long gap (> 12 hours) from the metadata of the last message if available
 		// For now, we'll just trim to keep it simple and effective.
 		history = trimHistory(userId, 20);
@@ -199,7 +200,6 @@ export async function processUserMessage(
 		const sanitizedTools = Object.fromEntries(activeToolEntries);
 
 		// --- Proxy Tool Interception ---
-		const { isProxyEnabled, executeOnProxy } = await import("./proxyClient");
 		let finalTools = sanitizedTools;
 
 		if (isProxyEnabled()) {
