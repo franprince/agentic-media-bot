@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **CI Install Failure on `chowa`**: Moved the local-only `chowa` devDependency (`file:../chōwa`) to `optionalDependencies` and updated the CI workflow to run `bun install --omit=optional`, since the sibling `chōwa` checkout only exists on the maintainer's machine and isn't available to the GitHub Actions runner.
+- **CI Test Failure on Missing `proxy-ui` Deps**: `bun test`'s root `bunfig.toml` preload (`proxy-ui/src/test-preload.ts`) requires `@testing-library/jest-dom`, which only exists under `proxy-ui/node_modules` (no workspace hoisting to root). Added a `bun install` step scoped to `proxy-ui/` in the CI workflow before running the test suite.
 
 ## [4.42.23] - 2026-08-01
 
