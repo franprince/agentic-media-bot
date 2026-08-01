@@ -17,7 +17,7 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --omit=optional
 
       - name: Verify src/bot.ts bundles cleanly
         run: bun run check:bot-parse

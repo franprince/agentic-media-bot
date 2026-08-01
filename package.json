@@ -1,6 +1,6 @@
 {
   "name": "agentic-media-bot",
-  "version": "4.42.23",
+  "version": "4.42.24",
   "module": "index.ts",
   "type": "module",
   "private": true,
@@ -19,11 +19,13 @@
     "@types/bun": "latest",
     "@types/node": "^25.3.0",
     "@types/node-cron": "^3.0.11",
-    "chowa": "file:../chōwa",
     "msw": "^2.12.10"
   },
   "peerDependencies": {
     "typescript": "^5"
+  },
+  "optionalDependencies": {
+    "chowa": "file:../chōwa"
   },
   "dependencies": {
     "@ai-sdk/google": "^0.0.52",

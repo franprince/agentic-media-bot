@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.42.24] - 2026-08-01
+
+### Fixed
+- **CI Install Failure on `chowa`**: Moved the local-only `chowa` devDependency (`file:../chōwa`) to `optionalDependencies` and updated the CI workflow to run `bun install --omit=optional`, since the sibling `chōwa` checkout only exists on the maintainer's machine and isn't available to the GitHub Actions runner.
+
 ## [4.42.23] - 2026-08-01
 
 ### Changed
