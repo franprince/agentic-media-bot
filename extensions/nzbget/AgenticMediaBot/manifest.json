@@ -1,0 +1,53 @@
+{
+	"main": "main.sh",
+	"name": "AgenticMediaBot",
+	"homepage": "https://github.com/franprince/agentic-media-bot",
+	"kind": "QUEUE/POST-PROCESSING",
+	"displayName": "Agentic Media Bot",
+	"version": "1.0",
+	"nzbgetMinVersion": "23.0",
+	"author": "franprince",
+	"license": "MIT",
+	"about": "Notifies the Agentic Media Bot when downloads are queued and when they finish.",
+	"queueEvents": "NZB_ADDED",
+	"requirements": [
+		"bash and curl must be available in the NZBGet environment (both ship with the LinuxServer NZBGet image).",
+		"The Agentic Media Bot proxy must be reachable from NZBGet at the configured WebhookUrl."
+	],
+	"description": [
+		"NZBGet has no native webhook support, so this extension provides it.",
+		"",
+		"It POSTs a small JSON body to the Agentic Media Bot webhook endpoint at two points:",
+		"  - when an NZB is added to the queue  -> {\"event\": \"added\",   \"title\": \"<nzb name>\"}",
+		"  - when a download finishes correctly -> {\"event\": \"success\", \"title\": \"<nzb name>\"}",
+		"",
+		"Downloads that end in WARNING, FAILURE or DELETED are not reported, because the bot only formats the 'added' and 'success' events.",
+		"",
+		"A failing webhook never fails the download: errors are logged and post-processing still reports success."
+	],
+	"options": [
+		{
+			"name": "WebhookUrl",
+			"displayName": "WebhookUrl",
+			"value": "http://localhost:3001/nzbget-webhook",
+			"description": [
+				"Target endpoint for notifications.",
+				"",
+				"Defaults to the Agentic Media Bot proxy, which relays to the bot itself - the same path Radarr, Sonarr and Plex use.",
+				"The NZBGet container runs with host networking, so localhost here is the host."
+			],
+			"select": []
+		},
+		{
+			"name": "Timeout",
+			"displayName": "Timeout",
+			"value": 10,
+			"description": [
+				"Maximum seconds to wait for the webhook before giving up.",
+				"",
+				"Bounded so an unresponsive endpoint cannot stall the download queue."
+			],
+			"select": []
+		}
+	]
+}

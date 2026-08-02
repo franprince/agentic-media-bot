@@ -94,6 +94,7 @@
     - **Conditional Relay**: The server only forwards webhook payloads to the main bot instance if `BRAIN_WEBHOOK_URL` is set, otherwise natively processing them.
     - **Loopback Resiliency**: Webhook relay uses `127.0.0.1` by default to avoid Nginx/Proxy conflicts on `localhost`.
     - **Relay 200 Patch**: If the relay to the bot throws, the proxy records the event locally and still returns `200 OK` (with a bypass warning), so external services perceive success. Only a thrown `fetch` error counts as relay failure — a non-2xx *response* means the bot answered and therefore owns the write.
+    - **NZBGet Event Source**: NZBGet has no native webhook support; it only makes outbound HTTP calls from extension scripts. The `AgenticMediaBot` extension in `extensions/nzbget/` supplies this, registered as both a queue script (`NZB_ADDED` → `added`) and a post-processing script (`NZBPP_TOTALSTATUS=SUCCESS` → `success`). It targets the proxy by default, like Radarr/Sonarr/Plex. Requires NZBGet v23+ for the `manifest.json` extension format, and must be enabled in NZBGet's `Extensions` setting — installing the files is not sufficient. Install via `scripts/install-nzbget-extension.sh`.
 
 ## Startup Verification & Specification Auditing
 - On every run, the bot MUST execute `src/verify-config.ts` (or equivalent) to audit its environment against `TECHNICAL_SPEC.md` and `FUNCTIONAL_SPEC.md`.
