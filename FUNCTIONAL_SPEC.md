@@ -129,7 +129,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
     - **Plex**: Playback status (play, resume, finish) and library additions.
     - **Radarr**: Media grabbed and download completes.
     - **Sonarr**: Episode grabbed and download completes.
-    - **NZBGet**: NZB added (with speed/ETA) and download completes.
+    - **NZBGet**: NZB added to the queue and download completes successfully. Delivered by the `AgenticMediaBot` extension script (`extensions/nzbget/`), since NZBGet has no native webhooks; it must be installed and enabled in NZBGet before any of these arrive. Speed/ETA are accepted by the payload but not sent: at queue time NZBGet's speed is a global rate rather than a per-NZB figure, so reporting it would mislead. Downloads ending in `WARNING`/`FAILURE`/`DELETED` are not announced.
     - **Rich Notifications**: Fetches posters/thumbnails locally from Plex and uploads them as `InputFile` to ensure delivery even from internal/localhost addresses.
     - **Customized Playback Format**: Notifies starting/resuming/finishing media with user-specific templates:
         - Movies: `User started watching the movie Title (Original Title)`
