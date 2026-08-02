@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.43.0] - 2026-08-02
+
+### Added
+- **NZBGet Extension Script**: Added `extensions/nzbget/AgenticMediaBot/`, a `bash`/`curl` extension that finally makes NZBGet notifications possible. NZBGet has no native webhook support — it only makes outbound HTTP calls from extension scripts — so `/nzbget-webhook` had existed in the bot for a long time without NZBGet ever calling it (zero `nzbget` events had ever been recorded). The extension registers as both a queue script (`NZB_ADDED` → `{"event":"added"}`) and a post-processing script (`NZBPP_TOTALSTATUS=SUCCESS` → `{"event":"success"}`), targeting the proxy by default like Radarr/Sonarr/Plex. Titles are JSON-escaped rather than interpolated, so releases containing quotes, backslashes or non-ASCII characters produce a valid body. A webhook failure never fails a download: errors are logged and post-processing still exits `93`.
+- **Extension Installer**: Added `scripts/install-nzbget-extension.sh`, which copies the extension into NZBGet's `ScriptDir`. It deliberately does not edit `nzbget.conf` or restart the container — enabling the extension in NZBGet's `Extensions` setting remains a manual step, without which NZBGet will not run it.
+
+### Fixed
+- **Inaccurate NZBGet Notification Spec**: `FUNCTIONAL_SPEC.md` claimed NZBGet notifications included speed/ETA. They never did, and the extension does not send them: at queue time NZBGet reports a global download rate rather than a per-NZB figure, so the value would mislead.
+
 ## [4.42.25] - 2026-08-02
 
 ### Fixed
