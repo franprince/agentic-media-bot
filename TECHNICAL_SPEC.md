@@ -111,6 +111,7 @@
 - **Verification Logic:**
     - On every run, the bot executing `src/verify-config.ts` (or equivalent) to audit its environment against `TECHNICAL_SPEC.md` and `FUNCTIONAL_SPEC.md`.
     - **Audio Transcription Provider check**: Reports which provider is active (`TRANSCRIPTION_URL`, Ollama, OpenAI, or Gemini) and warns if none is configured.
+    - **Known gap**: `verify-config.ts`'s "OpenAI/OpenRouter Connectivity" check validates `OPENAI_API_KEY` when `AI_PROVIDER=openai`, but the agent's model selection (`agent/index.ts`) only branches on `ollama` vs. default Google — `openai` as an `AI_PROVIDER` value is not actually wired to chat responses today. Documented here rather than fixed; do not advertise `openai` as a supported `AI_PROVIDER` value in `.env.example` or `README` until this is resolved.
     - **Deployment:** The bot MUST be restarted after any functional or technical update to apply changes and trigger the startup audit/changelog notification.
 
 ## Onboarding & Configuration
@@ -119,3 +120,4 @@
 - **Plex API Integration**: Performs a real-time probe of the user's Plex server during setup to fetch and display library section IDs, reducing manual configuration errors.
 - **Launch on Startup (Systemd)**: Creates a user-level systemd service unit (`~/.config/systemd/user/agentic-media-bot.service`) on Linux, configured to use the local `bun` binary and project directory.
 - **Environment Persistence**: Atomically writes gathered configuration to `.env.local`.
+- **Single-tenant model**: one running bot instance serves one arr stack, shared by every ID in `ALLOWED_USER_IDS`. There is no per-user credential storage or multi-stack routing.
