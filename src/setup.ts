@@ -184,6 +184,53 @@ if (useWebhook?.toLowerCase() !== "n") {
 	console.log("Webhook server will be disabled.");
 }
 
+console.log("\n--- 🎬 Optional Features ---");
+
+const enableTmdb = prompt(
+	"Enable TMDB-powered recommendations? (y/N):",
+	"n",
+);
+if (enableTmdb?.toLowerCase() === "y") {
+	console.log("Get a Read Access Token at: https://www.themoviedb.org/settings/api");
+	config.TMDB_READ_ACCESS_TOKEN = prompt("TMDB Read Access Token:") || "";
+}
+
+const enableTranscription = prompt(
+	"Enable voice message transcription? (y/N):",
+	"n",
+);
+if (enableTranscription?.toLowerCase() === "y") {
+	if (config.AI_PROVIDER === "google") {
+		console.log(
+			"Reusing GOOGLE_GENERATIVE_AI_API_KEY already configured above — no further setup needed.",
+		);
+	} else if (config.AI_PROVIDER === "ollama") {
+		console.log(
+			"Reusing OLLAMA_BASE_URL already configured above — no further setup needed.",
+		);
+	} else {
+		config.TRANSCRIPTION_URL =
+			prompt("Transcription endpoint URL (Whisper-compatible):") || "";
+	}
+}
+
+const runsProxy = prompt(
+	"Will this instance run the Proxy Gateway (split Brain/Proxy deployment)? (y/N):",
+	"n",
+);
+if (runsProxy?.toLowerCase() === "y") {
+	const enableDashboardAuth = prompt(
+		"Set a dashboard auth token to secure the proxy's /api/* routes? (Y/n):",
+		"y",
+	);
+	if (enableDashboardAuth?.toLowerCase() !== "n") {
+		const generated = crypto.randomUUID();
+		config.DASHBOARD_TOKEN =
+			prompt(`Dashboard token [generated: ${generated}]:`, generated) ||
+			generated;
+	}
+}
+
 console.log("\n--- 🚀 Startup Configuration ---");
 const launchOnStartup = prompt(
 	"Would you like to install a background service? (Y/n):",
