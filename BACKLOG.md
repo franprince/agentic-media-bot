@@ -103,6 +103,13 @@
 
 ## 🟡 P2 — Backlog
 
+### `AI_PROVIDER=openai` not wired to chat agent
+**Problem:** `verify-config.ts` has a passing connectivity check for `AI_PROVIDER=openai`, but `agent/index.ts` never routes chat requests through it — only `ollama` is branched, everything else silently uses Google. A user who sets `AI_PROVIDER=openai` gets a green checkmark at startup and then Gemini responses.  
+**Fix:** Either add a real OpenAI branch to `agent/index.ts`'s model selection, or remove the misleading verify-config check.  
+**Status:** 📋 Backlog — documented in `TECHNICAL_SPEC.md`, not yet fixed.
+
+---
+
 ### Web dashboard authentication
 **Problem:** Proxy dashboard has no auth — security risk in VPS/cloud deployments.  
 **Fix:** Opt-in `DASHBOARD_TOKEN` bearer-token auth on all `/api/*` proxy endpoints. Set `VITE_DASHBOARD_TOKEN` in the UI build to pass the token automatically.  

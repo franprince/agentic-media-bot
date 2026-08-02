@@ -15,6 +15,16 @@ An intelligent Telegram bot that acts as your personal media assistant. Powered 
 
 ---
 
+## 📦 Scope
+
+This bot is designed for one household: a single bot instance connects to
+one arr stack (one Radarr, one Sonarr, one Plex, one qBittorrent/NZBGet).
+Every Telegram user listed in `ALLOWED_USER_IDS` shares that same library
+and download queue. It is not a multi-tenant/SaaS tool — there's no way for
+different users to each connect their own separate arr stack to one bot.
+
+---
+
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -53,6 +63,9 @@ An intelligent Telegram bot that acts as your personal media assistant. Powered 
 ## 🛠️ Configuration Guide
 
 If you prefer manual configuration, copy `.env.example` to `.env.local` and fill in the values.
+`.env.example` documents every variable the bot reads, grouped by required
+vs. optional feature — that file is the source of truth. `bun src/setup.ts`
+walks through the required ones (and several optional ones) interactively.
 
 ### Finding your tokens:
 

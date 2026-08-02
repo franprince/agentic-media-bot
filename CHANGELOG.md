@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.43.2] - 2026-08-02
+
+### Changed
+- **Onboarding & Config Documentation**: `.env.example` was missing 17 environment variables the code actually reads (AI model overrides, TMDB, voice transcription, webhook port/notify-target overrides, proxy port, dashboard auth token, restart command override) — a third-party self-hoster had no way to discover these features existed. `.env.example` is now reorganized into required-vs-optional sections covering every var, the stray incomplete `PLEX_MOVIE_SECTION_IDS`/`PLEX_SHOW_SECTION_IDS` duplicate lines are removed, and `src/setup.ts`'s interactive flow now prompts for TMDB, voice transcription, and dashboard auth. README and `TECHNICAL_SPEC.md` now state plainly that this is a single-household bot — one shared arr stack, multiple allowed Telegram users — not a multi-tenant tool.
+- **Documented a known gap**: `verify-config.ts`'s "OpenAI/OpenRouter Connectivity" check passes for `AI_PROVIDER=openai`, but `agent/index.ts` never actually routes chat requests through it (only `ollama` is branched; anything else falls through to Google). Recorded in `TECHNICAL_SPEC.md` and `BACKLOG.md` rather than fixed in this pass.
+
 ## [4.43.1] - 2026-08-02
 
 ### Fixed
