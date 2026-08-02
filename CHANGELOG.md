@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.43.1] - 2026-08-02
+
+### Fixed
+- **Coolify Deployments Failing on `chowa` (production outage)**: `bun install --frozen-lockfile` in the `Dockerfile` aborted with `ENOENT: failed opening cache/package/version dir for package chowa`, because the `chowa` optional dependency resolves from `file:../chōwa` — a sibling checkout that exists only on the maintainer's machine and is never in the Docker build context. Every Coolify deploy had failed since `06dc17a` (2026-08-01 20:25) added that dependency, so the bot had been silently pinned to pre-`06dc17a` code; Coolify keeps the previous container when a build fails, which is why nothing appeared to break. `--omit=optional` is now passed in the `Dockerfile`, matching what the CI workflow already did — PR #2 fixed this for CI but not for the image build. Verified by reproducing the failure with a local `docker build` and confirming the image builds afterwards.
+
+### Changed
+- **Dockerfile Lint**: `FROM … as base` → `AS base`, silencing the `FromAsCasing` warning emitted on every build.
+
 ## [4.43.0] - 2026-08-02
 
 ### Added

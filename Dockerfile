@@ -1,9 +1,14 @@
-FROM oven/bun:latest as base
+FROM oven/bun:latest AS base
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies.
+# --omit=optional skips `chowa`, a local-only tooling dependency resolved from
+# `file:../chōwa`. That sibling checkout exists only on the maintainer's machine,
+# so without this the build fails here with:
+#   ENOENT: failed opening cache/package/version dir for package chowa
+# The CI workflow omits it for the same reason.
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --omit=optional
 
 # Copy source
 COPY . .
