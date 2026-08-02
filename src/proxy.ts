@@ -18,6 +18,7 @@ import {
 	setUserName,
 } from "./services/database.ts";
 import { checkAllServices } from "./services/health";
+import { parseWebhookEvent } from "./services/webhookParser.ts";
 import * as nzbget from "./services/nzbget";
 import * as plex from "./services/plex";
 import * as qbittorrent from "./services/qbittorrent";
@@ -234,106 +235,66 @@ serve({
 				);
 			}
 
-			// Clone the request so we can read the body for logging AND relay it
-			const clonedReq = req.clone();
+			// Parse from a clone so the original body stays readable for the relay.
+			const parsed = await parseWebhookEvent(req.clone(), url.pathname);
 
-			// Background logging
-			(async () => {
-				let timestamp = new Date().toISOString(); // Default fallback
+			let timestamp = new Date().toISOString(); // Default fallback
+			try {
+				const tz = getTimezone();
+				// Explicitly use 'en-GB' for a clean YYYY-MM-DD HH:MM:SS format
+				timestamp = new Date()
+					.toLocaleString("en-GB", { timeZone: tz, hour12: false })
+					.replace(",", "");
+			} catch {
+				// Keep the ISO fallback if timezone resolution fails.
+			}
+
+			const logLine = parsed
+				? `[${timestamp}] [WEBHOOK] Received ${parsed.service} event: ${parsed.event} (${parsed.title})\n`
+				: `[${timestamp}] [WEBHOOK] [ERROR] Failed to process ${url.pathname}\n`;
+			try {
+				appendFileSync("/tmp/agentic-media-bot-restart.log", logLine);
+			} catch (e) {
+				console.error("Failed to write webhook log line:", e);
+			}
+			if (parsed) console.log(`📨 Relaying ${parsed.service} event: ${parsed.event}`);
+
+			/**
+			 * Fallback history write.
+			 *
+			 * On the happy path the bot is the *sole* writer of `media_events`: it
+			 * receives the relayed webhook and records the event itself. The proxy
+			 * must not also write, because both processes share the same SQLite file
+			 * and `saveMediaEvent` dedups on (service, event_type, title) within 60s
+			 * — a proxy-written row makes the bot's own `dbSave()` return false, and
+			 * the event queue then skips the Telegram notification entirely. For
+			 * NZBGet and qBittorrent the two writers derive identical tuples, so
+			 * those notifications were being dropped every time.
+			 *
+			 * When the relay never reaches the bot, nobody else will record the
+			 * event, so the proxy writes it here to preserve history.
+			 */
+			const saveFallbackEvent = () => {
+				if (!parsed) return;
 				try {
-					const tz = getTimezone();
-					// Explicitly use 'en-GB' for a clean YYYY-MM-DD HH:MM:SS format
-					timestamp = new Date()
-						.toLocaleString("en-GB", { timeZone: tz, hour12: false })
-						.replace(",", "");
-
-					let service = "";
-					let event = "";
-					let title = "";
-					let message = "";
-
-					if (url.pathname === "/plex-webhook") {
-						service = "plex";
-						const formData = await clonedReq.formData();
-						const payloadRaw = formData.get("payload");
-						if (!payloadRaw || typeof payloadRaw !== "string") {
-							throw new Error("Missing 'payload' in Plex webhook");
-						}
-						const payload = JSON.parse(payloadRaw);
-						event = payload.event || "unknown";
-
-						const m = payload.Metadata || {};
-						if (m.type === "episode" && m.grandparentTitle) {
-							title = `${m.grandparentTitle} - ${m.title}`;
-						} else {
-							title = m.title || "Unknown Title";
-						}
-
-						message = `Plex Event: ${event} - ${title}`;
-					} else if (url.pathname === "/api/nzbget-webhook" || url.pathname === "/nzbget-webhook") {
-						service = "nzbget";
-						const payload = (await clonedReq.json()) as any;
-						event = payload.event || "added";
-						title = payload.title || "Unknown NZB";
-						const speed = payload.speed ? ` (${payload.speed} MB/s)` : "";
-						const eta = payload.eta ? ` [ETA: ${payload.eta}]` : "";
-						message = `NZBGet Event: ${event} - ${title}${speed}${eta}`;
-					} else if (
-						url.pathname === "/qbittorrent-webhook" ||
-						url.pathname === "/api/qbittorrent-webhook"
-					) {
-						service = "qbittorrent";
-						let payload: any = {};
-						const contentType = clonedReq.headers.get("content-type") || "";
-						if (contentType.includes("application/json")) {
-							payload = await clonedReq.json();
-						} else {
-							const text = await clonedReq.text();
-							const params = new URLSearchParams(text);
-							payload = Object.fromEntries(params.entries());
-						}
-						event = payload.event || "added";
-						title = payload.title || "Unknown Torrent";
-						message = `qBittorrent Event: ${event} - ${title}`;
-					} else {
-						service = url.pathname.includes("radarr") ? "radarr" : "sonarr";
-						const payload = (await clonedReq.json()) as any;
-						event = payload.eventType || "unknown";
-
-						if (service === "sonarr" && payload.series) {
-							const seriesName = payload.series.title;
-							let epDetails = "";
-							if (payload.episodes && payload.episodes.length > 0) {
-								const ep = payload.episodes[0];
-								epDetails = ` - S${String(ep.seasonNumber).padStart(2, "0")}E${String(ep.episodeNumber).padStart(2, "0")} - ${ep.title}`;
-							}
-							title = `${seriesName}${epDetails}`;
-						} else if (service === "radarr" && payload.movie) {
-							title = payload.movie.title;
-						} else {
-							title =
-								payload.movie?.title ||
-								payload.series?.title ||
-								"Unknown Title";
-						}
-
-						message = `${service.charAt(0).toUpperCase() + service.slice(1)} Event: ${event} - ${title}`;
-					}
-
-					if (service && event) {
-						saveMediaEvent(service, event, title, message);
-						const logLine = `[${timestamp}] [WEBHOOK] Received ${service} event: ${event} (${title})\n`;
-						appendFileSync("/tmp/agentic-media-bot-restart.log", logLine);
-						console.log(`✅ Logged ${service} event: ${event}`);
-					}
+					saveMediaEvent(
+						parsed.service,
+						parsed.event,
+						parsed.title,
+						parsed.message,
+					);
+					console.log(
+						`💾 Bot unreachable — stored ${parsed.service} event locally: ${parsed.event}`,
+					);
 				} catch (e) {
-					const errorLine = `[${timestamp}] [WEBHOOK] [ERROR] Failed to process ${url.pathname}: ${e}\n`;
-					appendFileSync("/tmp/agentic-media-bot-restart.log", errorLine);
-					console.error("Failed to log event in proxy:", e);
+					console.error("Failed to store webhook event locally:", e);
 				}
-			})();
+			};
 
-			if (!brainUrl) return new Response("OK", { status: 200 });
+			if (!brainUrl) {
+				saveFallbackEvent();
+				return new Response("OK", { status: 200 });
+			}
 
 			if (!brainUrl.startsWith("http")) {
 				brainUrl = `http://${brainUrl}`;
@@ -357,8 +318,11 @@ serve({
 				});
 			} catch (error) {
 				console.error("Failed to forward webhook to brain (bot):", error);
-				// Since we already logged the event to the database in the background block,
-				// we can return 200 OK so Sonarr/Radarr/Plex don't think it failed completely.
+				// The bot never saw this event, so record it here to preserve history,
+				// then return 200 OK so Sonarr/Radarr/Plex don't think it failed
+				// completely. A non-2xx *response* is not a failure — the bot answered
+				// and owns the write; only a thrown fetch error lands here.
+				saveFallbackEvent();
 				return new Response(
 					JSON.stringify({
 						success: true,

@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.42.25] - 2026-08-02
+
+### Fixed
+- **Dropped NZBGet & qBittorrent Notifications (`media_events` double-write)**: `src/proxy.ts` wrote every incoming webhook to `media_events` *before* relaying it to the bot, while the bot wrote the same event again via `eventQueue`'s `dbSave` closure. Both processes share `data/bot_data.sqlite` (`DATA_DIR` resolves relative to the working directory, which both systemd units share), and `saveMediaEvent` dedups on `(service, event_type, title)` within 60 seconds. For NZBGet and qBittorrent the two writers derived byte-identical tuples, so the proxy's row made the bot's `dbSave()` return `false` — and `eventQueue` skips `send()` whenever `dbSave()` is `false`, silently discarding the Telegram notification with only a `🔁 EventQueue: DB dedup dropped` log line. The bot is now the sole writer whenever the relay succeeds; the proxy writes only when the relay throws or `BRAIN_WEBHOOK_URL` is unset, preserving history while the bot is offline. Radarr/Sonarr/Plex escaped the drop only by accident (their event-type casing and title formats differed between the two writers), which also stopped every Radarr/Sonarr event being stored twice under both `Download` and `download`.
+
+### Changed
+- **Webhook Payload Parsing Extracted**: Moved the proxy's inline payload parsing into a new side-effect-free `src/services/webhookParser.ts` (`parseWebhookEvent`), so it can be unit-tested — importing `src/proxy.ts` exits the process when `PROXY_SECRET_KEY` is unset and then binds a port. Parsing behaviour is unchanged except that a malformed payload now returns `null` (logged) instead of throwing, so it can never prevent the relay from being attempted.
+
 ## [4.42.24] - 2026-08-01
 
 ### Fixed
