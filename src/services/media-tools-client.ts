@@ -60,3 +60,24 @@ export async function classifyIntent(message: string): Promise<IntentClassificat
 		return executeOnProxy("mediaTools", "classifyIntent", [message]);
 	return ollamaClassifier.classifyIntent(message);
 }
+
+export async function getErsatzTVStatus(): Promise<{ online: boolean; version: string }> {
+	if (isProxyEnabled()) return executeOnProxy("mediaTools", "getErsatzTVStatus", []);
+	const { ErsatzTVManager } = await import("media-tools");
+	return new ErsatzTVManager().getSystemStatus();
+}
+
+export async function getErsatzTVGuide(channelId?: string, date?: string): Promise<any> {
+	if (isProxyEnabled())
+		return executeOnProxy("mediaTools", "getErsatzTVGuide", [channelId, date]);
+	const { ErsatzTVManager } = await import("media-tools");
+	return new ErsatzTVManager().getDailyGuide(channelId, date);
+}
+
+export async function createChannelDirectorProgramming(params: any): Promise<any> {
+	if (isProxyEnabled())
+		return executeOnProxy("mediaTools", "createChannelDirectorProgramming", [params]);
+	const { ErsatzTVManager } = await import("media-tools");
+	return new ErsatzTVManager().createChannelDirectorProgramming(params);
+}
+

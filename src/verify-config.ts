@@ -118,6 +118,15 @@ export async function verifyConfig(exitOnFailure: boolean = true) {
 			},
 		},
 		{
+			name: "ErsatzTV Connectivity",
+			fn: async () => {
+				const ersatztv = await import("./services/ersatztv");
+				const status = await ersatztv.getSystemStatus();
+				if (!status.online) throw new Error("ErsatzTV server is offline or unreachable.");
+				return `Success: Connected to ErsatzTV (Version: ${status.version}).`;
+			},
+		},
+		{
 			name: "Plex Connectivity",
 			fn: async () => {
 				const added = await plex.getRecentlyAdded();

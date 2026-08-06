@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.45.0] - 2026-08-06
+
+### Added
+- **ErsatzTV Integration & Channel Director Skill**: Integrated ErsatzTV IPTV management service (`src/services/ersatztv.ts`, `src/types/ersatztv.ts`). Added ErsatzTV health monitoring to `/status` (`src/services/health.ts`), proxy method dispatching (`src/proxy.ts`), AI tools (`getErsatzTVStatusTool`, `getErsatzTVGuideTool`, `channelDirectorTool`), and the `channel-director` skill (`skills/channel-director/SKILL.md`).
+- **Configuration & Environment**: Added `ERSATZTV_URL` and `ERSATZTV_API_KEY` configuration checks in `.env.example` and `src/verify-config.ts`.
+
+See `specs/2026-08-06-ersatztv-integration/`.
+
 ## [4.44.0] - 2026-08-06
 
 ### Added
