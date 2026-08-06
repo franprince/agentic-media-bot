@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
+import * as mediaToolsClient from "../../services/media-tools-client";
 import * as plex from "../../services/plex";
 import * as radarr from "../../services/radarr";
 import * as sonarr from "../../services/sonarr";
@@ -67,25 +68,20 @@ describe("Plex Sessions Parser", () => {
 });
 
 describe("Disk Space Query aggregation", () => {
-	let getRadarrFoldersSpy: any;
-	let getSonarrFoldersSpy: any;
+	let getDiskSpaceSpy: any;
 
 	beforeAll(() => {
-		getRadarrFoldersSpy = spyOn(radarr, "getRootFolders");
-		getSonarrFoldersSpy = spyOn(sonarr, "getRootFolders");
+		getDiskSpaceSpy = spyOn(mediaToolsClient, "getDiskSpace");
 	});
 
 	afterAll(() => {
-		getRadarrFoldersSpy.mockRestore();
-		getSonarrFoldersSpy.mockRestore();
+		getDiskSpaceSpy.mockRestore();
 	});
 
 	test("should fetch and format folders across Radarr and Sonarr", async () => {
-		getRadarrFoldersSpy.mockImplementation(async () => [
-			{ id: 1, path: "/movies", freeSpace: 100 * 1024 * 1024 * 1024 }, // 100 GB
-		]);
-		getSonarrFoldersSpy.mockImplementation(async () => [
-			{ id: 1, path: "/tv", freeSpace: 50 * 1024 * 1024 * 1024 }, // 50 GB
+		getDiskSpaceSpy.mockImplementation(async () => [
+			{ service: "Radarr", path: "/movies", freeBytes: 100 * 1024 * 1024 * 1024 }, // 100 GB
+			{ service: "Sonarr", path: "/tv", freeBytes: 50 * 1024 * 1024 * 1024 }, // 50 GB
 		]);
 
 		const result = await getDiskSpaceTool.execute!({}, {} as any);

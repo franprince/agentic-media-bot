@@ -1,12 +1,19 @@
-import { describe, expect, spyOn, test } from "bun:test";
-import * as qbittorrent from "../../services/qbittorrent";
+import { afterEach, describe, expect, spyOn, test } from "bun:test";
+import * as mediaToolsClient from "../../services/media-tools-client";
 import { pauseAllTorrentsTool, resumeAllTorrentsTool } from "../tools";
 
 type ToolResult = { message: string };
 
 describe("Bulk torrent tools — pauseAllTorrentsTool / resumeAllTorrentsTool", () => {
-	test("pauseAllTorrentsTool should call qbittorrent.pauseAllTorrents and return success message", async () => {
-		const spy = spyOn(qbittorrent, "pauseAllTorrents").mockImplementation(
+	let spy: ReturnType<typeof spyOn> | undefined;
+
+	afterEach(() => {
+		spy?.mockRestore();
+		spy = undefined;
+	});
+
+	test("pauseAllTorrentsTool should call mediaToolsClient.pauseAllTorrents and return success message", async () => {
+		spy = spyOn(mediaToolsClient, "pauseAllTorrents").mockImplementation(
 			async () => undefined,
 		);
 
@@ -19,8 +26,8 @@ describe("Bulk torrent tools — pauseAllTorrentsTool / resumeAllTorrentsTool", 
 		expect(result.message).toContain("paused");
 	});
 
-	test("resumeAllTorrentsTool should call qbittorrent.resumeAllTorrents and return success message", async () => {
-		const spy = spyOn(qbittorrent, "resumeAllTorrents").mockImplementation(
+	test("resumeAllTorrentsTool should call mediaToolsClient.resumeAllTorrents and return success message", async () => {
+		spy = spyOn(mediaToolsClient, "resumeAllTorrents").mockImplementation(
 			async () => undefined,
 		);
 
@@ -34,7 +41,7 @@ describe("Bulk torrent tools — pauseAllTorrentsTool / resumeAllTorrentsTool", 
 	});
 
 	test("pauseAllTorrentsTool should return error message when qBittorrent throws", async () => {
-		spyOn(qbittorrent, "pauseAllTorrents").mockImplementation(async () => {
+		spy = spyOn(mediaToolsClient, "pauseAllTorrents").mockImplementation(async () => {
 			throw new Error("Connection refused");
 		});
 
@@ -48,7 +55,7 @@ describe("Bulk torrent tools — pauseAllTorrentsTool / resumeAllTorrentsTool", 
 	});
 
 	test("resumeAllTorrentsTool should return error message when qBittorrent throws", async () => {
-		spyOn(qbittorrent, "resumeAllTorrents").mockImplementation(async () => {
+		spy = spyOn(mediaToolsClient, "resumeAllTorrents").mockImplementation(async () => {
 			throw new Error("Session expired");
 		});
 
