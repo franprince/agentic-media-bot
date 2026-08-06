@@ -1,5 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
+import * as mediaToolsClient from "../../services/media-tools-client";
 import * as plex from "../../services/plex";
 import * as radarr from "../../services/radarr";
 import * as sonarr from "../../services/sonarr";
@@ -17,23 +18,20 @@ export const checkServiceHealthTool = tool({
 	}),
 	execute: async ({ service }: { service: string }) => {
 		try {
-			if (service === "Radarr") await radarr.getSystemStatus();
-			else if (service === "Sonarr") await sonarr.getSystemStatus();
-			else if (service === "Plex") await plex.getSystemStatus();
-			else if (service === "qBittorrent") {
-				const qbittorrent = await import("../../services/qbittorrent");
-				await qbittorrent.getTorrents("all");
-			} else if (service === "NZBGet") {
-				const nzbget = await import("../../services/nzbget");
-				await nzbget.getVersion();
-			} else {
+			const result = await mediaToolsClient.checkServiceHealth(service);
+			return result.online
+				? { online: true, message: `${service} is online and responsive.` }
+				: {
+						online: false,
+						message: `${service} appears to be offline or unreachable.`,
+					};
+		} catch (error: any) {
+			if (error?.message?.includes("Unsupported service")) {
 				return {
 					online: false,
 					message: `Service '${service}' is not currently configured or supported for health checks. Supported services are: Radarr, Sonarr, qBittorrent, Plex, and NZBGet.`,
 				};
 			}
-			return { online: true, message: `${service} is online and responsive.` };
-		} catch (error) {
 			return {
 				online: false,
 				message: `${service} appears to be offline or unreachable.`,
@@ -153,37 +151,18 @@ export const getDiskSpaceTool = tool({
 	parameters: z.object({}),
 	execute: async () => {
 		try {
-			const radarrFolders = await radarr.getRootFolders().catch(() => []);
-			const sonarrFolders = await sonarr.getRootFolders().catch(() => []);
+			const entries = await mediaToolsClient.getDiskSpace();
 
-			const results: Array<{
-				service: string;
-				path: string;
-				freeSpace: string;
-				freeBytes: number;
-			}> = [];
-
-			radarrFolders.forEach((f) => {
-				results.push({
-					service: "Radarr",
-					path: f.path,
-					freeSpace: formatBytes(f.freeSpace),
-					freeBytes: f.freeSpace,
-				});
-			});
-
-			sonarrFolders.forEach((f) => {
-				results.push({
-					service: "Sonarr",
-					path: f.path,
-					freeSpace: formatBytes(f.freeSpace),
-					freeBytes: f.freeSpace,
-				});
-			});
-
-			if (results.length === 0) {
+			if (entries.length === 0) {
 				return { message: "No root folders configured in Radarr or Sonarr." };
 			}
+
+			const results = entries.map((e) => ({
+				service: e.service,
+				path: e.path,
+				freeSpace: formatBytes(e.freeBytes),
+				freeBytes: e.freeBytes,
+			}));
 
 			return { folders: results };
 		} catch (error: any) {

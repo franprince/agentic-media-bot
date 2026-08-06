@@ -14,6 +14,7 @@ import {
 	hasNameIntent,
 	shouldDisableAddActions,
 } from "./intent";
+import { narrowToolsForMessage } from "./intentRouter";
 import { DEFAULT_SYSTEM_PROMPT } from "./prompts";
 import { executeOnProxy, isProxyEnabled } from "./proxyClient";
 import {
@@ -186,9 +187,15 @@ export async function processUserMessage(
 			delete tools.addSeries;
 		}
 
+		// --- Step 0: Ollama intent classification (narrowing optimization only) ---
+		// Never gates execution — on no match, low confidence, or any classifier
+		// error, the full tool set from above is used unchanged. See
+		// specs/2026-08-06-mechanical-skill-extraction-pilot.
+		const narrowedTools = await narrowToolsForMessage(statusSeedText, tools);
+
 		// --- Defensive Tool Filtering ---
 		// Ensure no tool is undefined before passing to generateText to prevent crashes in AI SDK.
-		const activeToolEntries = Object.entries(tools).filter(([name, tool]) => {
+		const activeToolEntries = Object.entries(narrowedTools).filter(([name, tool]) => {
 			if (tool === undefined) {
 				console.warn(
 					`⚠️ Warning: Tool "${name}" is undefined and will be excluded from this request.`,
