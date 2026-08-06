@@ -74,3 +74,11 @@ export {
 	removeFromWatchlistTool,
 	syncWatchlistTool,
 } from "./watchlist-tools";
+
+// Export ErsatzTV tools
+export {
+	channelDirectorTool,
+	getErsatzTVGuideTool,
+	getErsatzTVStatusTool,
+} from "./ersatztv-tools";
+

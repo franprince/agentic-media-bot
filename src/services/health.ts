@@ -1,3 +1,4 @@
+import * as ersatztv from "./ersatztv";
 import * as nzbget from "./nzbget";
 import * as plex from "./plex";
 import * as qbittorrent from "./qbittorrent";
@@ -41,6 +42,7 @@ export async function checkAllServices(): Promise<ServiceStatus[]> {
 		{ name: "Plex", check: () => plex.getSystemStatus() },
 		{ name: "qBittorrent", check: () => qbittorrent.getTorrents("all") },
 		{ name: "NZBGet", check: () => nzbget.getVersion() },
+		{ name: "ErsatzTV", check: () => ersatztv.getSystemStatus() },
 	];
 
 	const results = await Promise.all(

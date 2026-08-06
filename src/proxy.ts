@@ -21,6 +21,7 @@ import {
 import { checkAllServices } from "./services/health";
 import { classifyIntent } from "./services/ollamaClassifier";
 import { parseWebhookEvent } from "./services/webhookParser.ts";
+import * as ersatztv from "./services/ersatztv";
 import * as nzbget from "./services/nzbget";
 import * as plex from "./services/plex";
 import * as qbittorrent from "./services/qbittorrent";
@@ -47,6 +48,7 @@ const services: Record<string, any> = {
 	plex,
 	qbittorrent,
 	nzbget,
+	ersatztv,
 	tools: aiTools,
 	// Shared media-tools skills (service-health, download-queue) plus the
 	// Ollama Step 0 classifier — see specs/2026-08-06-mechanical-skill-extraction-pilot.

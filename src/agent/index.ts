@@ -180,6 +180,9 @@ export async function processUserMessage(
 			subscribeToReport: botTools.subscribeToReportTool,
 			unsubscribeFromReport: botTools.unsubscribeFromReportTool,
 			getReportSubscriptions: botTools.getReportSubscriptionsTool,
+			getErsatzTVStatus: botTools.getErsatzTVStatusTool,
+			getErsatzTVGuide: botTools.getErsatzTVGuideTool,
+			channelDirector: botTools.channelDirectorTool,
 		};
 
 		if (shouldDisableAddTools) {
