@@ -40,6 +40,7 @@ if (!PROXY_SECRET_KEY) {
 
 const serviceHealthManager = new ServiceHealthManager();
 const downloadQueueManager = new DownloadQueueManager();
+const ersatzTVManager = new ErsatzTVManager();
 
 // Map service names to their modules for dynamic dispatch
 const services: Record<string, any> = {
@@ -50,7 +51,7 @@ const services: Record<string, any> = {
 	nzbget,
 	ersatztv,
 	tools: aiTools,
-	// Shared media-tools skills (service-health, download-queue) plus the
+	// Shared media-tools skills (service-health, download-queue, channel-director) plus the
 	// Ollama Step 0 classifier — see specs/2026-08-06-mechanical-skill-extraction-pilot.
 	mediaTools: {
 		checkServiceHealth: (service: string) =>
@@ -63,6 +64,11 @@ const services: Record<string, any> = {
 		resumeAllTorrents: () => downloadQueueManager.resumeAllTorrents(),
 		getNZBGetQueue: () => downloadQueueManager.getNZBGetQueue(),
 		classifyIntent: (message: string) => classifyIntent(message),
+		getErsatzTVStatus: () => ersatzTVManager.getSystemStatus(),
+		getErsatzTVGuide: (channelId?: string, date?: string) =>
+			ersatzTVManager.getDailyGuide(channelId, date),
+		createChannelDirectorProgramming: (params: any) =>
+			ersatzTVManager.createChannelDirectorProgramming(params),
 	},
 };
 

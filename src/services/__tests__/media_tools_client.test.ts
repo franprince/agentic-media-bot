@@ -100,6 +100,26 @@ describe("media-tools-client (USE_PROXY=true)", () => {
 		expect(spy).toHaveBeenCalledWith("mediaTools", "classifyIntent", ["is sonarr up?"]);
 		spy.mockRestore();
 	});
+
+	it("getErsatzTVStatus forwards to mediaTools proxy service", async () => {
+		const spy = spyOn(proxyClient, "executeOnProxy").mockResolvedValue({ online: true, version: "0.8.4" });
+
+		const result = await mediaToolsClient.getErsatzTVStatus();
+
+		expect(spy).toHaveBeenCalledWith("mediaTools", "getErsatzTVStatus", []);
+		expect(result).toEqual({ online: true, version: "0.8.4" });
+		spy.mockRestore();
+	});
+
+	it("getErsatzTVGuide forwards to mediaTools proxy service", async () => {
+		const spy = spyOn(proxyClient, "executeOnProxy").mockResolvedValue({ date: "2026-08-06", channels: [] });
+
+		const result = await mediaToolsClient.getErsatzTVGuide(undefined, "2026-08-06");
+
+		expect(spy).toHaveBeenCalledWith("mediaTools", "getErsatzTVGuide", [undefined, "2026-08-06"]);
+		expect(result).toEqual({ date: "2026-08-06", channels: [] });
+		spy.mockRestore();
+	});
 });
 
 describe("media-tools-client (local dev, USE_PROXY unset)", () => {

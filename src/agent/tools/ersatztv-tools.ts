@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
-import * as ersatztv from "../../services/ersatztv";
+import * as mediaToolsClient from "../../services/media-tools-client";
 
 export const getErsatzTVStatusTool = tool({
 	description:
@@ -8,27 +8,17 @@ export const getErsatzTVStatusTool = tool({
 	parameters: z.object({}),
 	execute: async () => {
 		try {
-			const status = await ersatztv.getSystemStatus();
+			const status = await mediaToolsClient.getErsatzTVStatus();
 			if (!status.online) {
 				return {
 					online: false,
 					message: "ErsatzTV server is currently offline or unreachable.",
 				};
 			}
-			const channels = await ersatztv.getChannels().catch(() => []);
-			const playouts = await ersatztv.getPlayouts().catch(() => []);
-
 			return {
 				online: true,
 				version: status.version,
-				channelCount: channels.length,
-				playoutCount: playouts.length,
-				channels: channels.map((c) => ({
-					id: c.id,
-					number: c.number,
-					name: c.name,
-				})),
-				message: `ErsatzTV is online (v${status.version}) with ${channels.length} channels configured.`,
+				message: `ErsatzTV is online (v${status.version}).`,
 			};
 		} catch (error) {
 			const err = error as Error;
@@ -57,7 +47,7 @@ export const getErsatzTVGuideTool = tool({
 	}),
 	execute: async ({ channelId, date }: { channelId?: string; date?: string }) => {
 		try {
-			const guide = await ersatztv.getDailyGuide(channelId, date);
+			const guide = await mediaToolsClient.getErsatzTVGuide(channelId, date);
 			if (!guide.channels || guide.channels.length === 0) {
 				return {
 					date: guide.date,
@@ -67,11 +57,11 @@ export const getErsatzTVGuideTool = tool({
 			}
 			return {
 				date: guide.date,
-				channels: guide.channels.map((ch) => ({
+				channels: guide.channels.map((ch: any) => ({
 					channelNumber: ch.number,
 					channelName: ch.name,
 					programCount: ch.programs ? ch.programs.length : 0,
-					programs: (ch.programs || []).slice(0, 10).map((p) => ({
+					programs: (ch.programs || []).slice(0, 10).map((p: any) => ({
 						title: p.title,
 						subTitle: p.subTitle,
 						start: p.start,
@@ -160,7 +150,7 @@ export const channelDirectorTool = tool({
 		includeFillers: boolean;
 	}) => {
 		try {
-			const result = await ersatztv.createChannelDirectorProgramming({
+			const result = await mediaToolsClient.createChannelDirectorProgramming({
 				channelId,
 				channelName,
 				channelNumber,
