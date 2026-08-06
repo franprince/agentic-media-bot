@@ -28,6 +28,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
     - Bot lists active downloads with speed and ETA.
     - User commands: "Pause all downloads" or "Resume downloads".
     - Bot applies changes to qBittorrent or NZBGet.
+    - Behavior is unchanged; as of the mechanical skill extraction pilot the underlying queue/pause/resume calls are served by the shared `download-queue` skill in `media-tools` (also published to `skills-marketplace`) instead of bot-inline logic.
 
 4. **Library Auditing & Browsing (Plex, Radarr, Sonarr)**
    - User asks: "Do I have any horror movies?"
@@ -41,6 +42,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
 6. **System Health, Auditing & Commands**
    - User writes: `/status`
    - Bot checks all services (Radarr, Sonarr, qBittorrent, Plex, NZBGet) and returns a consolidated report showing which are online or offline.
+   - Per-service health checks and disk-space lookups (e.g. "is Sonarr up?") are served by the shared `service-health` skill in `media-tools`; behavior is unchanged. Simple, confidently-classified mechanical requests in this category also skip past most of the agent's ~27-tool selection surface via a local Ollama pre-classification step — a performance optimization, not a behavior change (see `TECHNICAL_SPEC.md`).
    - User writes: `/audit`
    - Bot performs a deep diagnostic audit, reading recent logs to identify errors, instance conflicts, and uptime stats (admin only).
    - User writes: `/restart`

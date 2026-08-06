@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.44.0] - 2026-08-06
+
+### Added
+- **Shared `media-tools` skill consumption**: `checkServiceHealthTool`, `getDiskSpaceTool`, and all six `download-tools.ts` tools (torrent list/pause/resume/pause-all/resume-all, NZBGet queue) now source their data from the `media-tools` package via `src/services/media-tools-client.ts`, instead of calling `services/{radarr,sonarr,plex,qbittorrent,nzbget}.ts` directly. `media-tools` is an `optionalDependency` reachable only via `proxy.ts`'s new `mediaTools` dispatch entry (the remote bot never imports it directly). Same two skills are now published to `skills-marketplace` (`service-health`, `download-queue`), alongside the existing `media-library` skill.
+- **Ollama Step 0 intent narrowing**: A new pre-classification step (`src/agent/intentRouter.ts`) runs before the existing tool-calling loop, using a local Ollama model (via the proxy) to classify mechanical requests into `service-health`/`download-queue` and narrow the tool set passed to the cloud model. Fails open to the full tool set on no match, low confidence, or any classifier error — a narrowing optimization only, not a behavior change; the cloud model still makes every tool call and generates every response.
+- Fixed a hardcoded Bazarr API key default in `media-tools`' `BazarrManager` (sibling repo, not deployed with this one) — now requires `BAZARR_API_KEY` from the environment.
+
+See `specs/2026-08-06-mechanical-skill-extraction-pilot/`.
+
 ## [4.43.2] - 2026-08-02
 
 ### Changed

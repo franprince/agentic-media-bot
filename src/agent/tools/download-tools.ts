@@ -1,8 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import * as db from "../../services/database";
-import * as nzbget from "../../services/nzbget";
-import * as qbittorrent from "../../services/qbittorrent";
+import * as mediaToolsClient from "../../services/media-tools-client";
 import {
 	formatBytes,
 	formatDuration,
@@ -21,7 +20,7 @@ export const getTorrentsTool = tool({
 	}),
 	execute: async ({ filter = "downloading" }: { filter?: string }) => {
 		try {
-			const torrents = await qbittorrent.getTorrents(filter);
+			const torrents = await mediaToolsClient.getTorrents(filter);
 			if (torrents.length === 0) {
 				return { message: `No torrents found with filter: ${filter}` };
 			}
@@ -57,7 +56,7 @@ export const pauseTorrentTool = tool({
 	}),
 	execute: async ({ hash }: { hash: string }) => {
 		try {
-			await qbittorrent.pauseTorrent(hash);
+			await mediaToolsClient.pauseTorrent(hash);
 			return { message: `Successfully paused torrent with hash ${hash}` };
 		} catch (error: any) {
 			return {
@@ -74,7 +73,7 @@ export const resumeTorrentTool = tool({
 	}),
 	execute: async ({ hash }: { hash: string }) => {
 		try {
-			await qbittorrent.resumeTorrent(hash);
+			await mediaToolsClient.resumeTorrent(hash);
 			return { message: `Successfully resumed torrent with hash ${hash}` };
 		} catch (error: any) {
 			return {
@@ -90,7 +89,7 @@ export const pauseAllTorrentsTool = tool({
 	parameters: z.object({}),
 	execute: async (_args: any) => {
 		try {
-			await qbittorrent.pauseAllTorrents();
+			await mediaToolsClient.pauseAllTorrents();
 			return { message: "✅ All torrents have been paused successfully." };
 		} catch (error: any) {
 			return {
@@ -106,7 +105,7 @@ export const resumeAllTorrentsTool = tool({
 	parameters: z.object({}),
 	execute: async (_args: any) => {
 		try {
-			await qbittorrent.resumeAllTorrents();
+			await mediaToolsClient.resumeAllTorrents();
 			return { message: "✅ All torrents have been resumed successfully." };
 		} catch (error: any) {
 			return {
@@ -122,10 +121,7 @@ export const getNZBGetQueueTool = tool({
 	parameters: z.object({}),
 	execute: async (_args: any) => {
 		try {
-			const [queue, status] = await Promise.all([
-				nzbget.getQueue(),
-				nzbget.getStatus(),
-			]);
+			const { queue, status } = await mediaToolsClient.getNZBGetQueue();
 
 			if (queue && queue.length === 0) {
 				return { message: "The NZBGet queue is empty." };

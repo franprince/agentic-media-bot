@@ -1,6 +1,6 @@
 {
   "name": "agentic-media-bot",
-  "version": "4.43.2",
+  "version": "4.44.0",
   "module": "index.ts",
   "type": "module",
   "private": true,
@@ -25,7 +25,8 @@
     "typescript": "^5"
   },
   "optionalDependencies": {
-    "chowa": "file:../chōwa"
+    "chowa": "file:../chōwa",
+    "media-tools": "file:../../media-tools"
   },
   "dependencies": {
     "@ai-sdk/google": "^0.0.52",

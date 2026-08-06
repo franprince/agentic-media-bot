@@ -1,5 +1,6 @@
 import { appendFileSync } from "node:fs";
 import { serve } from "bun";
+import { DownloadQueueManager, ServiceHealthManager } from "media-tools";
 import * as aiTools from "./agent/tools";
 import {
 	areNotificationsEnabled,
@@ -18,6 +19,7 @@ import {
 	setUserName,
 } from "./services/database.ts";
 import { checkAllServices } from "./services/health";
+import { classifyIntent } from "./services/ollamaClassifier";
 import { parseWebhookEvent } from "./services/webhookParser.ts";
 import * as nzbget from "./services/nzbget";
 import * as plex from "./services/plex";
@@ -35,6 +37,9 @@ if (!PROXY_SECRET_KEY) {
 	process.exit(1);
 }
 
+const serviceHealthManager = new ServiceHealthManager();
+const downloadQueueManager = new DownloadQueueManager();
+
 // Map service names to their modules for dynamic dispatch
 const services: Record<string, any> = {
 	radarr,
@@ -43,6 +48,20 @@ const services: Record<string, any> = {
 	qbittorrent,
 	nzbget,
 	tools: aiTools,
+	// Shared media-tools skills (service-health, download-queue) plus the
+	// Ollama Step 0 classifier — see specs/2026-08-06-mechanical-skill-extraction-pilot.
+	mediaTools: {
+		checkServiceHealth: (service: string) =>
+			serviceHealthManager.checkServiceHealth(service),
+		getDiskSpace: () => serviceHealthManager.getDiskSpace(),
+		getTorrents: (filter?: string) => downloadQueueManager.getTorrents(filter),
+		pauseTorrent: (hash: string) => downloadQueueManager.pauseTorrent(hash),
+		resumeTorrent: (hash: string) => downloadQueueManager.resumeTorrent(hash),
+		pauseAllTorrents: () => downloadQueueManager.pauseAllTorrents(),
+		resumeAllTorrents: () => downloadQueueManager.resumeAllTorrents(),
+		getNZBGetQueue: () => downloadQueueManager.getNZBGetQueue(),
+		classifyIntent: (message: string) => classifyIntent(message),
+	},
 };
 
 const VERSION = "4.29.1";
