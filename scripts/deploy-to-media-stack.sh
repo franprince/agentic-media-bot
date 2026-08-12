@@ -41,6 +41,11 @@ rm -rf "$TARGET_DIR/proxy-ui/dist"
 cp -r "$REPO_DIR/proxy-ui/dist" "$TARGET_DIR/proxy-ui/dist"
 
 echo "✅ Build and deployment complete!"
-echo "🔄 Restarting proxy service..."
-systemctl --user restart agentic-media-proxy
-echo "✅ Proxy service restarted."
+echo "🔄 Restarting bot service..."
+systemctl --user restart agentic-media-bot
+echo "✅ Bot service restarted."
+
+# The proxy is retired (bot runs locally and talks to services directly) but
+# kept installed so it can be brought back for a future remote-brain setup.
+# It is intentionally NOT auto-restarted here; start it manually if needed:
+#   systemctl --user start agentic-media-proxy
