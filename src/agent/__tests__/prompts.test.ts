@@ -24,6 +24,7 @@ describe("buildSystemPromptTemplate", () => {
 
 		const movies = buildSystemPromptTemplate(["movies"]);
 		expect(movies).toContain("CONFIRMATION PROTOCOL");
+		expect(movies).toContain("TWO-STEP ADD/REMOVE");
 		expect(movies).toContain("notify_download_confirm_");
 		expect(movies).toContain("POSTER: <url>");
 		expect(movies).not.toContain("discoverMedia");
