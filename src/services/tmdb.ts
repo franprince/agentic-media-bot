@@ -1,6 +1,6 @@
-import { createOpenAI } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { z } from "zod";
+import { getCapableModel } from "../agent/provider";
 
 /**
  * TMDB (The Movie Database) API service.
@@ -317,19 +317,6 @@ async function discoverTv(
 	return { results: data.results, totalResults: data.total_results };
 }
 
-function getCapableModel() {
-	const ollamaBaseUrl = (
-		process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434"
-	).replace(/\/$/, "");
-	const modelCapableName =
-		process.env.AI_MODEL_CAPABLE || process.env.AI_MODEL || "minimax-m2.7:cloud";
-
-	const ollamaProvider = createOpenAI({
-		baseURL: `${ollamaBaseUrl}/v1`,
-		apiKey: "ollama",
-	});
-	return ollamaProvider(modelCapableName);
-}
 
 async function searchTmdbMovie(
 	title: string,
@@ -378,6 +365,67 @@ async function searchTmdbTv(
  * @param query  e.g. "comedy movies 2025", "thriller series from 2026"
  * @param limit  Maximum number of results to return (default 10)
  */
+const TMDB_FALLBACK_PER_YEAR = 3;
+const TMDB_FALLBACK_MIN_VOTES = 500;
+
+/** Top-rated, well-voted titles of one year straight from TMDB discover. */
+async function discoverYearFromTmdb(
+	query: string,
+	mediaType: "movie" | "tv" | "both",
+	year: number,
+	genreMaps: Record<"movie" | "tv", Record<number, string>>,
+): Promise<TmdbResult[]> {
+	const range: YearRange = { gte: `${year}-01-01`, lte: `${year}-12-31` };
+	const results: TmdbResult[] = [];
+	if (mediaType !== "tv") {
+		const movies = await discoverMovies(
+			range,
+			extractGenreIds(query, "movie"),
+			"vote_average.desc",
+			TMDB_FALLBACK_MIN_VOTES,
+		);
+		for (const movie of (movies.results ?? []).slice(0, TMDB_FALLBACK_PER_YEAR)) {
+			results.push({
+				id: movie.id,
+				title: movie.title,
+				mediaType: "movie",
+				year: parseYear(movie.release_date) ?? year,
+				overview: movie.overview,
+				rating: Math.round((movie.vote_average ?? 0) * 10) / 10,
+				voteCount: movie.vote_count ?? 0,
+				genres: (movie.genre_ids ?? [])
+					.map((id) => genreMaps.movie[id] ?? "")
+					.filter(Boolean),
+				posterPath: movie.poster_path ?? null,
+			});
+		}
+	}
+	if (mediaType !== "movie") {
+		const shows = await discoverTv(
+			range,
+			extractGenreIds(query, "tv"),
+			"vote_average.desc",
+			TMDB_FALLBACK_MIN_VOTES,
+		);
+		for (const show of (shows.results ?? []).slice(0, TMDB_FALLBACK_PER_YEAR)) {
+			results.push({
+				id: show.id,
+				title: show.name,
+				mediaType: "tv",
+				year: parseYear(show.first_air_date) ?? year,
+				overview: show.overview,
+				rating: Math.round((show.vote_average ?? 0) * 10) / 10,
+				voteCount: show.vote_count ?? 0,
+				genres: (show.genre_ids ?? [])
+					.map((id) => genreMaps.tv[id] ?? "")
+					.filter(Boolean),
+				posterPath: show.poster_path ?? null,
+			});
+		}
+	}
+	return results;
+}
+
 export async function discoverMedia(
 	query: string,
 	limit = 10,
@@ -440,6 +488,10 @@ CRITICAL: Your recommendations MUST have been released in the year ${year}. Only
 			try {
 				const response = await generateObject({
 					model,
+					// JSON mode instead of the SDK default (a forced tool call):
+					// OpenAI-compatible hosts such as Groq reject the forced call
+					// with "Tool choice is required, but model did not call a tool".
+					mode: "json",
 					schema: z.object({
 						recommendations: z.array(
 							z.object({
@@ -529,6 +581,24 @@ CRITICAL: Your recommendations MUST have been released in the year ${year}. Only
 				console.error(`Error fetching recommendations for year ${year}:`, err);
 			}
 		}),
+	);
+
+	// Years the model could not fill (it does not know recent releases, the
+	// request failed, or nothing passed the vote filters) are filled from
+	// TMDB's own discover endpoint, so the tool does not come back empty.
+	const coveredYears = new Set(allResults.map((result) => result.year));
+	await Promise.all(
+		yearsToFetch
+			.filter((year) => !coveredYears.has(year))
+			.map(async (year) => {
+				try {
+					allResults.push(
+						...(await discoverYearFromTmdb(query, mediaType, year, genreMaps)),
+					);
+				} catch (err) {
+					console.error(`Error fetching TMDB discover fallback for year ${year}:`, err);
+				}
+			}),
 	);
 
 	// Sort by rating descending and cap at limit

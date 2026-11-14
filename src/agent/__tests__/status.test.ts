@@ -26,3 +26,28 @@ describe("detectStatusLanguage", () => {
 		);
 	});
 });
+
+describe("detectConversationLanguage", () => {
+	const { detectConversationLanguage } = require("../status");
+
+	it("keeps Spanish for a list pick, a callback or a bare title", () => {
+		const recent = ["recomendame películas de terror por favor"];
+		expect(detectConversationLanguage("2", recent)).toBe("es");
+		expect(detectConversationLanguage("notify_download_decline", recent)).toBe("es");
+		expect(detectConversationLanguage("Parasite", recent)).toBe("es");
+	});
+
+	it("keeps English for the same messages in an English conversation", () => {
+		expect(detectConversationLanguage("2", ["recommend me some horror movies"])).toBe("en");
+	});
+
+	it("treats a one-word Spanish greeting as Spanish", () => {
+		expect(detectConversationLanguage("hola")).toBe("es");
+		expect(detectConversationLanguage("gracias!")).toBe("es");
+	});
+
+	it("lets a full sentence decide for itself", () => {
+		const recent = ["recomendame películas de terror por favor"];
+		expect(detectConversationLanguage("what is in my download queue right now", recent)).toBe("en");
+	});
+});

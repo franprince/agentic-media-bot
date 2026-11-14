@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.46.0] - 2026-11-14
+
+### Changed
+- **Token budget — tool routing**: Each request now carries only the tools and system-prompt sections the message can need, instead of all 41 tool schemas and the full prompt every time (`src/agent/toolRouter.ts`, `src/agent/prompts.ts`). Routing uses Spanish/English keywords, then conversation context for short replies and button callbacks, then a small classifier request, and falls back to the full tool set. A narrowed model can answer `NEED_MORE_TOOLS` to be re-run with more tools, so no capability is lost. Measured on Groq: ~10,100 prompt tokens per request before; ~700 for small talk, ~900–3,100 when routed, ~5,100 for the full fallback after.
+- **Token budget — history**: The model receives a budgeted view of the conversation (`src/agent/historyBudget.ts`): older tool results are compacted to IDs, titles and counts, the oldest turns are dropped first, and the view never starts with an orphaned tool result. The stored history is unchanged. New optional `AI_HISTORY_CHAR_BUDGET`.
+- **System prompt**: Rewritten as a core plus per-group sections. Removed the hand-written tool list (it duplicated the schemas and listed only half the tools), duplicated rules, and the hardcoded year. The two legacy tool aliases (`browsePlexByGenre`, `findPlexByCountry`) are no longer sent as duplicate schemas; old history is still migrated.
+- **Language**: A message with no language of its own (a list pick, a button callback, a bare title, "hola") now keeps the conversation's language for status lines, the reply and the rewrite step (`detectConversationLanguage`).
+- Step 0 no longer calls the Ollama-native classifier (`intentRouter.ts`); the `verify-config` check for it was removed.
+
+### Added
+- **Hosted OpenAI-compatible providers (e.g. Groq)**: `OLLAMA_API_KEY` is sent as the API key for `AI_PROVIDER=ollama`, so `OLLAMA_BASE_URL` can point at any OpenAI-compatible host. All models are built in `src/agent/provider.ts`.
+- **Rate-limit handling**: HTTP 429 responses are waited out per request using `Retry-After` (up to 3 times, max 65s each), so a multi-step turn resumes instead of failing and tools from earlier steps are not executed twice.
+- Optional `AI_REASONING_EFFORT` (sent as `reasoning_effort`) to cut reasoning tokens on reasoning models.
+- **Recommendations fallback**: Years for which the model returns nothing usable (it does not know recent releases, or the request failed) are filled from TMDB's discover endpoint (top-rated, 500+ votes, same genre filter).
+
+### Fixed
+- `discoverMedia` failed on Groq with "Tool choice is required, but model did not call a tool"; recommendations now use JSON mode. They also honour `AI_PROVIDER` instead of always calling Ollama.
+- Voice-note transcription on the Ollama-derived endpoint now sends `OLLAMA_API_KEY` when no `TRANSCRIPTION_API_KEY` is set.
+
+See `specs/2026-11-14-token-budget/`.
+
 ## [4.45.0] - 2026-08-06
 
 ### Added

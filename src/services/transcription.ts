@@ -80,7 +80,9 @@ export async function transcribeAudio(
 			const apiKey =
 				process.env.TRANSCRIPTION_API_KEY ||
 				process.env.OPENAI_API_KEY ||
-				(process.env.AI_PROVIDER === "ollama" ? "ollama" : "");
+				(process.env.AI_PROVIDER === "ollama"
+					? process.env.OLLAMA_API_KEY || "ollama"
+					: "");
 
 			const headers: Record<string, string> = {};
 			if (apiKey) {

@@ -52,7 +52,7 @@ export async function verifyConfig(exitOnFailure: boolean = true) {
 				try {
 					const ollamaProvider = createOpenAI({
 						baseURL: `${baseUrl}/v1`,
-						apiKey: "ollama",
+						apiKey: process.env.OLLAMA_API_KEY || "ollama",
 					});
 					const response = await generateText({
 						model: ollamaProvider(modelName),
@@ -185,30 +185,6 @@ export async function verifyConfig(exitOnFailure: boolean = true) {
 				});
 				if (!res.ok) throw new Error(`Proxy /health returned HTTP ${res.status}`);
 				return `Success: Proxy reachable at ${proxyUrl} — mediaTools dispatch entry available.`;
-			},
-		},
-		{
-			name: "Ollama Step 0 Classifier Reachability",
-			fn: async () => {
-				// Step 0 (src/agent/intentRouter.ts) attempts this regardless of
-				// AI_PROVIDER — unlike the "Ollama / Cloud Ollama Connectivity" check
-				// above, which only applies when Ollama is the main chat model.
-				const baseUrl = (
-					process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434"
-				).replace(/\/$/, "");
-				try {
-					const res = await fetch(`${baseUrl}/api/tags`, {
-						signal: AbortSignal.timeout(5000),
-					});
-					if (!res.ok) {
-						throw new Error(`HTTP ${res.status}`);
-					}
-					return `Success: Ollama reachable at ${baseUrl} — Step 0 intent narrowing will run.`;
-				} catch (err: any) {
-					// Non-fatal by design: Step 0 fails open to the full tool set,
-					// so this is informational, not a startup blocker.
-					return `Warning: Ollama unreachable at ${baseUrl} (${err.message || err}). Step 0 will fail open to the full tool set every request.`;
-				}
 			},
 		},
 		{
