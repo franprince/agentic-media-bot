@@ -104,7 +104,8 @@ export function splitIntoTurns(history: CoreMessage[]): CoreMessage[][] {
 
 /**
  * Returns the messages to send to the model.
- * The latest turn (the message being answered) is always kept, uncompacted.
+ * The latest turn (the message being answered) is always kept, uncompacted,
+ * and so is the turn before it (compacted), whatever the budget.
  */
 export function prepareHistoryForModel(
 	history: CoreMessage[],
@@ -120,7 +121,10 @@ export function prepareHistoryForModel(
 	for (let i = turns.length - 2; i >= 0; i--) {
 		const compacted = (turns[i] as CoreMessage[]).map(compactMessage);
 		const size = sizeOf(compacted);
-		if (used + size > charBudget) break;
+		// The turn right before the latest is always kept: "4" or "sí" means
+		// nothing without the list or question it answers.
+		const isPreviousTurn = i === turns.length - 2;
+		if (!isPreviousTurn && used + size > charBudget) break;
 		kept.unshift(compacted);
 		used += size;
 	}

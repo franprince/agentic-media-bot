@@ -52,5 +52,12 @@ describe("fillSystemPrompt", () => {
 		expect(prompt).toContain("Name Fran");
 		expect(prompt).toContain("November 14, 2026");
 		expect(prompt).not.toContain("{{");
+		expect(prompt).not.toContain("This conversation is in");
+	});
+
+	it("states the conversation language when known", () => {
+		const context = { userId: 1, userName: "Fran", currentDate: "today" };
+		expect(fillSystemPrompt("x", { ...context, language: "es" })).toContain("in Spanish");
+		expect(fillSystemPrompt("x", { ...context, language: "en" })).toContain("in English");
 	});
 });

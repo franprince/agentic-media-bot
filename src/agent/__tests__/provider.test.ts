@@ -65,6 +65,27 @@ describe("fetchWithRateLimitRetry", () => {
 		expect(fetchSpy).toHaveBeenCalledTimes(1);
 	});
 
+	it("switches to the fallback model when the wait is a daily cap", async () => {
+		process.env.AI_MODEL_FALLBACKS = "backup-a, backup-b";
+		const models: string[] = [];
+		fetchSpy = spyOn(globalThis, "fetch").mockImplementation((async (_url: any, init: any) => {
+			const model = JSON.parse(init.body).model;
+			models.push(model);
+			return model === "backup-b"
+				? new Response("ok", { status: 200 })
+				: new Response("", { status: 429, headers: { "retry-after": "3600" } });
+		}) as any);
+
+		const response = await fetchWithRateLimitRetry("https://llm.test/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({ model: "main", messages: [] }),
+		});
+
+		delete process.env.AI_MODEL_FALLBACKS;
+		expect(response.status).toBe(200);
+		expect(models).toEqual(["main", "backup-a", "backup-b"]);
+	});
+
 	it("gives up when asked to wait longer than a minute", async () => {
 		fetchSpy = spyOn(globalThis, "fetch").mockImplementation((async () => new Response("", { status: 429, headers: { "retry-after": "3600" } })) as any);
 

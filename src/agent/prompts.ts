@@ -119,7 +119,7 @@ export function fillSystemPrompt(
 		userId: number | string;
 		userName: string;
 		currentDate: string;
-		/** Detected conversation language; only Spanish needs saying. */
+		/** Detected conversation language. */
 		language?: "es" | "en";
 	},
 ): string {
@@ -128,9 +128,11 @@ export function fillSystemPrompt(
 		.replace("{{userName}}", context.userName)
 		.replace("{{currentDate}}", context.currentDate)
 		.trim();
-	return context.language === "es"
-		? `${filled}\n\nThis conversation is in Spanish: write your whole reply, status sentence and button labels in Spanish.`
-		: filled;
+	if (!context.language) return filled;
+	// Saying it outright avoids a reply in the wrong language, which would
+	// otherwise cost a second request in the rewrite step.
+	const name = context.language === "es" ? "Spanish" : "English";
+	return `${filled}\n\nThis conversation is in ${name}: write your whole reply, status sentence and button labels in ${name}.`;
 }
 
 /** The complete prompt (every section), for callers that do not route. */

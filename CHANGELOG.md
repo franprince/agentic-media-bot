@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Hosted OpenAI-compatible providers (e.g. Groq)**: `OLLAMA_API_KEY` is sent as the API key for `AI_PROVIDER=ollama`, so `OLLAMA_BASE_URL` can point at any OpenAI-compatible host. All models are built in `src/agent/provider.ts`.
 - **Rate-limit handling**: HTTP 429 responses are waited out per request using `Retry-After` (up to 3 times, max 65s each), so a multi-step turn resumes instead of failing and tools from earlier steps are not executed twice.
+- **Daily-quota fallback**: Optional `AI_MODEL_FALLBACKS` (comma-separated). A 429 that asks to wait more than about a minute is a per-day cap; the request is retried on the next fallback model, which has its own quota.
+- **Confirmation guard** (`src/agent/confirmGuard.ts`): `addMovie`/`addSeries`/`removeMovie`/`removeSeries` only honour `confirm: true` if an earlier turn asked the user to confirm the same item. Some models skipped the folder/quality confirmation step; it no longer depends on the model.
 - Optional `AI_REASONING_EFFORT` (sent as `reasoning_effort`) to cut reasoning tokens on reasoning models.
 - **Recommendations fallback**: Years for which the model returns nothing usable (it does not know recent releases, or the request failed) are filled from TMDB's discover endpoint (top-rated, 500+ votes, same genre filter).
 

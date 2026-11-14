@@ -64,7 +64,15 @@ describe("prepareHistoryForModel", () => {
 		const history = [...searchTurn("first"), ...searchTurn("second"), { role: "user", content: "1" }] as CoreMessage[];
 		const view = prepareHistoryForModel(history, 400);
 		expect(view[0]).toEqual({ role: "user", content: "second" });
+		expect(view.length).toBe(5);
 		expect(view[view.length - 1]).toEqual({ role: "user", content: "1" });
+	});
+
+	it("always keeps the turn before the latest, so a pick still has its list", () => {
+		const list = { role: "assistant", content: [{ type: "text", text: `1. Dune\n2. Ran\n${LONG}` }] };
+		const history = [{ role: "user", content: "buscá" }, list, { role: "user", content: "2" }] as CoreMessage[];
+		const view = prepareHistoryForModel(history, 50);
+		expect(view).toEqual(history);
 	});
 
 	it("always keeps the latest turn, even if it alone exceeds the budget", () => {

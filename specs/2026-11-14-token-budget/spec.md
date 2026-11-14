@@ -49,7 +49,16 @@ Fit the free tier without removing any feature or tool.
 
 History adds up to ~1,000 tokens (was ~2,000).
 
+6. **Confirmation guard** (`src/agent/confirmGuard.ts`). Add/remove tools drop
+   an unrequested `confirm: true`, so the two-step confirmation is enforced in
+   code rather than by the prompt.
+7. **Daily-quota fallback**. `AI_MODEL_FALLBACKS` lists models to switch to when
+   a 429 asks for a wait longer than a minute.
+
 ## Limits that remain
+
+- Groq's free tier also caps each model at 200,000 tokens per day (about 25–30
+  tool-using replies); `AI_MODEL_FALLBACKS` spreads that over several models.
 
 - 8,000 tokens per minute is roughly one tool-using reply per minute. Faster
   conversations still work but pause for the provider's `Retry-After`

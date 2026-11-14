@@ -61,17 +61,43 @@ export function withReasoningEffort(init?: any): any {
 	}
 }
 
+/** Models to try, in order, when the current one is out of quota. */
+export function getFallbackModels(): string[] {
+	return (process.env.AI_MODEL_FALLBACKS || "")
+		.split(",")
+		.map((name) => name.trim())
+		.filter(Boolean);
+}
+
+function withModel(
+	init: any,
+	model: string | undefined,
+): { init: any; model: string } | null {
+	if (!model || typeof init?.body !== "string") return null;
+	try {
+		const body = JSON.parse(init.body);
+		if (!body?.model || body.model === model) return null;
+		return { init: { ...init, body: JSON.stringify({ ...body, model }) }, model };
+	} catch {
+		return null;
+	}
+}
+
 /**
  * Waits out HTTP 429s at the request level. Hosted free tiers cap tokens per
  * minute, and a tool-calling turn is several requests; retrying the single
  * rejected request (instead of the whole generateText call) means tools that
  * already ran in earlier steps are not executed twice.
+ *
+ * A 429 that asks for more than about a minute is a daily cap; the request is
+ * then retried on the next model in AI_MODEL_FALLBACKS, if any.
  */
 export async function fetchWithRateLimitRetry(
 	input: any,
 	init?: any,
 ): Promise<Response> {
-	const request = withReasoningEffort(init);
+	let request = withReasoningEffort(init);
+	const fallbacks = getFallbackModels();
 	for (let attempt = 0; ; attempt++) {
 		const response = await fetch(input, request);
 		if (response.status !== 429 || attempt >= MAX_RATE_LIMIT_RETRIES) {
@@ -80,7 +106,17 @@ export async function fetchWithRateLimitRetry(
 		const waitMs =
 			parseRetryAfterMs(response.headers.get("retry-after")) ??
 			5000 * (attempt + 1);
-		if (waitMs > MAX_RATE_LIMIT_WAIT_MS) return response;
+		if (waitMs > MAX_RATE_LIMIT_WAIT_MS) {
+			// Too long to wait: a per-day cap, not the per-minute one. Each
+			// model has its own quota, so move on to the next fallback model.
+			const next = withModel(request, fallbacks.shift());
+			if (!next) return response;
+			console.warn(
+				`⏳ LLM quota exhausted (retry in ${Math.ceil(waitMs / 60000)} min). Switching to fallback model ${next.model}.`,
+			);
+			request = next.init;
+			continue;
+		}
 		console.warn(
 			`⏳ LLM rate limit hit (429). Waiting ${Math.ceil(waitMs / 1000)}s before retrying (attempt ${attempt + 1}/${MAX_RATE_LIMIT_RETRIES}).`,
 		);

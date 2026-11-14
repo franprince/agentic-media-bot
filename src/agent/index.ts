@@ -12,6 +12,7 @@ import {
 	hasNameIntent,
 	shouldDisableAddActions,
 } from "./intent";
+import { guardConfirmations } from "./confirmGuard";
 import {
 	DEFAULT_HISTORY_CHAR_BUDGET,
 	prepareHistoryForModel,
@@ -269,7 +270,11 @@ export async function processUserMessage(
 				}),
 			);
 		};
-		const finalTools = withProxyInterception(sanitizedTools);
+		// Add/remove only honour confirm: true after the user was asked.
+		const finalTools = guardConfirmations(
+			withProxyInterception(sanitizedTools),
+			priorHistory,
+		);
 
 		const currentDate = new Date().toLocaleDateString("en-US", {
 			weekday: "long",
@@ -382,7 +387,10 @@ export async function processUserMessage(
 							narrowed: true,
 						}
 					: { groups: [...ALL_GROUPS], source: "fallback", narrowed: false };
-			const widenedTools = withProxyInterception(toolsForGroups(routing.groups));
+			const widenedTools = guardConfirmations(
+				withProxyInterception(toolsForGroups(routing.groups)),
+				priorHistory,
+			);
 			console.log(
 				`🧭 Tool routing widened [${routing.source}]: ${routing.groups.join(", ")} → ${Object.keys(widenedTools).length} tools`,
 			);

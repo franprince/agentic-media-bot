@@ -84,7 +84,7 @@ describe("message classification helpers", () => {
 
 describe("contextGroups", () => {
 	it("returns the groups of the tools used in the previous turn", () => {
-		expect(sorted(contextGroups(turnWithTool("pelis de terror", "searchPlexByGenre")))).toEqual(["library"]);
+		expect(sorted(contextGroups(turnWithTool("recientes", "getRecentlyAddedPlex")))).toEqual(["library"]);
 	});
 
 	it("lets a pick from a recommendation list reach the add tools", () => {
@@ -92,7 +92,7 @@ describe("contextGroups", () => {
 	});
 
 	it("maps legacy tool names", () => {
-		expect(sorted(contextGroups(turnWithTool("japonesas", "findPlexByCountry")))).toEqual(["library"]);
+		expect(sorted(contextGroups(turnWithTool("japonesas", "findPlexByCountry")))).toEqual(["discovery", "library"]);
 	});
 
 	it("is empty when recent turns used no tools", () => {
@@ -129,6 +129,19 @@ describe("selectToolGroups", () => {
 		);
 		expect(decision.narrowed).toBe(true);
 		expect(decision.groups).toContain("series");
+	});
+
+	it("keeps the add tools for a typed confirmation such as 'dale' or 'ok'", async () => {
+		for (const reply of ["dale", "ok", "perfecto", "sí"]) {
+			const decision = await selectToolGroups(reply, turnWithTool("agregá Dune", "addMovie"));
+			expect(decision.source).toBe("context");
+			expect(decision.groups).toContain("movies");
+		}
+	});
+
+	it("offers recommendations after a library search (zero-results follow-up)", async () => {
+		const decision = await selectToolGroups("sí", turnWithTool("pelis de Islandia", "searchPlexByCountry"));
+		expect(decision.groups.sort()).toEqual(["discovery", "library"]);
 	});
 
 	it("falls back to every group when nothing matches and there is no classifier", async () => {

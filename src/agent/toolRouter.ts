@@ -106,6 +106,9 @@ const FOLLOW_UP_GROUPS: Record<string, ToolGroup[]> = {
 	// A numbered pick from a recommendation list is usually "check / add it".
 	discoverMedia: ["discovery", "movies", "series"],
 	searchPlexByTitleOnly: ["library", "movies", "series"],
+	// After a search with zero results the bot offers recommendations.
+	searchPlexByGenre: ["library", "discovery"],
+	searchPlexByCountry: ["library", "discovery"],
 	getUnwatchedEpisodes: ["library", "series"],
 	getMovieQueue: ["movies", "downloads"],
 	getSeriesQueue: ["series", "downloads"],
@@ -206,9 +209,11 @@ const KEYWORD_RULES: KeywordRule[] = [
 	},
 ];
 
-// Greetings, thanks and "what can you do" need no tools at all.
+// Greetings, thanks and "what can you do" need no tools at all. Acknowledgements
+// ("ok", "dale", "perfecto") are deliberately NOT here: typed after a
+// confirmation question they must inherit the previous turn's tools.
 const CHAT_ONLY_PATTERN =
-	/^(hola|buenas|buen dia|buenos dias|buenas tardes|buenas noches|hello|hi|hey|gracias|muchas gracias|thanks|thank you|ok|okay|dale|genial|perfecto|great|cool|chau|adios|bye|que (podes|puedes|sabes) hacer|what can you do|who are you|quien (sos|eres)|ayuda|help|(me llamo|mi nombre es|soy|my name is|i am|i'm) \w+)[\s!.?¡¿,]*$/;
+	/^(hola|buenas|buen dia|buenos dias|buenas tardes|buenas noches|hello|hi|hey|gracias|muchas gracias|thanks|thank you|chau|adios|bye|que (podes|puedes|sabes) hacer|what can you do|who are you|quien (sos|eres)|ayuda|help|(me llamo|mi nombre es|soy|my name is|i am|i'm) \w+)[\s!.?¡¿,]*$/;
 
 /** Groups suggested by keywords in the message. */
 export function keywordGroups(message: string): Set<ToolGroup> {
