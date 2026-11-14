@@ -1,6 +1,10 @@
 import { appendFileSync } from "node:fs";
 import { serve } from "bun";
-import { DownloadQueueManager, ServiceHealthManager } from "media-tools";
+import {
+	DownloadQueueManager,
+	ErsatzTVManager,
+	ServiceHealthManager,
+} from "media-tools";
 import * as aiTools from "./agent/tools";
 import {
 	areNotificationsEnabled,

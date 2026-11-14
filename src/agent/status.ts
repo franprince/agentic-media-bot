@@ -102,6 +102,24 @@ export function detectStatusLanguage(
 	return countSpanishSignals(text) >= 2 ? "es" : "en";
 }
 
+/**
+ * Language for a turn, taking the conversation into account. A message with no
+ * language of its own — a list pick ("2"), a button callback, a bare title —
+ * keeps the language of the user's recent messages instead of defaulting to
+ * English.
+ */
+export function detectConversationLanguage(
+	text: string | undefined | null,
+	recentUserTexts: string[] = [],
+): StatusLanguage {
+	if (detectStatusLanguage(text) === "es") return "es";
+	const words = (text ?? "").trim().split(/\s+/).filter(Boolean);
+	if (words.length > 2) return "en";
+	// One or two words: a single Spanish signal ("hola", "gracias") is enough.
+	if (text && countSpanishSignals(text) >= 1) return "es";
+	return detectStatusLanguage(recentUserTexts.join(" "));
+}
+
 type ToolCallLike = {
 	toolName?: string;
 	args?: any;

@@ -271,7 +271,9 @@ describe("Plex Webhook Notifications V2", () => {
 		};
 
 		// Mock Plex API to return NO originalTitle
-		spyOn(plex, "getItemMetadata").mockImplementation(async () => ({}));
+		spies.push(
+			spyOn(plex, "getItemMetadata").mockImplementation(async () => ({})),
+		);
 
 		// Mock Radarr API to return the English title
 		const searchMovieSpy = spyOn(radarr, "searchMovie").mockImplementation(
@@ -296,6 +298,10 @@ describe("Plex Webhook Notifications V2", () => {
 			method: "POST",
 			body: formData,
 		});
+
+		// Restored in afterEach: left in place, this spy answers [] for every
+		// other search and breaks radarr.test.ts when it runs later.
+		spies.push(searchMovieSpy);
 
 		const sendMessageSpy = spyOn(mockBot.api, "sendMessage");
 		await handlePlexWebhook(request, mockBot as any);

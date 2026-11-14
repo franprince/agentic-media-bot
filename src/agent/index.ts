@@ -1,5 +1,3 @@
-import { google } from "@ai-sdk/google";
-import { createOpenAI } from "@ai-sdk/openai";
 import { type CoreMessage, generateText } from "ai";
 import {
 	getHistory,
@@ -14,8 +12,22 @@ import {
 	hasNameIntent,
 	shouldDisableAddActions,
 } from "./intent";
-import { narrowToolsForMessage } from "./intentRouter";
-import { DEFAULT_SYSTEM_PROMPT } from "./prompts";
+import { guardConfirmations } from "./confirmGuard";
+import {
+	DEFAULT_HISTORY_CHAR_BUDGET,
+	prepareHistoryForModel,
+} from "./historyBudget";
+import {
+	buildSystemPromptTemplate,
+	fillSystemPrompt,
+	NEED_MORE_TOOLS_MARKER,
+} from "./prompts";
+import {
+	getCapableModel,
+	getCapableModelName,
+	getFastModel,
+	getFastModelName,
+} from "./provider";
 import { executeOnProxy, isProxyEnabled } from "./proxyClient";
 import {
 	buildExactCountPrefix,
@@ -23,10 +35,19 @@ import {
 	extractToolResultsFromMessages,
 } from "./response";
 import {
+	detectConversationLanguage,
 	detectStatusLanguage,
 	formatToolCallsStatus,
 	type StatusLanguage,
 } from "./status";
+import {
+	ALL_GROUPS,
+	classifyGroups,
+	pickToolsForGroups,
+	type RoutingDecision,
+	selectToolGroups,
+	type ToolGroup,
+} from "./toolRouter";
 import * as botTools from "./tools";
 import {
 	buildLanguageRewritePrompt,
@@ -114,28 +135,18 @@ export async function processUserMessage(
 
 	try {
 		const statusSeedText = userMessage ?? getLastUserTextFromHistory(history);
-		const statusLang: StatusLanguage = detectStatusLanguage(statusSeedText);
-		const isOllama = process.env.AI_PROVIDER === "ollama";
-		const ollamaBaseUrl = (
-			process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434"
-		).replace(/\/$/, "");
-		const modelFastName =
-			process.env.AI_MODEL_FAST || process.env.AI_MODEL || "minimax-m2.7:cloud";
-		const modelCapableName = process.env.AI_MODEL_CAPABLE || modelFastName;
-
-		const ollamaProvider = isOllama
-			? createOpenAI({ baseURL: `${ollamaBaseUrl}/v1`, apiKey: "ollama" })
-			: null;
-
-		const modelFast =
-			isOllama && ollamaProvider
-				? ollamaProvider(modelFastName)
-				: google(modelFastName);
-
-		const modelCapable =
-			isOllama && ollamaProvider
-				? ollamaProvider(modelCapableName)
-				: google(modelCapableName);
+		const recentUserTexts = history
+			.filter((m) => m.role === "user" && typeof m.content === "string")
+			.slice(-5, -1)
+			.map((m) => m.content as string);
+		const statusLang: StatusLanguage = detectConversationLanguage(
+			statusSeedText,
+			recentUserTexts,
+		);
+		const modelFastName = getFastModelName();
+		const modelCapableName = getCapableModelName();
+		const modelFast = getFastModel();
+		const modelCapable = getCapableModel();
 
 		const userName = getUserName(userId) || "Friend";
 
@@ -161,10 +172,11 @@ export async function processUserMessage(
 			getMissingEpisodes: botTools.getMissingEpisodesTool,
 			getNZBGetQueue: botTools.getNZBGetQueueTool,
 			searchPlexByTitleOnly: botTools.searchPlexByTitleOnlyTool,
+			// The legacy names (browsePlexByGenre, findPlexByCountry) are no longer
+			// offered as duplicate tools: the history migration above already
+			// rewrites them, and each alias cost a full extra schema per request.
 			searchPlexByGenre: botTools.browsePlexByGenreTool,
-			browsePlexByGenre: botTools.browsePlexByGenreTool, // Legacy Alias
 			searchPlexByCountry: botTools.findPlexByCountryTool,
-			findPlexByCountry: botTools.findPlexByCountryTool, // Legacy Alias
 			searchPlexByDuration: botTools.searchPlexByDurationTool,
 			getRecentlyAddedPlex: botTools.getRecentlyAddedPlexTool,
 			getPlexLibraryStats: botTools.getPlexLibraryStatsTool,
@@ -190,11 +202,26 @@ export async function processUserMessage(
 			delete tools.addSeries;
 		}
 
-		// --- Step 0: Ollama intent classification (narrowing optimization only) ---
-		// Never gates execution — on no match, low confidence, or any classifier
-		// error, the full tool set from above is used unchanged. See
-		// specs/2026-08-06-mechanical-skill-extraction-pilot.
-		const narrowedTools = await narrowToolsForMessage(statusSeedText, tools);
+		// --- Step 0: Tool routing (token budget) ---
+		// Only the tool groups this message can need are sent, with the matching
+		// prompt sections. Never gates execution: with no evidence the full tool
+		// set is used, and a narrowed model can ask for more (NEED_MORE_TOOLS).
+		// See specs/2026-11-14-token-budget.
+		const lastUserIndex = history.map((m) => m.role).lastIndexOf("user");
+		const priorHistory =
+			lastUserIndex >= 0 ? history.slice(0, lastUserIndex) : history;
+		const routedText = statusSeedText ?? "";
+		let routing: RoutingDecision = await selectToolGroups(
+			routedText,
+			priorHistory,
+			modelFast,
+		);
+		const toolsForGroups = (groups: ToolGroup[]) =>
+			pickToolsForGroups(tools, groups);
+		const narrowedTools = toolsForGroups(routing.groups);
+		console.log(
+			`🧭 Tool routing [${routing.source}]: ${routing.groups.join(", ") || "none"} → ${Object.keys(narrowedTools).length}/${Object.keys(tools).length} tools`,
+		);
 
 		// --- Defensive Tool Filtering ---
 		// Ensure no tool is undefined before passing to generateText to prevent crashes in AI SDK.
@@ -210,11 +237,10 @@ export async function processUserMessage(
 		const sanitizedTools = Object.fromEntries(activeToolEntries);
 
 		// --- Proxy Tool Interception ---
-		let finalTools = sanitizedTools;
-
-		if (isProxyEnabled()) {
-			finalTools = Object.fromEntries(
-				Object.entries(sanitizedTools).map(([name, toolObject]) => {
+		const withProxyInterception = (toolSet: Record<string, any>) => {
+			if (!isProxyEnabled()) return toolSet;
+			return Object.fromEntries(
+				Object.entries(toolSet).map(([name, toolObject]) => {
 					return [
 						name,
 						{
@@ -243,7 +269,12 @@ export async function processUserMessage(
 					];
 				}),
 			);
-		}
+		};
+		// Add/remove only honour confirm: true after the user was asked.
+		const finalTools = guardConfirmations(
+			withProxyInterception(sanitizedTools),
+			priorHistory,
+		);
 
 		const currentDate = new Date().toLocaleDateString("en-US", {
 			weekday: "long",
@@ -252,14 +283,27 @@ export async function processUserMessage(
 			day: "numeric",
 		});
 
+		const promptContext = {
+			userId,
+			userName,
+			currentDate,
+			language: statusLang,
+		};
+		const systemPromptFor = (groups: ToolGroup[]) =>
+			fillSystemPrompt(buildSystemPromptTemplate(groups), promptContext);
+		// With every tool schema in the request there is less room for history.
+		const historyBudgetFor = (decision: RoutingDecision) =>
+			decision.narrowed
+				? DEFAULT_HISTORY_CHAR_BUDGET
+				: Math.floor(DEFAULT_HISTORY_CHAR_BUDGET / 3);
+		const withTools = (toolSet: Record<string, any>) =>
+			Object.keys(toolSet).length > 0 ? { tools: toolSet } : {};
+
 		const firstPassParams = {
 			model: modelFast as any,
-			system: DEFAULT_SYSTEM_PROMPT.replace("{{userId}}", userId.toString())
-				.replace("{{userName}}", userName)
-				.replace("{{currentDate}}", currentDate)
-				.trim(),
-			messages: history,
-			tools: finalTools,
+			system: systemPromptFor(routing.groups),
+			messages: prepareHistoryForModel(history, historyBudgetFor(routing)),
+			...withTools(finalTools),
 			onStepFinish: async (step: any) => {
 				const thought = step.text?.trim();
 				const normalizedToolCalls = normalizeToolCallsForLogging(
@@ -309,11 +353,66 @@ export async function processUserMessage(
 				);
 				firstPass = await generateText({
 					...firstPassParams,
-					messages: [...history, { role: "user", content: repairPrompt }],
+					messages: [
+						...firstPassParams.messages,
+						{ role: "user", content: repairPrompt },
+					],
 				} as any);
 			} else {
 				throw error;
 			}
+		}
+
+		// --- Safety net: the narrowed tool set was not enough ---
+		// The model answers NEED_MORE_TOOLS (see prompts.ts) when the request
+		// needs a tool it was not given. Widen once: ask the classifier which
+		// groups are missing, or offer everything if it adds nothing new.
+		if (
+			routing.narrowed &&
+			firstPass.toolResults.length === 0 &&
+			(firstPass.text || "").includes(NEED_MORE_TOOLS_MARKER)
+		) {
+			const classified =
+				routing.source === "classifier"
+					? null
+					: await classifyGroups(routedText, modelFast);
+			const extra = [...(classified ?? [])].filter(
+				(group) => !routing.groups.includes(group),
+			);
+			routing =
+				extra.length > 0
+					? {
+							groups: [...routing.groups, ...extra],
+							source: "classifier",
+							narrowed: true,
+						}
+					: { groups: [...ALL_GROUPS], source: "fallback", narrowed: false };
+			const widenedTools = guardConfirmations(
+				withProxyInterception(toolsForGroups(routing.groups)),
+				priorHistory,
+			);
+			console.log(
+				`🧭 Tool routing widened [${routing.source}]: ${routing.groups.join(", ")} → ${Object.keys(widenedTools).length} tools`,
+			);
+			const { tools: _narrowTools, ...paramsWithoutTools } =
+				firstPassParams as any;
+			firstPass = await generateText({
+				...paramsWithoutTools,
+				system: systemPromptFor(routing.groups),
+				messages: prepareHistoryForModel(history, historyBudgetFor(routing)),
+				...withTools(widenedTools),
+			} as any);
+		}
+		if ((firstPass.text || "").includes(NEED_MORE_TOOLS_MARKER)) {
+			// Never show the internal marker to the user.
+			firstPass.text = (firstPass.text || "")
+				.replace(NEED_MORE_TOOLS_MARKER, "")
+				.trim();
+		}
+		if (firstPass.usage) {
+			console.log(
+				`📊 Tokens [FAST]: prompt ${firstPass.usage.promptTokens}, completion ${firstPass.usage.completionTokens}`,
+			);
 		}
 
 		let response = firstPass;
@@ -337,15 +436,11 @@ export async function processUserMessage(
 
 			const synthesis = await generateText({
 				model: modelCapable as any,
-				system: (
-					DEFAULT_SYSTEM_PROMPT +
-					"\n\nSynthesize the final response. REMEMBER: Never use 'Poster:' text placeholders. If poster URLs are present in the tool results above, include them internally using the POSTER: <url> format at the very end of your message."
-				)
-					.replace("{{userId}}", userId.toString())
-					.replace("{{userName}}", userName)
-					.replace("{{currentDate}}", currentDate)
-					.trim(),
-				messages: [...history, ...firstPass.response.messages],
+				system: `${systemPromptFor(routing.groups)}\n\nSynthesize the final response. REMEMBER: Never use 'Poster:' text placeholders. If poster URLs are present in the tool results above, include them internally using the POSTER: <url> format at the very end of your message.`,
+				messages: [
+					...prepareHistoryForModel(history, historyBudgetFor(routing)),
+					...firstPass.response.messages,
+				],
 			});
 
 			response = synthesis;

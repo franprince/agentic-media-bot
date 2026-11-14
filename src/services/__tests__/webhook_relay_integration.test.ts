@@ -1,5 +1,6 @@
 import { Database } from "bun:sqlite";
 import { afterEach, describe, expect, test } from "bun:test";
+import { mkdirSync } from "node:fs";
 import { join } from "path";
 
 /**
@@ -11,6 +12,21 @@ import { join } from "path";
  * when PROXY_SECRET_KEY is unset and then binds a port.
  */
 
+/**
+ * `media-tools` is an optional dependency that only exists on the media host
+ * (a sibling checkout); the proxy imports it at startup. Without it — on CI —
+ * the proxy cannot run, so these tests are skipped rather than left to time out.
+ */
+const hasMediaTools = (() => {
+	try {
+		Bun.resolveSync("media-tools", process.cwd());
+		return true;
+	} catch {
+		return false;
+	}
+})();
+
+mkdirSync("data", { recursive: true });
 const db = new Database(join("data", "bot_data.sqlite"));
 
 function rowsForTitle(title: string): number {
@@ -48,6 +64,12 @@ async function startProxy(brainUrl: string) {
 
 	// Wait for the port to accept connections.
 	for (let i = 0; i < 100; i++) {
+		// A proxy that crashed on startup will never answer: fail now, with its
+		// error, instead of polling for 10 seconds.
+		if (proc.exitCode !== null) {
+			const stderr = await new Response(proc.stderr).text();
+			throw new Error(`proxy exited with code ${proc.exitCode}: ${stderr.slice(-500)}`);
+		}
 		try {
 			await fetch(`http://127.0.0.1:${port}/health`);
 			return { proc, port };
@@ -67,7 +89,7 @@ async function postNzbget(port: number, title: string) {
 	});
 }
 
-describe("proxy relay — media_events write ownership", () => {
+describe.skipIf(!hasMediaTools)("proxy relay — media_events write ownership", () => {
 	let title = "";
 	const started: { proc: Bun.Subprocess }[] = [];
 

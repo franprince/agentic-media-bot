@@ -5,6 +5,7 @@ containing `spec.md` (Stage 1) and `implementation_plan.md` (Stage 2).
 
 | Date | Slug | Summary | Status |
 |---|---|---|---|
+| 2026-11-14 | [token-budget](./2026-11-14-token-budget/) | Send only the tools, prompt sections and history a message needs so the bot fits hosted free tiers (Groq, 8k tokens/min); `OLLAMA_API_KEY`, 429 handling, recommendations fallback | Done — `4.46.0` |
 | 2026-08-06 | [ersatztv-integration](./2026-08-06-ersatztv-integration/) | Integrate ErsatzTV status monitoring, daily EPG guide queries, and a Channel Director skill for parameter-driven IPTV channel programming | Draft |
 | 2026-08-06 | [mechanical-skill-extraction-pilot](./2026-08-06-mechanical-skill-extraction-pilot/) | Extract `service-health`/`download-queue` tools into `media-tools` skills consumed via the existing Tailscale proxy bridge, and add an Ollama-backed Step 0 intent classifier ahead of the cloud tool loop | Draft |
 | 2026-08-02 | [generic-distribution-onboarding](./2026-08-02-generic-distribution-onboarding/) | Document all 17 code-referenced env vars missing from `.env.example`, extend `setup.ts` prompts, and clarify the single-household scope for third-party self-hosters | Done — `4.43.2` |

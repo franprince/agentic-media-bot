@@ -81,6 +81,11 @@ describe("TMDB Service — discoverMedia constraints", () => {
 			http.get("*/genre/tv/list", () => {
 				return HttpResponse.json({ genres: [{ id: 35, name: "Comedy" }] });
 			}),
+			// Years the model leaves empty fall back to TMDB discover; keep that
+			// off the real network.
+			http.get("*/discover/:type", () => {
+				return HttpResponse.json({ results: [], total_results: 0 });
+			}),
 			http.get("*/search/movie", ({ request }) => {
 				const url = new URL(request.url);
 				const query = url.searchParams.get("query");
@@ -201,5 +206,59 @@ describe("TMDB Service — discoverMedia constraints", () => {
 		expect(promptsSent).toContain(
 			`You are a movie and TV show recommendation assistant. Suggest a list of up to 3 highly-rated and popular movies released specifically in the year ${currentYear - 2} that match the following criteria: "comedy movies from last 2 years".\n\nCRITICAL: Your recommendations MUST have been released in the year ${currentYear - 2}. Only suggest well-known titles that have a large number of votes (at least 500+ votes) or highly-rated niche titles (7.5+ rating with 50+ votes). Avoid suggesting completely obscure titles.`
 		);
+	});
+});
+
+describe("TMDB Service — discoverMedia TMDB fallback", () => {
+	afterEach(() => {
+		server.resetHandlers();
+	});
+
+	test("fills years the model returned nothing for from TMDB discover", async () => {
+		process.env.TMDB_READ_ACCESS_TOKEN = "test-token";
+		mockGenerateObjectResponse = { recommendations: [] };
+		const yearsRequested: string[] = [];
+		server.use(
+			http.get("https://api.themoviedb.org/3/genre/:type/list", () =>
+				HttpResponse.json({ genres: [{ id: 27, name: "Horror" }] }),
+			),
+			http.get("https://api.themoviedb.org/3/discover/movie", ({ request }) => {
+				const url = new URL(request.url);
+				const year = (url.searchParams.get("primary_release_date.gte") ?? "").slice(0, 4);
+				yearsRequested.push(year);
+				expect(url.searchParams.get("with_genres")).toBe("27");
+				expect(url.searchParams.get("vote_count.gte")).toBe("500");
+				return HttpResponse.json({
+					total_results: 1,
+					results: [
+						{
+							id: Number(year),
+							title: `Horror of ${year}`,
+							release_date: `${year}-06-01`,
+							overview: "Scary.",
+							vote_average: 7.44,
+							vote_count: 900,
+							genre_ids: [27],
+							poster_path: "/p.jpg",
+						},
+					],
+				});
+			}),
+		);
+
+		const results = await discoverMedia("horror movies", 10);
+
+		const currentYear = new Date().getFullYear();
+		expect(yearsRequested.sort()).toEqual(
+			[currentYear - 2, currentYear - 1, currentYear].map(String),
+		);
+		expect(results.length).toBe(3);
+		expect(results[0]).toMatchObject({
+			mediaType: "movie",
+			rating: 7.4,
+			voteCount: 900,
+			genres: ["Horror"],
+			posterPath: "/p.jpg",
+		});
 	});
 });
