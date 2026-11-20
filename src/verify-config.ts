@@ -2,6 +2,8 @@ import { google } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText } from "ai";
 import { Bot } from "grammy";
+import { createAnthropicModel } from "./agent/anthropic";
+import { getCapableModelName, getFastModelName } from "./agent/provider";
 import { getTimezone } from "./services/database";
 import * as plex from "./services/plex";
 import * as qbittorrent from "./services/qbittorrent";
@@ -28,6 +30,9 @@ export async function verifyConfig(exitOnFailure: boolean = true) {
 				if (process.env.AI_PROVIDER === "ollama") {
 					return "Skipped: Using Ollama as provider.";
 				}
+				if (process.env.AI_PROVIDER === "anthropic") {
+					return "Skipped: Using Anthropic (Claude) as provider.";
+				}
 				const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 				if (!key) throw new Error("GOOGLE_GENERATIVE_AI_API_KEY is missing.");
 				const response = await generateText({
@@ -36,6 +41,32 @@ export async function verifyConfig(exitOnFailure: boolean = true) {
 					maxRetries: 1,
 				});
 				return `Success: Gemini responded.`;
+			},
+		},
+		{
+			name: "Anthropic (Claude) Connectivity",
+			fn: async () => {
+				if (process.env.AI_PROVIDER !== "anthropic") {
+					return "Skipped: Not using Anthropic as provider.";
+				}
+				if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) {
+					throw new Error("ANTHROPIC_API_KEY is missing.");
+				}
+				const models = [...new Set([getFastModelName(), getCapableModelName()])];
+				const notClaude = models.filter((name) => !name.startsWith("claude-"));
+				if (notClaude.length > 0) {
+					throw new Error(
+						`AI_MODEL_FAST / AI_MODEL_CAPABLE / AI_MODEL must name Claude models with AI_PROVIDER=anthropic (got: ${notClaude.join(", ")}).`,
+					);
+				}
+				for (const name of models) {
+					await generateText({
+						model: createAnthropicModel(name),
+						prompt: "Reply with the single word: ok",
+						maxRetries: 1,
+					});
+				}
+				return `Success: ${models.join(" and ")} responded.`;
 			},
 		},
 		{

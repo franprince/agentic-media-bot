@@ -67,7 +67,7 @@ config.ALLOWED_USER_IDS =
 
 console.log("\n--- 🧠 AI Provider Setup ---");
 const provider = prompt(
-	"Choose AI Provider (google/ollama) [google]:",
+	"Choose AI Provider (google/ollama/anthropic) [google]:",
 	"google",
 );
 config.AI_PROVIDER = provider || "google";
@@ -76,6 +76,17 @@ if (config.AI_PROVIDER === "google") {
 	console.log("Get your API key at: https://aistudio.google.com/app/apikey");
 	config.GOOGLE_GENERATIVE_AI_API_KEY =
 		prompt("Enter your Google AI API Key:") || "";
+} else if (config.AI_PROVIDER === "anthropic") {
+	console.log("Get your API key at: https://platform.claude.com/settings/keys");
+	config.ANTHROPIC_API_KEY = prompt("Enter your Anthropic API Key:") || "";
+	config.AI_MODEL_FAST =
+		prompt("Claude model for the tool loop [claude-haiku-5-5]:", "claude-haiku-5-5") ||
+		"claude-haiku-5-5";
+	config.AI_MODEL_CAPABLE =
+		prompt(
+			`Claude model for synthesis / rewrites [${config.AI_MODEL_FAST}]:`,
+			config.AI_MODEL_FAST,
+		) || config.AI_MODEL_FAST;
 } else {
 	config.OLLAMA_BASE_URL =
 		prompt(
@@ -209,6 +220,8 @@ if (enableTranscription?.toLowerCase() === "y") {
 			"Reusing OLLAMA_BASE_URL already configured above — no further setup needed.",
 		);
 	} else {
+		// Claude does not take audio: voice notes need a Whisper-compatible
+		// endpoint, or GOOGLE_GENERATIVE_AI_API_KEY for the Gemini fallback.
 		config.TRANSCRIPTION_URL =
 			prompt("Transcription endpoint URL (Whisper-compatible):") || "";
 	}
