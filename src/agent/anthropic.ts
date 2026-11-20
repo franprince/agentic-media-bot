@@ -6,19 +6,19 @@ import type {
 } from "ai";
 
 /**
- * AI_PROVIDER=anthropic: an AI SDK (v1 spec) language model backed by the
- * official Anthropic SDK, so the existing generateText call sites, tools and
- * stored CoreMessage history keep working unchanged.
+ * AI_PROVIDER=anthropic: an AI SDK (v1 spec) language model for Claude
+ * Haiku 5.5 (the only Claude model the bot uses), backed by the official
+ * Anthropic SDK, so the existing generateText call sites, tools and stored
+ * CoreMessage history keep working unchanged.
  *
- * Request rules for the current Claude models (Opus 5.5, Sonnet 5.5, Haiku 5.5)
- * that this adapter enforces, because each one is a 400 otherwise:
+ * Haiku 5.5 request rules this adapter enforces, because each one is a 400:
  *   - no temperature / top_p / top_k;
- *   - no forced tool_choice ("required" / a named tool) on Opus 5.5 and
- *     Sonnet 5.5 — always "auto";
  *   - no trailing assistant message (prefill);
- *   - thinking is adaptive and always on, and a thinking block may only be
- *     sent back when everything before it is byte-identical to the request
- *     that produced it (the history-editing check). See ThinkingReplayCache.
+ *   - a thinking block may only be sent back when everything before it is
+ *     byte-identical to the request that produced it (the history-editing
+ *     check). See ThinkingReplayCache.
+ * Thinking is adaptive and on by default; forced tool_choice is accepted but
+ * skips thinking, so it is turned into "auto" plus a prompt instruction.
  */
 
 type GenerateResult = Awaited<ReturnType<LanguageModelV1["doGenerate"]>>;
@@ -39,21 +39,23 @@ type BetaMessageParam = {
 };
 type Effort = "low" | "medium" | "high" | "xhigh" | "max";
 
-export const DEFAULT_ANTHROPIC_MODEL = "claude-opus-5-5";
+/** The bot's only Claude model (measured choice: specs/2026-11-20-claude-provider). */
+export const ANTHROPIC_MODEL = "claude-haiku-5-5";
 const DEFAULT_MAX_TOKENS = 16_000;
 /** Thinking spends max_tokens too; a 400-token cap can end before any text. */
 const MIN_MAX_TOKENS = 4_096;
 const THINKING_BINDING_BETA = "thinking-binding-controls-2026-08-01";
-const SERVER_FALLBACK_BETA = "server-side-fallback-2026-07-01";
 const EFFORTS: readonly Effort[] = ["low", "medium", "high", "xhigh", "max"];
 
-/** Models that accept the server-side refusal `fallbacks` parameter. */
-export function supportsServerFallback(modelId: string): boolean {
-	return /^claude-(opus-5|sonnet-5-5|fable-5)/.test(modelId);
-}
-
-/** AI_REASONING_EFFORT mapped to output_config.effort (unset = model default). */
-export function getAnthropicEffort(): Effort | undefined {
+/**
+ * output_config.effort for a call: a per-call override
+ * (`experimental_providerMetadata: { anthropic: { effort: "low" } }`), else
+ * AI_REASONING_EFFORT, else the model default.
+ */
+export function getAnthropicEffort(override?: unknown): Effort | undefined {
+	if (typeof override === "string" && (EFFORTS as readonly string[]).includes(override)) {
+		return override as Effort;
+	}
 	const raw = (process.env.AI_REASONING_EFFORT || "").trim().toLowerCase();
 	if (!raw) return undefined;
 	if ((EFFORTS as readonly string[]).includes(raw)) return raw as Effort;
@@ -573,11 +575,11 @@ export class AnthropicChatModel implements LanguageModelV1 {
 				if (choice?.type === "none") {
 					toolChoice = { type: "none" };
 				} else if (choice?.type === "required" || choice?.type === "tool") {
-					// Forced tool use is a 400 on Opus 5.5 / Sonnet 5.5.
+					// A forced call on Haiku 5.5 skips thinking; ask in the prompt instead.
 					warnings.push({
 						type: "other",
 						message:
-							"Claude models only accept tool_choice auto; the tool is requested in the prompt instead.",
+							"tool_choice is sent as auto (a forced call skips thinking); the tool is requested in the prompt instead.",
 					});
 					const target = choice.type === "tool" ? `the ${choice.toolName} tool` : "one of the tools";
 					system = [system, `You must call ${target} before answering.`].filter(Boolean).join("\n\n");
@@ -620,10 +622,13 @@ export class AnthropicChatModel implements LanguageModelV1 {
 			if (restored) messages[i] = { role: "assistant", content: restored };
 		}
 
-		const effort = getAnthropicEffort();
-		const betas: string[] = [THINKING_BINDING_BETA];
-		const fallback = supportsServerFallback(this.modelId);
-		if (fallback) betas.push(SERVER_FALLBACK_BETA);
+		const callOptions = (options as any).providerMetadata?.anthropic ?? {};
+		let effort = getAnthropicEffort(callOptions.effort);
+		// Per-call `thinking: "off"` for short, simple outputs (recommendation
+		// lists): Haiku otherwise thinks ~500 tokens before a ~150-token answer.
+		// Haiku 5.5 accepts thinking "disabled" only at effort high or below.
+		const thinkingOff = callOptions.thinking === "off";
+		if (thinkingOff && (effort === "xhigh" || effort === "max")) effort = "high";
 
 		const body: Anthropic.Beta.Messages.MessageCreateParamsNonStreaming = {
 			model: this.modelId,
@@ -631,16 +636,18 @@ export class AnthropicChatModel implements LanguageModelV1 {
 			messages,
 			// Belt and braces: if a replayed block still fails the
 			// history-editing check, drop it instead of failing the request.
-			thinking: {
-				type: "adaptive",
-				block_binding: { prefix_mismatch_behavior: "drop_block" },
-			},
-			betas,
+			thinking: thinkingOff
+				? { type: "disabled" }
+				: { type: "adaptive", block_binding: { prefix_mismatch_behavior: "drop_block" } },
+			betas: [THINKING_BINDING_BETA],
+			// Automatic prompt caching: the tool loop resends the same system
+			// prompt, tools and history on every step, so later steps read them
+			// from cache (faster first token, 0.1x input price).
+			cache_control: { type: "ephemeral" },
 			...(system ? { system } : {}),
 			...(tools ? { tools } : {}),
 			...(toolChoice ? { tool_choice: toolChoice } : {}),
 			...(effort ? { output_config: { effort } } : {}),
-			...(fallback ? { fallbacks: "default" as const } : {}),
 			...(options.stopSequences?.length ? { stop_sequences: options.stopSequences } : {}),
 		};
 		return { body, warnings };
@@ -654,33 +661,16 @@ export class AnthropicChatModel implements LanguageModelV1 {
 			headers: options.headers as Record<string, string> | undefined,
 		});
 
-		// With a server-side fallback, content holds what the declined model
-		// wrote, a `fallback` block, then the fallback model's turn. Only the last
-		// segment is the answer. A sticky fallback (the conversation already moved
-		// to the fallback model) has no block; usage.iterations reports it.
-		const lastBoundary = response.content.reduce(
-			(found, block, index) => (block.type === ("fallback" as any) ? index : found),
-			-1,
-		);
-		const answer = response.content.slice(lastBoundary + 1);
-		const servedByFallback =
-			lastBoundary >= 0 ||
-			((response.usage as any)?.iterations ?? []).some(
-				(entry: any) => entry?.type === "fallback_message",
-			);
+		const answer = response.content;
 
 		// Remember the raw turn so its thinking can go back with the tool results.
-		// A turn a fallback model wrote is not replayed: its blocks belong to
-		// another model.
-		if (!servedByFallback) {
-			const fingerprint = conversationFingerprint(
-				this.modelId,
-				body.system as string | undefined,
-				body.tools as BetaTool[] | undefined,
-				body.messages as unknown as BetaMessageParam[],
-			);
-			this.replayCache.remember(fingerprint, answer);
-		}
+		const fingerprint = conversationFingerprint(
+			this.modelId,
+			body.system as string | undefined,
+			body.tools as BetaTool[] | undefined,
+			body.messages as unknown as BetaMessageParam[],
+		);
+		this.replayCache.remember(fingerprint, answer);
 
 		let text = answer
 			.filter((block) => block.type === "text")
@@ -689,8 +679,7 @@ export class AnthropicChatModel implements LanguageModelV1 {
 		if (options.mode.type === "object-json") text = stripCodeFence(text);
 
 		// Tools run only when the model actually stopped to call them: never after
-		// a refusal or a max_tokens cut (a half-planned call), and never for a call
-		// the declined model made before the fallback took over.
+		// a refusal or a max_tokens cut (a half-planned call).
 		const toolCalls: LanguageModelV1FunctionToolCall[] =
 			response.stop_reason === "tool_use"
 				? answer
@@ -733,6 +722,6 @@ export class AnthropicChatModel implements LanguageModelV1 {
 	}
 }
 
-export function createAnthropicModel(modelId: string): AnthropicChatModel {
+export function createAnthropicModel(modelId: string = ANTHROPIC_MODEL): AnthropicChatModel {
 	return new AnthropicChatModel(modelId);
 }

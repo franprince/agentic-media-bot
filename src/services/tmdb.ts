@@ -483,7 +483,9 @@ export async function discoverMedia(
 					: "TV shows/series"
 				} released specifically in the year ${year} that match the following criteria: "${query}".
 
-CRITICAL: Your recommendations MUST have been released in the year ${year}. Only suggest well-known titles that have a large number of votes (at least 500+ votes) or highly-rated niche titles (7.5+ rating with 50+ votes). Avoid suggesting completely obscure titles.`;
+CRITICAL: Your recommendations MUST have been released in the year ${year}. Only suggest well-known titles that have a large number of votes (at least 500+ votes) or highly-rated niche titles (7.5+ rating with 50+ votes). Avoid suggesting completely obscure titles.
+
+If you do not know enough titles from ${year} (for example a year after your training data), return {"recommendations": []} instead of explaining — the caller fills that year from TMDB. Always reply with the JSON object only.`;
 
 			try {
 				const response = await generateObject({
@@ -492,6 +494,11 @@ CRITICAL: Your recommendations MUST have been released in the year ${year}. Only
 					// OpenAI-compatible hosts such as Groq reject the forced call
 					// with "Tool choice is required, but model did not call a tool".
 					mode: "json",
+					// Listing a few well-known titles needs no reasoning. On Claude
+					// Haiku 5.5 thinking off cut each of these parallel calls from
+					// 4–6 s to ~1.5 s (measured 2026-11-20). Models that cannot turn
+					// thinking off run at low effort; other providers ignore the key.
+					experimental_providerMetadata: { anthropic: { effort: "low", thinking: "off" } },
 					schema: z.object({
 						recommendations: z.array(
 							z.object({
