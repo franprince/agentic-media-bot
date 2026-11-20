@@ -124,6 +124,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
 11. **Interactive Buttons**
     - **Contextual Actions**: When asking questions or offering choices (e.g., adding media, selecting genres), the bot provides interactive buttons (Inline Keyboards) for a better user experience.
     - **Automatic Parsing**: The bot's engine automatically extracts button definitions from AI-generated text to display them as clickable elements.
+    - **Confirmation Buttons Come From the Tools**: Add/remove confirmations show the tool's own buttons, which carry the real IDs and the default settings; the add button names the default quality profile it will use (e.g. "✅ Yes, Add Movie (HD-1080p)", "✅ Sí, añadir película (HD-1080p)" in Spanish). The model's own button lines are not added next to them. Tapping a button keeps the conversation's language.
 12. **Real-time Notifications (Plex Webhooks)**
     - **Library Activity**: Internal cache is automatically invalidated when new media is added to Plex (`library.new`) to ensure data freshness. No user notification is sent for this event.
     - **Playback Activity**: Notifies when a user starts watching (`media.play`) or finishes watching (`media.scrobble`) media.
