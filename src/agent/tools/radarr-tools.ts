@@ -274,7 +274,10 @@ export const addMovieTool = tool({
 					},
 					buttons: [
 						{
-							text: "✅ Yes, Add Movie",
+							// The default profile is what this button uses; say so.
+							text: defaultProfile?.name
+								? `✅ Yes, Add Movie (${defaultProfile.name})`
+								: "✅ Yes, Add Movie",
 							data: `add movie ${match.tmdbId} ${defaultProfile?.id}`,
 						},
 						{ text: "❌ Cancel", data: "cancel add movie" },

@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.47.0] - 2026-11-20
+
+### Added
+- **Claude provider (`AI_PROVIDER=anthropic`)**: The bot can run on Claude through the official Anthropic SDK (`@anthropic-ai/sdk`, key in `ANTHROPIC_API_KEY`). `src/agent/anthropic.ts` is an AI SDK language model, so the agent loop, tools, confirmation guard and stored history are unchanged. It follows the current Claude request rules (no sampling parameters, no forced tool choice, no prefill, adaptive thinking with a `max_tokens` floor), repairs history stored under other providers (orphaned tool calls, incompatible tool ids), sends thinking blocks back within a tool loop only while the conversation before them is unchanged, runs tools only when the model stopped to call them (never after a refusal or a cut-off reply), and enables server-side refusal fallbacks on Opus/Sonnet. `AI_REASONING_EFFORT` sets Claude's effort (`low`–`max`).
+- **Recommended model, measured**: `claude-haiku-5-5` for both `AI_MODEL_FAST` and `AI_MODEL_CAPABLE`. On a 14-case Spanish/English bake-off (tool choice, two-step confirmation, reply language) plus the router classifier, Haiku 5.5, Sonnet 5.5 and Opus 5.5 all passed every agent case; Haiku did it at ~$0.0008 per turn and ~2.8 s, about 19× cheaper than Sonnet and 40× cheaper than Opus. With no model set the default is `claude-opus-5-5`.
+- `verify-config` checks the Anthropic key, rejects non-`claude-*` model names, and pings each configured model; `setup.ts` offers `anthropic` as a provider.
+
+### Fixed
+- **Confirmation buttons**: Add/remove confirmations now show only the tool's buttons (real IDs, default settings) instead of also appending the model's generic copies (`add_movie_confirm`), which a stricter instruction-follower such as Claude produced on every confirmation. The add button names the default quality profile it uses ("✅ Yes, Add Movie (HD-1080p)"). Callback data is capped at Telegram's 64 bytes so an over-long model button cannot make the whole reply fail.
+- **Reply language**: Tapping a button (`add movie 693134 4`) no longer switches a Spanish conversation to English, and colloquial requests such as "bajame dune parte dos" are recognised as Spanish.
+
+### Notes
+- `AI_MODEL_FALLBACKS` does not apply to this provider (the SDK retries rate limits itself). Voice notes still need `TRANSCRIPTION_URL` or `GOOGLE_GENERATIVE_AI_API_KEY`; Claude does not take audio.
+
+See `specs/2026-11-20-claude-provider/`.
+
 ## [4.46.0] - 2026-11-14
 
 ### Changed

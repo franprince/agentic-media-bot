@@ -1,6 +1,6 @@
 {
   "name": "agentic-media-bot",
-  "version": "4.46.0",
+  "version": "4.47.0",
   "module": "index.ts",
   "type": "module",
   "private": true,
@@ -31,6 +31,7 @@
   "dependencies": {
     "@ai-sdk/google": "^0.0.52",
     "@ai-sdk/openai": "^0.0.60",
+    "@anthropic-ai/sdk": "^1.11.0",
     "@grammyjs/runner": "^2.0.3",
     "ai": "^3.4.33",
     "grammy": "^1.40.0",

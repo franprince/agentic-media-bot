@@ -1,5 +1,5 @@
-import { describe, expect, it } from "bun:test";
-import { detectStatusLanguage } from "../status";
+import { describe, expect, it, test } from "bun:test";
+import { detectConversationLanguage, detectStatusLanguage, isButtonPayload } from "../status";
 
 describe("detectStatusLanguage", () => {
 	it("should detect English by default", () => {
@@ -49,5 +49,27 @@ describe("detectConversationLanguage", () => {
 	it("lets a full sentence decide for itself", () => {
 		const recent = ["recomendame películas de terror por favor"];
 		expect(detectConversationLanguage("what is in my download queue right now", recent)).toBe("en");
+	});
+});
+
+describe("conversation language: colloquial Spanish and button payloads", () => {
+	test("colloquial Rioplatense requests are Spanish", () => {
+		expect(detectConversationLanguage("bajame dune parte dos", [])).toBe("es");
+		expect(detectConversationLanguage("borra dune", [])).toBe("es");
+	});
+
+	test("English titles containing Spanish fragments stay English", () => {
+		expect(detectConversationLanguage("add the departed", [])).toBe("en");
+		expect(detectConversationLanguage("download dune part two", [])).toBe("en");
+	});
+
+	test("a button tap keeps the conversation's language", () => {
+		const spanish = ["bajame dune parte dos"];
+		expect(isButtonPayload("add movie 693134 4")).toBe(true);
+		expect(detectConversationLanguage("add movie 693134 4", spanish)).toBe("es");
+		expect(detectConversationLanguage("Remove the movie and delete the files", spanish)).toBe("es");
+		expect(detectConversationLanguage("notify_download_decline", spanish)).toBe("es");
+		expect(detectConversationLanguage("add movie 693134 4", ["add dune please now"])).toBe("en");
+		expect(isButtonPayload("add the departed")).toBe(false);
 	});
 });

@@ -246,7 +246,10 @@ export const addSeriesTool = tool({
 				},
 				buttons: [
 					{
-						text: "✅ Yes, Add Series",
+						// The default profile is what this button uses; say so.
+							text: defaultProfile?.name
+								? `✅ Yes, Add Series (${defaultProfile.name})`
+								: "✅ Yes, Add Series",
 						data: `add series ${exactSeries.tvdbId} ${defaultProfile?.id}`,
 					},
 					{ text: "❌ Cancel", data: "cancel add series" },

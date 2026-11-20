@@ -3,6 +3,7 @@ import {
 	buildExactCountPrefix,
 	buildPlexBrowseAuthoritativeText,
 	extractToolResultsFromMessages,
+	selectReplyButtons,
 } from "../response";
 
 describe("response helpers", () => {
@@ -183,5 +184,56 @@ describe("response helpers", () => {
 
 		expect(text).toInclude("- Inception (2010)");
 		expect(text).not.toInclude("Inception (Inception)");
+	});
+});
+
+describe("selectReplyButtons", () => {
+	const toolButtons = [
+		{ text: "✅ Yes, Add Movie", data: "add movie 693134 4" },
+		{ text: "❌ Cancel", data: "cancel add movie" },
+	];
+
+	test("keeps only the tool's buttons when a tool supplied them", () => {
+		const model = [
+			{ text: "Yes, add it!", data: "add_movie_confirm" },
+			{ text: "No, thanks", data: "cancel_action" },
+		];
+		expect(selectReplyButtons(toolButtons, model, true)).toEqual(toolButtons);
+	});
+
+	test("uses the model's buttons when no tool supplied any", () => {
+		const model = [
+			{ text: "Movies", data: "drama_movies" },
+			{ text: "Series", data: "drama_series" },
+		];
+		expect(selectReplyButtons(undefined, model, false)).toEqual(model);
+	});
+
+	test("drops notification buttons while a confirmation is pending", () => {
+		const model = [
+			{ text: "Yes, notify me!", data: "notify_download_confirm_movie_1" },
+			{ text: "No, thanks", data: "notify_download_decline" },
+			{ text: "Yes, add it!", data: "add_movie_confirm" },
+		];
+		expect(selectReplyButtons(undefined, model, true)).toEqual([
+			{ text: "Yes, add it!", data: "add_movie_confirm" },
+		]);
+	});
+
+	test("dedupes, drops empty buttons and fits callback data in 64 bytes", () => {
+		const long = "á".repeat(40); // 80 bytes
+		const result = selectReplyButtons(
+			undefined,
+			[
+				{ text: "A", data: "same" },
+				{ text: "B", data: "same" },
+				{ text: " ", data: "x" },
+				{ text: "C", data: long },
+			],
+			false,
+		);
+		expect(result?.map((b) => b.text)).toEqual(["A", "C"]);
+		expect(new TextEncoder().encode(result![1]!.data).length).toBeLessThanOrEqual(64);
+		expect(selectReplyButtons(undefined, [], false)).toBeUndefined();
 	});
 });

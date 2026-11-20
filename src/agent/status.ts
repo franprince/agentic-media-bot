@@ -72,6 +72,36 @@ function countSpanishSignals(text: string): number {
 		"aquí",
 	];
 
+	// Colloquial (Rioplatense) commands and Spanish-only words, matched as
+	// whole words only ("parte" must not match "The Departed").
+	const wholeWordSignals = [
+		"bajame",
+		"bajá",
+		"baja",
+		"bajar",
+		"descargame",
+		"descargar",
+		"agregame",
+		"poneme",
+		"mostrame",
+		"decime",
+		"fijate",
+		"borra",
+		"borrar",
+		"pausa",
+		"pausar",
+		"parte",
+		"temporada",
+		"capitulo",
+		"dale",
+		"che",
+		"dos",
+		"tres",
+	];
+	for (const word of wholeWordSignals) {
+		if (new RegExp(`(^|[^\\p{L}])${word}($|[^\\p{L}])`, "iu").test(text)) score += 1;
+	}
+
 	const matchedWords = new Set<string>();
 
 	for (const s of signals) {
@@ -108,10 +138,23 @@ export function detectStatusLanguage(
  * keeps the language of the user's recent messages instead of defaulting to
  * English.
  */
+/**
+ * Callback data of the bot's own buttons: the tools' confirmation payloads
+ * ("add movie 693134 4", "Remove the movie but keep the files") and the
+ * model's snake_case ones ("notify_download_decline"). They carry no language.
+ */
+const BUTTON_PAYLOAD =
+	/^(add (movie|series) \d+( \d+)?|cancel add (movie|series)|remove the (movie|series)\b.*|[a-z0-9]+(_[a-z0-9]+)+)$/i;
+
+export function isButtonPayload(text: string | undefined | null): boolean {
+	return !!text && BUTTON_PAYLOAD.test(text.trim());
+}
+
 export function detectConversationLanguage(
 	text: string | undefined | null,
 	recentUserTexts: string[] = [],
 ): StatusLanguage {
+	if (isButtonPayload(text)) return detectStatusLanguage(recentUserTexts.join(" "));
 	if (detectStatusLanguage(text) === "es") return "es";
 	const words = (text ?? "").trim().split(/\s+/).filter(Boolean);
 	if (words.length > 2) return "en";

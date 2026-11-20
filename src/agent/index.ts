@@ -33,6 +33,7 @@ import {
 	buildExactCountPrefix,
 	buildPlexBrowseAuthoritativeText,
 	extractToolResultsFromMessages,
+	selectReplyButtons,
 } from "./response";
 import {
 	detectConversationLanguage,
@@ -525,8 +526,9 @@ export async function processUserMessage(
 				buttons = tr.result.buttons.map((btn: any) => {
 					let btnText = btn.text;
 					if (statusLang === "es") {
-						if (btnText === "✅ Yes, Add Movie") btnText = "✅ Sí, añadir película";
-						else if (btnText === "✅ Yes, Add Series") btnText = "✅ Sí, añadir serie";
+						// Add buttons may carry the default profile: "✅ Yes, Add Movie (HD-1080p)".
+						if (btnText.startsWith("✅ Yes, Add Movie")) btnText = btnText.replace("✅ Yes, Add Movie", "✅ Sí, añadir película");
+						else if (btnText.startsWith("✅ Yes, Add Series")) btnText = btnText.replace("✅ Yes, Add Series", "✅ Sí, añadir serie");
 						else if (btnText === "❌ Cancel") btnText = "❌ Cancelar";
 						else if (btnText === "✅ Remove from Radarr only") btnText = "✅ Solo eliminar de Radarr";
 						else if (btnText === "✅ Remove from Sonarr only") btnText = "✅ Solo eliminar de Sonarr";
@@ -603,16 +605,10 @@ export async function processUserMessage(
 			}
 		}
 
+		// Tool buttons (real IDs, default settings) win over the model's own
+		// BUTTON: lines; see selectReplyButtons.
+		buttons = selectReplyButtons(buttons, extractedButtons, toolRequiresConfirmation);
 		if (extractedButtons.length > 0) {
-			const filteredExtracted = toolRequiresConfirmation
-				? extractedButtons.filter(
-						(btn) =>
-							!btn.data.startsWith("notify_download_confirm_") &&
-							btn.data !== "notify_download_decline",
-					)
-				: extractedButtons;
-
-			buttons = buttons ? [...buttons, ...filteredExtracted] : filteredExtracted;
 			// Remove button lines from text
 			text = text.replace(/^\*?\*?BUTTON:.*$/gim, "").trim();
 		}

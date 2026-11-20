@@ -1,5 +1,6 @@
 import { google } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
+import { createAnthropicModel, DEFAULT_ANTHROPIC_MODEL } from "./anthropic";
 
 /**
  * Single place that builds the chat models, so every call site (agent loop,
@@ -9,6 +10,11 @@ import { createOpenAI } from "@ai-sdk/openai";
  * AI_PROVIDER=ollama is the generic OpenAI-compatible path: OLLAMA_BASE_URL may
  * point at a local Ollama or at a hosted endpoint (Groq, OpenRouter, ...), in
  * which case OLLAMA_API_KEY carries that service's key.
+ *
+ * AI_PROVIDER=anthropic uses Claude through the official Anthropic SDK
+ * (src/agent/anthropic.ts, key in ANTHROPIC_API_KEY). The SDK retries 429s
+ * itself; AI_MODEL_FALLBACKS and fetchWithRateLimitRetry below rewrite
+ * OpenAI-shaped request bodies and do not apply to it.
  */
 
 const DEFAULT_MODEL = "minimax-m2.7:cloud";
@@ -26,8 +32,16 @@ export function isOllamaProvider(): boolean {
 	return process.env.AI_PROVIDER === "ollama";
 }
 
+export function isAnthropicProvider(): boolean {
+	return process.env.AI_PROVIDER === "anthropic";
+}
+
 export function getFastModelName(): string {
-	return process.env.AI_MODEL_FAST || process.env.AI_MODEL || DEFAULT_MODEL;
+	return (
+		process.env.AI_MODEL_FAST ||
+		process.env.AI_MODEL ||
+		(isAnthropicProvider() ? DEFAULT_ANTHROPIC_MODEL : DEFAULT_MODEL)
+	);
 }
 
 export function getCapableModelName(): string {
@@ -134,6 +148,7 @@ export function createOllamaProvider() {
 
 /** Model for the tool-calling loop. */
 export function getFastModel(): any {
+	if (isAnthropicProvider()) return createAnthropicModel(getFastModelName());
 	return isOllamaProvider()
 		? createOllamaProvider()(getFastModelName())
 		: google(getFastModelName());
@@ -141,6 +156,7 @@ export function getFastModel(): any {
 
 /** Model for synthesis, language rewrite and recommendations. */
 export function getCapableModel(): any {
+	if (isAnthropicProvider()) return createAnthropicModel(getCapableModelName());
 	return isOllamaProvider()
 		? createOllamaProvider()(getCapableModelName())
 		: google(getCapableModelName());

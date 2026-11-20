@@ -149,3 +149,57 @@ export function buildPlexBrowseAuthoritativeText(
 	}
 	return undefined;
 }
+
+export type ReplyButton = { text: string; data: string };
+
+/** Telegram rejects callback_data outside 1–64 bytes (the whole message fails). */
+const MAX_CALLBACK_DATA_BYTES = 64;
+
+function truncateUtf8(value: string, maxBytes: number): string {
+	const encoder = new TextEncoder();
+	if (encoder.encode(value).length <= maxBytes) return value;
+	let out = "";
+	for (const char of value) {
+		if (encoder.encode(out + char).length > maxBytes) break;
+		out += char;
+	}
+	return out;
+}
+
+/**
+ * Picks the buttons for a reply.
+ *
+ * A tool that needs a decision (add/remove confirmation) returns its own
+ * buttons carrying the real IDs and default settings (e.g. "add movie
+ * <tmdbId> <defaultProfileId>"). Those are authoritative: the model is also
+ * told to end questions with `BUTTON:` lines, and its generic copies
+ * ("add_movie_confirm") would otherwise be shown next to them. Model buttons
+ * are used only when no tool supplied any; while a confirmation is pending,
+ * premature notification buttons are dropped.
+ */
+export function selectReplyButtons(
+	toolButtons: ReplyButton[] | undefined,
+	modelButtons: ReplyButton[],
+	confirmationPending: boolean,
+): ReplyButton[] | undefined {
+	const chosen =
+		toolButtons && toolButtons.length > 0
+			? toolButtons
+			: confirmationPending
+				? modelButtons.filter(
+						(btn) =>
+							!btn.data.startsWith("notify_download_confirm_") &&
+							btn.data !== "notify_download_decline",
+					)
+				: modelButtons;
+	const seen = new Set<string>();
+	const valid: ReplyButton[] = [];
+	for (const btn of chosen) {
+		const text = (btn.text ?? "").trim();
+		const data = truncateUtf8((btn.data ?? "").trim(), MAX_CALLBACK_DATA_BYTES);
+		if (!text || !data || seen.has(data)) continue;
+		seen.add(data);
+		valid.push({ ...btn, text, data });
+	}
+	return valid.length > 0 ? valid : undefined;
+}
