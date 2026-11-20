@@ -118,7 +118,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
     - **Interactive CLI Setup**: A standalone tool (`bun src/setup.ts`) guides new users through the initial configuration.
     - **Dependency Management**: The setup tool automatically checks for and offers to install missing dependencies (`bun install`).
     - **Guided Configuration**: Provides step-by-step instructions for obtaining Telegram Bot Tokens, User IDs, and the complex Plex Authentication Token.
-    - **AI Provider Selection**: Supports Google Gemini and Ollama (both local and cloud-hosted via `OLLAMA_BASE_URL`).
+    - **AI Provider Selection**: Supports Google Gemini, Ollama (both local and cloud-hosted via `OLLAMA_BASE_URL`) and Anthropic Claude (`AI_PROVIDER=anthropic`, prompts for `ANTHROPIC_API_KEY` and the fast/capable Claude models).
     - **Automated Service Discovery**: Automatically identifies Plex library sections to simplify environment variable configuration (`PLEX_MOVIE_SECTION_IDS`, `PLEX_SHOW_SECTION_IDS`).
     - **Launch on Startup (Linux)**: Offers to create and enable a systemd user service for automated bot execution on system boot.
 11. **Interactive Buttons**
