@@ -1,5 +1,7 @@
 import { type CoreMessage, generateText } from "ai";
 import {
+	clearHistory,
+	getConversationUpdatedAt,
 	getHistory,
 	getUserName,
 	saveHistory,
@@ -31,6 +33,7 @@ import {
 	isAnthropicProvider,
 } from "./provider";
 import { executeOnProxy, isProxyEnabled } from "./proxyClient";
+import { isSessionExpired } from "./session";
 import {
 	buildExactCountPrefix,
 	buildPlexBrowseAuthoritativeText,
@@ -67,11 +70,14 @@ import {
 
 /**
  * Process a user message using the AI agent.
+ * `options.fromButton` marks a button tap: it answers a specific earlier
+ * message, so it always continues the stored conversation.
  */
 export async function processUserMessage(
 	userId: number,
 	userMessage?: string,
 	onStep?: (status: string) => Promise<void>,
+	options: { fromButton?: boolean } = {},
 ): Promise<{
 	text: string;
 	imageUrl?: string;
@@ -130,10 +136,23 @@ export async function processUserMessage(
 
 	// Add the user's message to the history ONLY if it's a new message
 	if (userMessage) {
-		// Clear history if it's too long or stale
-		// Check for long gap (> 12 hours) from the metadata of the last message if available
-		// For now, we'll just trim to keep it simple and effective.
-		history = trimHistory(userId, 20);
+		// On Claude a typed message after a long silence starts a new
+		// conversation, so a stale turn is not read as the current topic. The
+		// activity time is read before the trim, which can save the row.
+		const startsNewConversation =
+			isAnthropicProvider() &&
+			!options.fromButton &&
+			history.length > 0 &&
+			isSessionExpired(getConversationUpdatedAt(userId), Date.now());
+		if (startsNewConversation) {
+			clearHistory(userId);
+			history = [];
+			console.log(
+				"🧹 Conversation idle for more than 12 hours: starting a new one.",
+			);
+		} else {
+			history = trimHistory(userId, 20);
+		}
 
 		history.push({ role: "user", content: userMessage });
 		saveHistory(userId, history);
