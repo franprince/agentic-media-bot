@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.48.4] - 2026-11-24
+
+### Fixed
+- **A request for a synopsis no longer fails with an error**: "Haceme un resumen de …" matched the keyword for resuming torrents ("resum…") and the one for the summary report ("resumen"), so the model was given only download and report tools. "Resume" now matches only the English verb forms, and an unqualified "resumen" or "summary" offers the movie, series and report tools.
+- **A call to a tool that was not offered no longer ends the turn**: When the model asked for a tool that the routing had left out, the AI SDK threw an error and the user got "Sorry, I encountered an error". The bot now adds that tool's group (or every tool) and asks again, at most twice. This covers the first request, the retry after bad tool arguments and the widened request. It does not ask again once an action (add, remove, pause, resume, subscribe) ran in that turn, so nothing runs twice.
+- **The error message is in the conversation's language**: It used the same detector that misread accent-less Spanish.
+
+### Notes
+- The 4.48.3 rule telling the model to trust the newest tool result did not stop it from mentioning an old library conflict on the next turn: the stored conversation still holds those results and the bot's own sentence about them.
+- Messages whose only keyword belongs to downloads, system, reports, watchlist or ErsatzTV ("que es Diarios de motocicleta" → reports, "en que estado esta Severance" → system) still start with those tools only. With this release they recover with one more request instead of failing.
+- Checked live on a scratch database: the synopsis request was answered in Spanish; a misrouted request recovered through the existing "need more tools" path. The new retry is covered by tests with the SDK's own error class but has not fired live.
+
 ## [4.48.3] - 2026-11-24
 
 ### Fixed
