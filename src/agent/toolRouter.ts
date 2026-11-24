@@ -330,6 +330,7 @@ export async function classifyGroups(
 }
 
 export type RoutingSource =
+	| "all"
 	| "chat"
 	| "keyword"
 	| "context"

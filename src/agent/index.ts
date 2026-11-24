@@ -23,6 +23,7 @@ import {
 import {
 	buildSystemPromptTemplate,
 	fillSystemPrompt,
+	fillSystemPromptParts,
 	NEED_MORE_TOOLS_MARKER,
 } from "./prompts";
 import {
@@ -184,7 +185,12 @@ export async function processUserMessage(
 		const userName = getUserName(userId) || "Friend";
 
 		// --- Step 1: Tool Execution Loop (using FAST model) ---
-		const shouldDisableAddTools = shouldDisableAddActions(statusSeedText);
+		// With Claude every request carries every tool and the full prompt (see
+		// specs/2026-11-24-claude-all-tools): no routing, and a tool set that
+		// never changes, so tools and fixed rules are read from the prompt cache.
+		const offersEveryTool = isAnthropicProvider();
+		const shouldDisableAddTools =
+			!offersEveryTool && shouldDisableAddActions(statusSeedText);
 		const tools: any = {
 			searchMovie: botTools.searchMovieTool,
 			addMovie: botTools.addMovieTool,
@@ -244,11 +250,9 @@ export async function processUserMessage(
 		const priorHistory =
 			lastUserIndex >= 0 ? history.slice(0, lastUserIndex) : history;
 		const routedText = statusSeedText ?? "";
-		let routing: RoutingDecision = await selectToolGroups(
-			routedText,
-			priorHistory,
-			modelFast,
-		);
+		let routing: RoutingDecision = offersEveryTool
+			? { groups: [...ALL_GROUPS], source: "all", narrowed: false }
+			: await selectToolGroups(routedText, priorHistory, modelFast);
 		const toolsForGroups = (groups: ToolGroup[]) =>
 			pickToolsForGroups(tools, groups);
 		const narrowedTools = toolsForGroups(routing.groups);
@@ -322,8 +326,16 @@ export async function processUserMessage(
 			currentDate,
 			language: statusLang,
 		};
+		// Claude: the fixed rules are the system prompt and the user, date and
+		// language go in a system message after it, so a change there does not
+		// void the cached tools and rules. Other providers: one prompt.
+		const claudePromptParts = offersEveryTool
+			? fillSystemPromptParts(buildSystemPromptTemplate([...ALL_GROUPS]), promptContext)
+			: null;
 		const systemPromptFor = (groups: ToolGroup[]) =>
-			fillSystemPrompt(buildSystemPromptTemplate(groups), promptContext);
+			claudePromptParts
+				? claudePromptParts.fixed
+				: fillSystemPrompt(buildSystemPromptTemplate(groups), promptContext);
 		// With every tool schema in the request there is less room for history.
 		const historyBudgetFor = (decision: RoutingDecision) =>
 			decision.narrowed
@@ -338,6 +350,10 @@ export async function processUserMessage(
 						compactOlderTurns: false,
 					})
 				: prepareHistoryForModel(history, historyBudgetFor(decision));
+		const messagesFor = (decision: RoutingDecision): CoreMessage[] =>
+			claudePromptParts
+				? [{ role: "system", content: claudePromptParts.context }, ...historyViewFor(decision)]
+				: historyViewFor(decision);
 		const withTools = (toolSet: Record<string, any>) =>
 			Object.keys(toolSet).length > 0 ? { tools: toolSet } : {};
 
@@ -381,7 +397,7 @@ export async function processUserMessage(
 					params = {
 						...rest,
 						system: systemPromptFor(routing.groups),
-						messages: historyViewFor(routing),
+						messages: messagesFor(routing),
 						...withTools(widenedTools),
 					};
 				}
@@ -391,7 +407,7 @@ export async function processUserMessage(
 		const firstPassParams = {
 			model: modelFast as any,
 			system: systemPromptFor(routing.groups),
-			messages: historyViewFor(routing),
+			messages: messagesFor(routing),
 			...withTools(finalTools),
 			onStepFinish: async (step: any) => {
 				for (const call of step.toolCalls ?? []) executedTools.add(call.toolName);
@@ -493,7 +509,7 @@ export async function processUserMessage(
 			firstPass = await withUnofferedToolRetry({
 				...paramsWithoutTools,
 				system: systemPromptFor(routing.groups),
-				messages: historyViewFor(routing),
+				messages: messagesFor(routing),
 				...withTools(widenedTools),
 			});
 		}
@@ -526,7 +542,7 @@ export async function processUserMessage(
 				model: modelCapable as any,
 				system: `${systemPromptFor(routing.groups)}\n\nSynthesize the final response. REMEMBER: Never use 'Poster:' text placeholders. If poster URLs are present in the tool results above, include them internally using the POSTER: <url> format at the very end of your message.`,
 				messages: [
-					...historyViewFor(routing),
+					...messagesFor(routing),
 					...scrubMarkerFromMessages(firstPass.response.messages, ""),
 				],
 			});
