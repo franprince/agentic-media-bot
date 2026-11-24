@@ -184,7 +184,7 @@ const KEYWORD_RULES: KeywordRule[] = [
 	},
 	{
 		pattern:
-			/\b(torrents?|qbit\w*|nzb\w*|usenet|descargas|downloads|downloading|descargando|bajando|cola|queue|paus\w*|resum\w*|reanud\w*|velocidad|speed|eta|progreso|progress)\b/,
+			/\b(torrents?|qbit\w*|nzb\w*|usenet|descargas|downloads|downloading|descargando|bajando|cola|queue|paus\w*|resum(e|es|ed|ing)|reanud\w*|velocidad|speed|eta|progreso|progress)\b/,
 		groups: ["downloads"],
 	},
 	{
@@ -206,8 +206,16 @@ const KEYWORD_RULES: KeywordRule[] = [
 	},
 	{
 		pattern:
-			/\b(reportes?|reports?|resumen(es)?|summar(y|ies)|suscri\w*|subscri\w*|desuscri\w*|unsubscri\w*|cron|semanal(es)?|weekly|diari[oa]s?|daily)\b/,
+			/\b(reportes?|reports?|suscri\w*|subscri\w*|desuscri\w*|unsubscri\w*|cron|semanal(es)?|weekly|diari[oa]s?|daily)\b/,
 		groups: ["reports"],
+	},
+	{
+		// "Resumen" alone may be a synopsis ("resumen de X") or the summary
+		// report ("mandame el resumen"): offer both, unless an earlier rule
+		// already said which ("resumen semanal", "la serie X").
+		pattern: /\b(resumen(es)?|summar(y|ies)|sinopsis|synopsis|de que (se )?trata|what is (it|that) about)\b/,
+		groups: ["movies", "series", "reports"],
+		onlyIfNoneOf: true,
 	},
 	{
 		pattern:
