@@ -150,6 +150,75 @@ describe("a request no tool covers", () => {
 	});
 });
 
+describe("the marker after a tool ran, with a separate synthesis model", () => {
+	const toolCall = { type: "tool-call", toolCallId: "t1", toolName: "checkServiceHealth", args: {} };
+	const toolResult = {
+		role: "tool",
+		content: [{ type: "tool-result", toolCallId: "t1", toolName: "checkServiceHealth", result: { sonarr: "online" } }],
+	};
+
+	function toolThenMarker() {
+		return {
+			text: MARKER,
+			toolCalls: [],
+			toolResults: [{ toolName: "checkServiceHealth", result: { sonarr: "online" } }],
+			response: {
+				messages: [
+					{ role: "assistant", content: [{ type: "text", text: "Checking Sonarr..." }, toolCall] },
+					toolResult,
+					{ role: "assistant", content: [{ type: "text", text: MARKER }] },
+				],
+			},
+		};
+	}
+
+	beforeEach(() => {
+		mockGenerateText.mockReset();
+		mockHistoryVal = [];
+		process.env.AI_PROVIDER = "google";
+		process.env.AI_MODEL_FAST = "fast-model";
+		process.env.AI_MODEL_CAPABLE = "capable-model";
+	});
+
+	it("keeps the marker out of the synthesis request and saves only what the user saw", async () => {
+		mockGenerateText.mockResolvedValueOnce(toolThenMarker());
+		mockGenerateText.mockResolvedValueOnce(reply("Sonarr is online."));
+
+		const result = await processUserMessage(55561, "is sonarr up?");
+
+		expect(mockGenerateText).toHaveBeenCalledTimes(2);
+		const synthesisMessages = requestAt(1).messages;
+		expect(JSON.stringify(synthesisMessages)).not.toContain(MARKER);
+		expect(synthesisMessages[synthesisMessages.length - 1]).toEqual(toolResult);
+
+		expect(result.text).toBe("Sonarr is online.");
+		const saved = JSON.stringify(mockHistoryVal);
+		expect(saved).not.toContain(MARKER);
+		expect(saved).not.toContain(noToolReply("en"));
+		expect(mockHistoryVal.map((message) => message.role)).toEqual([
+			"user",
+			"assistant",
+			"tool",
+			"assistant",
+		]);
+		expect(lastSavedText()).toBe("Sonarr is online.");
+	});
+
+	it("replaces a synthesis reply that is only the marker", async () => {
+		mockGenerateText.mockResolvedValueOnce(toolThenMarker());
+		mockGenerateText.mockResolvedValueOnce(reply(MARKER));
+
+		const result = await processUserMessage(55562, "is sonarr up?");
+
+		expect(result.text).toBe(noToolReply("en"));
+		expect(JSON.stringify(mockHistoryVal)).not.toContain(MARKER);
+		expect(lastSavedText()).toBe(noToolReply("en"));
+		expect(
+			mockHistoryVal.filter((message) => JSON.stringify(message).includes(noToolReply("en"))).length,
+		).toBe(1);
+	});
+});
+
 describe("status updates", () => {
 	beforeEach(() => {
 		mockGenerateText.mockReset();

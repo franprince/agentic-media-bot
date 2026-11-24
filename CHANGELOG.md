@@ -17,7 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Recommendation prompt test**: `tmdb.test.ts` asserted the prompt as it was before `4.47.0`.
 
 ### Notes
-- The other providers (`ollama`, Google) send exactly what they sent before: tool routing, the modular prompt and the history budget are unchanged. `AI_HISTORY_CHAR_BUDGET` does not apply to Claude.
+- For the other providers (`ollama`, Google), tool routing, the history budget and the prompt for a narrowed tool set are unchanged; the only difference is the dead-end fix above, which changes one rule of the prompt when every tool is offered. `AI_HISTORY_CHAR_BUDGET` does not apply to Claude.
+- The bot still widens the tool set once. If it widens to some groups and the model still asks for more, the user gets the "can't do that yet" message without every tool having been offered.
 - A conversation saved before this version has no activity time and counts as expired: with Claude, each user's first typed message after the update starts a new conversation.
 
 See `specs/2026-11-24-claude-context/`.

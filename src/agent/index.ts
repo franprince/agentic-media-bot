@@ -442,18 +442,6 @@ export async function processUserMessage(
 				...withTools(widenedTools),
 			} as any);
 		}
-		// Never show the internal marker to the user, and never save it: the
-		// model would read it back as its own answer on the next turn.
-		let noToolFallback = "";
-		if ((firstPass.text || "").includes(NEED_MORE_TOOLS_MARKER)) {
-			const cleaned = scrubMarker(firstPass.text || "");
-			noToolFallback = cleaned ? "" : noToolReply(statusLang);
-			firstPass.text = cleaned || noToolFallback;
-		}
-		const firstPassMessages = scrubMarkerFromMessages(
-			firstPass.response.messages,
-			noToolFallback,
-		);
 		if (firstPass.usage) {
 			console.log(
 				`📊 Tokens [FAST]: prompt ${firstPass.usage.promptTokens}, completion ${firstPass.usage.completionTokens}`,
@@ -484,11 +472,22 @@ export async function processUserMessage(
 				system: `${systemPromptFor(routing.groups)}\n\nSynthesize the final response. REMEMBER: Never use 'Poster:' text placeholders. If poster URLs are present in the tool results above, include them internally using the POSTER: <url> format at the very end of your message.`,
 				messages: [
 					...historyViewFor(routing),
-					...firstPass.response.messages,
+					...scrubMarkerFromMessages(firstPass.response.messages, ""),
 				],
 			});
 
 			response = synthesis;
+		}
+
+		// Never show the internal marker to the user, and never save it: the
+		// model would read it back as its own answer on the next turn. A reply
+		// that was nothing but the marker becomes a plain "not yet" message.
+		let replyText: string = response.text || "";
+		let noToolFallback = "";
+		if (replyText.includes(NEED_MORE_TOOLS_MARKER)) {
+			const cleaned = scrubMarker(replyText);
+			noToolFallback = cleaned ? "" : noToolReply(statusLang);
+			replyText = cleaned || noToolFallback;
 		}
 
 		if (response.toolResults.length > 0) {
@@ -507,14 +506,19 @@ export async function processUserMessage(
 
 		// Add the agent's full response (including tool interactions) to the history
 		if (response === firstPass) {
-			history.push(...firstPassMessages);
+			history.push(
+				...scrubMarkerFromMessages(firstPass.response.messages, noToolFallback),
+			);
 		} else {
 			// Include everything from first pass PLUS the final synthesis message
-			history.push(...firstPassMessages, ...response.response.messages);
+			history.push(
+				...scrubMarkerFromMessages(firstPass.response.messages, ""),
+				...scrubMarkerFromMessages(response.response.messages, noToolFallback),
+			);
 		}
 		saveHistory(userId, history);
 
-		let text = response.text || "I had trouble formulating a response.";
+		let text = replyText || "I had trouble formulating a response.";
 		let imageUrl: string | undefined;
 		let buttons: Array<{ text: string; data: string }> | undefined;
 

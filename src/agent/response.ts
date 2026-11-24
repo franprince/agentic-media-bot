@@ -222,7 +222,8 @@ export function scrubMarker(text: string): string {
 /**
  * Cleans the marker out of assistant text before it is saved, so the model
  * never reads it back as its own earlier answer. Text emptied by the cleaning
- * takes `fallback`, or is dropped when there is none. Returns new messages.
+ * is dropped, except in the last assistant message — the reply the user got —
+ * where it takes `fallback` when there is one. Returns new messages.
  */
 export function scrubMarkerFromMessages(
 	messages: CoreMessage[],
@@ -230,20 +231,22 @@ export function scrubMarkerFromMessages(
 ): CoreMessage[] {
 	const hasMarker = (text: unknown): text is string =>
 		typeof text === "string" && text.includes(NEED_MORE_TOOLS_MARKER);
+	const finalReply = messages.map((message) => message.role).lastIndexOf("assistant");
 	const scrubbed: CoreMessage[] = [];
-	for (const message of messages) {
+	messages.forEach((message, index) => {
 		if (message.role !== "assistant") {
 			scrubbed.push(message);
-			continue;
+			return;
 		}
+		const emptied = index === finalReply ? fallback : "";
 		if (typeof message.content === "string") {
 			if (!hasMarker(message.content)) {
 				scrubbed.push(message);
-				continue;
+				return;
 			}
-			const text = scrubMarker(message.content) || fallback;
+			const text = scrubMarker(message.content) || emptied;
 			if (text) scrubbed.push({ ...message, content: text });
-			continue;
+			return;
 		}
 		const parts: any[] = [];
 		for (const part of message.content as any[]) {
@@ -251,10 +254,10 @@ export function scrubMarkerFromMessages(
 				parts.push(part);
 				continue;
 			}
-			const text = scrubMarker(part.text) || fallback;
+			const text = scrubMarker(part.text) || emptied;
 			if (text) parts.push({ ...part, text });
 		}
 		if (parts.length > 0) scrubbed.push({ ...message, content: parts } as CoreMessage);
-	}
+	});
 	return scrubbed;
 }

@@ -296,6 +296,19 @@ describe("scrubMarkerFromMessages", () => {
 		expect(scrubMarkerFromMessages(messages, "fallback")).toEqual(messages);
 	});
 
+	test("gives the fallback to the final reply only, not to an earlier step", () => {
+		const messages: any[] = [
+			{ role: "assistant", content: [{ type: "text", text: "NEED_MORE_TOOLS" }, toolCall] },
+			toolResult,
+			{ role: "assistant", content: [{ type: "text", text: "NEED_MORE_TOOLS" }] },
+		];
+		expect(scrubMarkerFromMessages(messages, "No puedo.")).toEqual([
+			{ role: "assistant", content: [toolCall] },
+			toolResult,
+			{ role: "assistant", content: [{ type: "text", text: "No puedo." }] },
+		] as any);
+	});
+
 	test("drops an assistant message left with nothing when there is no fallback", () => {
 		const messages: any[] = [{ role: "assistant", content: "NEED_MORE_TOOLS" }];
 		expect(scrubMarkerFromMessages(messages, "")).toEqual([]);

@@ -127,6 +127,14 @@ These are fixes to the loop all providers share, not provider wiring.
   previous turns are always kept).
 - Another provider selected later: the column is still written, the reset and
   the fuller view do not apply.
+- Known limit, unchanged: the loop widens once. If the classifier adds some
+  groups and the model answers the marker again, the user gets the "I can't do
+  that yet" message although the remaining tools were never offered. A second
+  widening to every tool would close this; it costs one more request and is
+  not part of this change.
+- A provider with a separate synthesis model: when a tool ran and the first
+  model then wrote the marker, the marker is removed from what the synthesis
+  model reads, and only the synthesis reply is saved.
 
 ## Acceptance criteria
 

@@ -39,6 +39,8 @@ beforeAll(() => {
 		spyOn(database, "saveHistory").mockImplementation(
 			(_userId: number, history: any[]) => {
 				mockHistoryVal = history;
+				// Like the real one: every save refreshes the activity time.
+				mockUpdatedAt = Date.now();
 			},
 		),
 	);

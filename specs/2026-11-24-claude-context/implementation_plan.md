@@ -35,7 +35,8 @@ Failure modes the spec implies; each has a test in the task that owns the code.
    an in-memory database with the old schema.
 2. **The trim writes before the gap is checked.** `trimHistory` saves (and now
    stamps `updated_at`) when the history exceeds 20 messages — task 4, loop
-   test with 24 stored messages.
+   test with 24 stored messages. The mocked `saveHistory` refreshes the mocked
+   activity time, as the real one does; without that the test cannot fail.
 3. **The marker with punctuation or nothing else** (`NEED_MORE_TOOLS.`) must
    not leave "." as the reply — task 2.
 4. **The marker saved into history** and read back by the model next turn —
@@ -99,6 +100,10 @@ returning
   save `scrubMarkerFromMessages(...)` instead of the raw response messages.
 - An empty reply that never held the marker keeps `"I had trouble formulating a
   response."`.
+- Found in review: the same handling applies to the reply of the synthesis pass
+  (providers with a separate capable model). The synthesis request reads the
+  first-pass messages with the marker removed, and the fallback text is saved
+  only on the message the user actually received.
 
 **Tests (provider `google`, mocked `generateText`):**
 - Marker, then a classifier answer that adds nothing, then the marker again:
