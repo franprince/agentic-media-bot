@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.49.0] - 2026-11-24
+
+### Changed
+- **Every tool on every request with Claude**: With `AI_PROVIDER=anthropic` the model gets all 39 tools and the full prompt on every request, instead of the tool groups that keywords, the previous turn or a classifier request picked for the message. Routing was built for an 8,000-tokens-per-minute cap that Claude does not have, and it made requests fail or go unanswered: a synopsis request got only download and report tools, and some questions were answered from memory or with the wrong list. In an evaluation of 47 turns, every tool gave the expected first tool 47 times against 44 with routing, with no action taken unasked in either case.
+- **No classifier request and no "need more tools" retry on Claude**; the add tools also stay on a request for details (the confirmation step still prevents an unrequested add). The other providers keep routing unchanged.
+- **Prompt cache**: The user, the date and the conversation language moved out of the system prompt into a message after it, and the tools and fixed rules have their own cache breakpoint. In a live check, a second turn that switched from Spanish to English read 10,875 tokens from cache on its first request; before, most turns within five minutes of the previous one wrote the whole prompt again.
+
+### Notes
+- A request is now about 11,000 tokens before the conversation (it was 1,200–6,600 with routing). In the evaluation, which still used the old prompt layout, that cost about $0.002 per turn against $0.001; the new layout reads most of it from cache on later turns.
+- The number of model requests per turn did not drop in the evaluation (109 against 110): the classifier and retry requests went away, and on some turns the model checked a second source.
+- Not measured yet: cache use and latency over a day of real use.
+
 ## [4.48.4] - 2026-11-24
 
 ### Fixed

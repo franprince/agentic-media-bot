@@ -1,6 +1,6 @@
 # Claude all tools: every tool and the full prompt on every request
 
-Date: 2026-11-24 · Version: 4.49.0 (proposed) · Status: Approved 2026-11-24; Step 0 done, build not started
+Date: 2026-11-24 · Version: 4.49.0 · Status: Done — `4.49.0` (approved 2026-11-24)
 
 This is phase 2 of [`2026-11-24-claude-context`](../2026-11-24-claude-context/spec.md).
 
@@ -241,4 +241,5 @@ recommendation tool's own requests.
 ## Decisions
 
 1. Proposal and Step 0 approved on 2026-11-24 ("Approve, run eval").
-2. Open: approach A (Claude only) over B, and the go-ahead to build.
+2. Approach A (Claude only) and the build approved on 2026-11-24 ("Build, Claude only").
+3. Measured after the build: a second turn that switched language read 10,875 tokens from cache on its first request (criterion 4). Criterion 5 over a day of real use is still open.
