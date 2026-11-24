@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.49.1] - 2026-11-24
+
+### Fixed
+- **Recommendations can be classics, an era or a decade**: The recommendation search only understood years from 2000 on and kept at most the last six years of a range, so a request for classic comedies got 2024–2026 releases. It now reads older years, decades ("80s", "1990s", "años 70") and words such as "classic", "clásicas" or "viejas" (1930 to 25 years ago). A span of more than six years is one TMDB request over the whole span, sorted by rating, with at least 1,000 votes for movies and 300 for series. The tool result says which years were searched. In a live check, "classic comedy movies" gave 15 titles from 1930–2001, 13 of them not in the library.
+- **A button tap after a change of language gets a reply in that language**: The reply to a tap (and to a number, a "yes" or a bare title) took the language of the user's last four messages together, so three older Spanish messages outvoted an English request made just before the tap. It now takes the newest earlier message that shows a language.
+
+### Notes
+- Compared before and after on 304 phrasings with five kinds of history: only a history that switched from Spanish to English changed (114 checks, now English); histories in one language and the reverse switch gave the same answer.
+- "Sitcom" is not mapped to TMDB's comedy genre, so "classic sitcom series" returns top-rated series of every genre; "classic comedy series" works.
+
 ## [4.49.0] - 2026-11-24
 
 ### Changed
