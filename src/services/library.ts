@@ -153,6 +153,28 @@ export function findInLibrary(snapshot: LibrarySnapshot, query: LibraryQuery): L
 	};
 }
 
+/** The Sonarr or Radarr entry of a Plex item, which carries the title the user knows it by. */
+export function findPlexCounterpart(
+	snapshot: LibrarySnapshot,
+	kind: LibraryKind,
+	item: PlexMetadata,
+): Pick<LibraryMatch, "series" | "movie"> {
+	const ids = plexExternalIds(item);
+	const { series, movie } = findInLibrary(
+		{ ...snapshot, plex: [] },
+		{
+			kind,
+			imdbId: ids.imdb,
+			tmdbId: ids.tmdb,
+			tvdbId: ids.tvdb,
+			title: item.title,
+			originalTitle: item.originalTitle,
+			year: item.year,
+		},
+	);
+	return { series, movie };
+}
+
 /** "exact", "partial" (the query is a run of whole words in the title) or null. */
 function titleMatch(query: string, titles: Array<string | null | undefined>): "exact" | "partial" | null {
 	let partial = false;
@@ -208,7 +230,15 @@ export function searchLibraryTitles(snapshot: LibrarySnapshot, rawQuery: string)
 		if (seenPlex.has(entry.item.ratingKey)) continue;
 		const found = titleMatch(query, [entry.item.title, entry.item.originalTitle]);
 		if (!found) continue;
-		hits.push({ kind: entry.kind, knownAs: entry.item.title, exact: found === "exact", plex: entry.item });
+		const { series, movie } = findPlexCounterpart(snapshot, entry.kind, entry.item);
+		hits.push({
+			kind: entry.kind,
+			knownAs: (series ?? movie)?.title ?? entry.item.title,
+			exact: found === "exact",
+			plex: entry.item,
+			series,
+			movie,
+		});
 	}
 
 	return hits.sort((a, b) => Number(b.exact) - Number(a.exact));

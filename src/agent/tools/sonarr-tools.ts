@@ -1,7 +1,11 @@
 import { tool } from "ai";
 import { z } from "zod";
 import * as db from "../../services/database";
-import * as plex from "../../services/plex";
+import {
+	findInLibrary,
+	loadLibrary,
+	normalizeTitle,
+} from "../../services/library";
 import * as sonarr from "../../services/sonarr";
 import { withCache } from "./cache";
 import {
@@ -34,28 +38,23 @@ export const searchSeriesTool = tool({
 			),
 	}),
 	execute: async ({ term }: any) => {
-		const results = await sonarr.searchSeries(term);
-		const plexResults = await plex
-			.searchPlex(term)
-			.catch(() => ({ Metadata: [] }));
-		const plexMetadata = plexResults?.Metadata || [];
+		const [results, library] = await Promise.all([
+			sonarr.searchSeries(term),
+			loadLibrary(),
+		]);
 
 		return results.slice(0, 5).map((s) => {
-			const alreadyInPlex = plexMetadata.some((pm: any) => {
-				const imdbMatch = pm.guid?.match(/imdb:\/\/(tt\d+)/);
-				const tvdbMatch = pm.guid?.match(/tvdb:\/\/(\d+)/);
-				const pmImdbId = imdbMatch ? imdbMatch[1] : undefined;
-				const pmTvdbId = tvdbMatch ? tvdbMatch[1] : undefined;
-
-				if (s.imdbId && pmImdbId && s.imdbId === pmImdbId) return true;
-				if (s.tvdbId && pmTvdbId && String(s.tvdbId) === pmTvdbId) return true;
-
-				const titleMatch =
-					pm.title?.toLowerCase() === s.title?.toLowerCase() ||
-					pm.title?.toLowerCase() === s.originalTitle?.toLowerCase();
-				const yearMatch = pm.year && s.year && Math.abs(pm.year - s.year) <= 1;
-				return titleMatch && yearMatch;
+			const match = findInLibrary(library, {
+				kind: "show",
+				tvdbId: s.tvdbId,
+				tmdbId: s.tmdbId,
+				imdbId: s.imdbId,
+				title: s.title,
+				originalTitle: s.originalTitle,
+				year: s.year,
 			});
+			const statistics = match.series?.statistics;
+			const plexTitle = match.plex?.title;
 
 			return {
 				title: s.title,
@@ -72,7 +71,16 @@ export const searchSeriesTool = tool({
 				network: s.network,
 				monitored: s.monitored,
 				ratings: s.ratings,
-				alreadyInPlex,
+				alreadyInSonarr: Boolean(match.series) || (s.id ?? 0) > 0,
+				...(statistics
+					? {
+							episodesDownloaded: `${statistics.episodeFileCount} of ${statistics.episodeCount}`,
+						}
+					: {}),
+				alreadyInPlex: match.inPlex,
+				...(plexTitle && normalizeTitle(plexTitle) !== normalizeTitle(s.title)
+					? { plexTitle }
+					: {}),
 			};
 		}) as any;
 	},
