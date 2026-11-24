@@ -152,3 +152,23 @@ describe("a request with no clear sign of either language", () => {
 		expect(detectConversationLanguage("the lateness of the comedian algorithm", [])).toBe("en");
 	});
 });
+
+describe("the conversation language is the latest message that shows one", () => {
+	const spanishThenEnglish = ["qué películas nuevas hay", "dale, gracias", "mostrame las descargas", "recommend me an old comedy film"];
+	const englishThenSpanish = ["what movies came out this week", "thanks a lot", "show me the downloads", "recomendame una comedia vieja"];
+
+	test("a button tap", () => {
+		expect(detectConversationLanguage("pick_old_film", spanishThenEnglish)).toBe("en");
+		expect(detectConversationLanguage("pick_old_film", englishThenSpanish)).toBe("es");
+	});
+
+	test("a number or a bare title", () => {
+		expect(detectConversationLanguage("2", spanishThenEnglish)).toBe("en");
+		expect(detectConversationLanguage("2", englishThenSpanish)).toBe("es");
+		expect(detectConversationLanguage("Sunset Harbor 1984 completa", spanishThenEnglish)).toBe("en");
+	});
+
+	test("earlier button taps and unclear messages are skipped", () => {
+		expect(detectConversationLanguage("2", [...englishThenSpanish, "add_movie_confirm", "Sunset Harbor"])).toBe("es");
+	});
+});
