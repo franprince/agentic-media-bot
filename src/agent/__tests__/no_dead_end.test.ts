@@ -48,6 +48,11 @@ afterAll(() => {
 	}
 });
 
+/** Arguments of the n-th model request. */
+function requestAt(index: number): any {
+	return (mockGenerateText.mock.calls[index] as any[])[0];
+}
+
 function reply(text: string) {
 	return {
 		text,
@@ -85,8 +90,8 @@ describe("a request no tool covers", () => {
 		const result = await processUserMessage(55551, "is sonarr up?");
 
 		expect(mockGenerateText).toHaveBeenCalledTimes(3);
-		const narrowed = mockGenerateText.mock.calls[0][0];
-		const widened = mockGenerateText.mock.calls[2][0];
+		const narrowed = requestAt(0);
+		const widened = requestAt(2);
 		expect(narrowed.system).toContain(MARKER);
 		expect(Object.keys(widened.tools).length).toBeGreaterThan(30);
 		expect(widened.system).not.toContain(MARKER);

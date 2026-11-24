@@ -65,6 +65,11 @@ afterAll(() => {
 	}
 });
 
+/** Arguments of the n-th model request. */
+function requestAt(index: number): any {
+	return (mockGenerateText.mock.calls[index] as any[])[0];
+}
+
 function reply(text: string) {
 	return {
 		text,
@@ -120,7 +125,7 @@ describe("history view per provider", () => {
 
 		await processUserMessage(66661, "agregá la película Dune");
 
-		const sent = mockGenerateText.mock.calls[0][0].messages;
+		const sent = requestAt(0).messages;
 		expect(sent.length).toBe(9);
 		expect(sent[0]).toEqual({ role: "user", content: "buscá la película Ran" });
 		expect(sent[2].content[0].result[0].overview).toBe(SYNOPSIS);
@@ -133,7 +138,7 @@ describe("history view per provider", () => {
 
 		await processUserMessage(66662, "agregá la película Dune");
 
-		const sent = mockGenerateText.mock.calls[0][0].messages;
+		const sent = requestAt(0).messages;
 		expect(JSON.stringify(sent)).not.toContain("SYNOPSIS");
 		expect(JSON.stringify(sent)).not.toContain("posterUrl");
 		expect(sent[sent.length - 1]).toEqual({ role: "user", content: "agregá la película Dune" });
@@ -169,7 +174,7 @@ describe("session gap", () => {
 
 		expect(clearSpy).toHaveBeenCalledTimes(1);
 		expect(clearSpy.mock.calls[0][0]).toBe(77771);
-		expect(mockGenerateText.mock.calls[0][0].messages).toEqual([
+		expect(requestAt(0).messages).toEqual([
 			{ role: "user", content: NEW_MESSAGE },
 		]);
 		expect(routeSpy.mock.calls[0][1]).toEqual([]);
@@ -186,7 +191,7 @@ describe("session gap", () => {
 		await processUserMessage(77772, NEW_MESSAGE);
 
 		expect(clearSpy).toHaveBeenCalledTimes(1);
-		expect(mockGenerateText.mock.calls[0][0].messages.length).toBe(1);
+		expect(requestAt(0).messages.length).toBe(1);
 	});
 
 	it("has nothing to clear for a user with no stored conversation", async () => {
@@ -202,7 +207,7 @@ describe("session gap", () => {
 		await processUserMessage(77774, "add movie 1 4", undefined, { fromButton: true });
 
 		expect(clearSpy).not.toHaveBeenCalled();
-		const sent = mockGenerateText.mock.calls[0][0].messages;
+		const sent = requestAt(0).messages;
 		expect(sent[0]).toEqual({ role: "user", content: "buscá la película número 0" });
 		expect(sent[sent.length - 1]).toEqual({ role: "user", content: "add movie 1 4" });
 		expect(routeSpy.mock.calls[0][1].length).toBe(8);
@@ -215,7 +220,7 @@ describe("session gap", () => {
 		await processUserMessage(77775, NEW_MESSAGE);
 
 		expect(clearSpy).not.toHaveBeenCalled();
-		expect(mockGenerateText.mock.calls[0][0].messages.length).toBe(9);
+		expect(requestAt(0).messages.length).toBe(9);
 	});
 
 	it("never resets on the startup catch-up path, where the unanswered message is the conversation", async () => {
@@ -225,7 +230,7 @@ describe("session gap", () => {
 
 		expect(clearSpy).not.toHaveBeenCalled();
 		expect(timestampSpy).not.toHaveBeenCalled();
-		expect(mockGenerateText.mock.calls[0][0].messages.length).toBe(5);
+		expect(requestAt(0).messages.length).toBe(5);
 	});
 
 	it("leaves the other providers alone", async () => {
