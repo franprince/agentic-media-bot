@@ -14,6 +14,7 @@ import {
 } from "./intent";
 import { guardConfirmations } from "./confirmGuard";
 import {
+	CLAUDE_HISTORY_CHAR_BUDGET,
 	DEFAULT_HISTORY_CHAR_BUDGET,
 	prepareHistoryForModel,
 } from "./historyBudget";
@@ -27,6 +28,7 @@ import {
 	getCapableModelName,
 	getFastModel,
 	getFastModelName,
+	isAnthropicProvider,
 } from "./provider";
 import { executeOnProxy, isProxyEnabled } from "./proxyClient";
 import {
@@ -300,13 +302,22 @@ export async function processUserMessage(
 			decision.narrowed
 				? DEFAULT_HISTORY_CHAR_BUDGET
 				: Math.floor(DEFAULT_HISTORY_CHAR_BUDGET / 3);
+		// Claude has no tokens-per-minute cap: it gets the recent turns as they
+		// happened. The budgeted, compacted view is for the capped providers.
+		const sendsFullHistory = isAnthropicProvider();
+		const historyViewFor = (decision: RoutingDecision) =>
+			sendsFullHistory
+				? prepareHistoryForModel(history, CLAUDE_HISTORY_CHAR_BUDGET, {
+						compactOlderTurns: false,
+					})
+				: prepareHistoryForModel(history, historyBudgetFor(decision));
 		const withTools = (toolSet: Record<string, any>) =>
 			Object.keys(toolSet).length > 0 ? { tools: toolSet } : {};
 
 		const firstPassParams = {
 			model: modelFast as any,
 			system: systemPromptFor(routing.groups),
-			messages: prepareHistoryForModel(history, historyBudgetFor(routing)),
+			messages: historyViewFor(routing),
 			...withTools(finalTools),
 			onStepFinish: async (step: any) => {
 				const thought = step.text?.trim();
@@ -408,7 +419,7 @@ export async function processUserMessage(
 			firstPass = await generateText({
 				...paramsWithoutTools,
 				system: systemPromptFor(routing.groups),
-				messages: prepareHistoryForModel(history, historyBudgetFor(routing)),
+				messages: historyViewFor(routing),
 				...withTools(widenedTools),
 			} as any);
 		}
@@ -453,7 +464,7 @@ export async function processUserMessage(
 				model: modelCapable as any,
 				system: `${systemPromptFor(routing.groups)}\n\nSynthesize the final response. REMEMBER: Never use 'Poster:' text placeholders. If poster URLs are present in the tool results above, include them internally using the POSTER: <url> format at the very end of your message.`,
 				messages: [
-					...prepareHistoryForModel(history, historyBudgetFor(routing)),
+					...historyViewFor(routing),
 					...firstPass.response.messages,
 				],
 			});
