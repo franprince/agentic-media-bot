@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.48.2] - 2026-11-24
+
+### Fixed
+- **"Do I already have it?" is answered by id, not by title**: Plex lists many items under their original-language title, so a title search for the English name found nothing and the bot said the title was not in the library. Recommendations, the movie and series searches and the Plex title search now read the Plex sections and the Sonarr and Radarr listings and match by media type plus IMDb, TMDB or TVDB id. In the library this was tested on, an exact title comparison found 69 of 114 series and 299 of 468 movies in Plex; the id check finds 114 and 461. Plex does not list the other 7 movies under a matching id.
+- **A failed check is no longer reported as "not in your library"**: The recommendation check fell back to a Sonarr or Radarr metadata lookup, which depends on an outside service; when that service returned an error the suggestion was marked as not owned. The check no longer uses a lookup. When Plex, Sonarr or Radarr cannot be read, the answer is "could not be checked" and the bot is told to say so.
+- **The bot no longer offers to add a series or movie that is already there**: `searchSeries` and `searchMovie` now say whether Sonarr or Radarr already has the title (`alreadyInSonarr`, `alreadyInRadarr`), how many episodes are on disk, and the name Plex lists it under when it differs (`plexTitle`).
+- **The Plex title search finds items listed in another language**: `searchPlexByTitleOnly` adds the items whose Sonarr or Radarr title or alternate title matches the query and returns the Plex title together with that name (`alsoKnownAs`). When a title is in Sonarr or Radarr but not in Plex it says so, with the download state.
+
+### Changed
+- **No metadata lookup in the library checks**: The three listings are local and took about 0.2 seconds together in the test above; the Plex title search for a title listed in another language took 0.2 seconds. In the logged conversation the two tool calls that waited on lookups took 13 and 22 seconds; the first also includes the TMDB step, which is unchanged.
+
+### Notes
+- A title is found by another name only when Sonarr or Radarr has that name as its title, original title or alternate title; otherwise a metadata lookup resolves it, and if that lookup fails the reply says other-language titles could not be resolved.
+- Lists read straight from Plex (genre, country, duration, recently added) still show the Plex title.
+- Not verified with the live model: whether it words the new fields as intended. The tool results were checked against live Plex, Sonarr and Radarr.
+
 ## [4.48.1] - 2026-11-24
 
 ### Fixed

@@ -108,6 +108,12 @@ export async function getSystemStatus(): Promise<any> {
 /**
  * Get movies that are monitored but missing files.
  */
+/** Every movie Radarr manages, read from its own database (no metadata lookup). */
+export async function getAllMovies(): Promise<RadarrMovie[]> {
+	if (isProxyEnabled()) return executeOnProxy("radarr", "getAllMovies");
+	return fetchRadarr<RadarrMovie[]>("/movie");
+}
+
 export async function getMissingMovies(): Promise<RadarrMovie[]> {
 	if (isProxyEnabled()) return executeOnProxy("radarr", "getMissingMovies");
 	const movies = await fetchRadarr<RadarrMovie[]>("/movie");

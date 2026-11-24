@@ -60,19 +60,47 @@ describe("P1 formatting helpers", () => {
 	});
 });
 
+/** The library as Plex, Sonarr and Radarr list it; the tools read these, not a title search. */
+function mockLibraryListings() {
+	const listings = { plex: [] as any[], series: [] as any[], movies: [] as any[] };
+	const savedEnv = {
+		movie: process.env.PLEX_MOVIE_SECTION_IDS,
+		show: process.env.PLEX_SHOW_SECTION_IDS,
+	};
+	process.env.PLEX_MOVIE_SECTION_IDS = "1";
+	process.env.PLEX_SHOW_SECTION_IDS = "2";
+	const spies = [
+		spyOn(plex, "getLibraryItems").mockImplementation(async (_id: string, kind: any) =>
+			listings.plex.filter((item) => item.type === kind),
+		),
+		spyOn(sonarr, "getAllSeries").mockImplementation(async () => listings.series),
+		spyOn(radarr, "getAllMovies").mockImplementation(async () => listings.movies),
+	];
+	return {
+		listings,
+		restore() {
+			for (const spy of spies) spy.mockRestore();
+			if (savedEnv.movie === undefined) delete process.env.PLEX_MOVIE_SECTION_IDS;
+			else process.env.PLEX_MOVIE_SECTION_IDS = savedEnv.movie;
+			if (savedEnv.show === undefined) delete process.env.PLEX_SHOW_SECTION_IDS;
+			else process.env.PLEX_SHOW_SECTION_IDS = savedEnv.show;
+		},
+	};
+}
+
 describe("Plex Search Cross-Check Enrichment", () => {
-	let searchPlexSpy: any;
+	let library: ReturnType<typeof mockLibraryListings>;
 	let searchMovieSpy: any;
 	let searchSeriesSpy: any;
 
 	beforeAll(() => {
-		searchPlexSpy = spyOn(plex, "searchPlex");
+		library = mockLibraryListings();
 		searchMovieSpy = spyOn(radarr, "searchMovie");
 		searchSeriesSpy = spyOn(sonarr, "searchSeries");
 	});
 
 	afterAll(() => {
-		searchPlexSpy.mockRestore();
+		library.restore();
 		searchMovieSpy.mockRestore();
 		searchSeriesSpy.mockRestore();
 	});
@@ -92,17 +120,17 @@ describe("Plex Search Cross-Check Enrichment", () => {
 			},
 		]);
 
-		// Mock Plex search to return Deadpool with matching IMDb ID
-		searchPlexSpy.mockImplementation(async () => ({
-			Metadata: [
-				{
-					title: "Deadpool",
-					year: 2016,
-					guid: "imdb://tt1431045",
-					thumb: "poster.jpg",
-				},
-			],
-		}));
+		// Plex lists Deadpool with a matching IMDb ID
+		library.listings.plex = [
+			{
+				ratingKey: "1",
+				type: "movie",
+				title: "Deadpool",
+				year: 2016,
+				guid: "imdb://tt1431045",
+				thumb: "poster.jpg",
+			},
+		];
 
 		const results = await searchMovieTool.execute!(
 			{ term: "Deadpool" },
@@ -127,17 +155,17 @@ describe("Plex Search Cross-Check Enrichment", () => {
 			},
 		]);
 
-		// Mock Plex search to return The Boys with matching TVDB ID
-		searchPlexSpy.mockImplementation(async () => ({
-			Metadata: [
-				{
-					title: "The Boys",
-					year: 2019,
-					guid: "tvdb://355567",
-					thumb: "poster.jpg",
-				},
-			],
-		}));
+		// Plex lists The Boys with a matching TVDB ID
+		library.listings.plex = [
+			{
+				ratingKey: "2",
+				type: "show",
+				title: "The Boys",
+				year: 2019,
+				guid: "tvdb://355567",
+				thumb: "poster.jpg",
+			},
+		];
 
 		const results = await searchSeriesTool.execute!(
 			{ term: "The Boys" },
@@ -179,22 +207,16 @@ describe("Timezone-aware formatEventTimestamp", () => {
 });
 
 describe("Plex/Radarr/Sonarr Recommendation Cross-Check Enrichment", () => {
-	let searchPlexSpy: any;
-	let searchMovieSpy: any;
-	let searchSeriesSpy: any;
+	let library: ReturnType<typeof mockLibraryListings>;
 	let discoverMediaSpy: any;
 
 	beforeAll(() => {
-		searchPlexSpy = spyOn(plex, "searchPlex");
-		searchMovieSpy = spyOn(radarr, "searchMovie");
-		searchSeriesSpy = spyOn(sonarr, "searchSeries");
+		library = mockLibraryListings();
 		discoverMediaSpy = spyOn(tmdb, "discoverMedia");
 	});
 
 	afterAll(() => {
-		searchPlexSpy.mockRestore();
-		searchMovieSpy.mockRestore();
-		searchSeriesSpy.mockRestore();
+		library.restore();
 		discoverMediaSpy.mockRestore();
 	});
 
@@ -233,37 +255,25 @@ describe("Plex/Radarr/Sonarr Recommendation Cross-Check Enrichment", () => {
 			},
 		]);
 
-		// Mock Plex search: The Bear is in Plex, Fallout is not in Plex but in Sonarr, Shōgun is not in Plex or Sonarr
-		searchPlexSpy.mockImplementation(async (title: string) => {
-			if (title === "The Bear") {
-				return {
-					Metadata: [
-						{
-							title: "The Bear",
-							year: 2022,
-							guid: "tvdb://413380",
-						},
-					],
-				};
-			}
-			return { Metadata: [] };
-		});
-
-		// Mock Sonarr lookup: Fallout is in Sonarr (already added/monitored with id > 0)
-		searchSeriesSpy.mockImplementation(async (title: string) => {
-			if (title === "Fallout") {
-				return [
-					{
-						title: "Fallout",
-						year: 2024,
-						id: 42,
-						tvdbId: 418380,
-						monitored: true,
-					},
-				];
-			}
-			return [];
-		});
+		// The Bear is in Plex, Fallout is not in Plex but in Sonarr, Shōgun is in neither
+		library.listings.plex = [
+			{
+				ratingKey: "3",
+				type: "show",
+				title: "The Bear",
+				year: 2022,
+				guid: "tvdb://413380",
+			},
+		];
+		library.listings.series = [
+			{
+				title: "Fallout",
+				year: 2024,
+				id: 42,
+				tvdbId: 418380,
+				monitored: true,
+			},
+		];
 
 		const { discoverMediaTool } = require("../tools");
 		const results = await discoverMediaTool.execute!({ query: "best series" }, {} as any);

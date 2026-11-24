@@ -128,6 +128,12 @@ export async function getSystemStatus(): Promise<any> {
 	return fetchSonarr<any>("/system/status");
 }
 
+/** Every series Sonarr manages, read from its own database (no metadata lookup). */
+export async function getAllSeries(): Promise<SonarrSeries[]> {
+	if (isProxyEnabled()) return executeOnProxy("sonarr", "getAllSeries");
+	return fetchSonarr<SonarrSeries[]>("/series");
+}
+
 export async function getMissingSeries(): Promise<SonarrSeries[]> {
 	if (isProxyEnabled()) return executeOnProxy("sonarr", "getMissingSeries");
 	const series = await fetchSonarr<SonarrSeries[]>("/series");

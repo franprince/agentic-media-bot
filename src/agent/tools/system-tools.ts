@@ -1,9 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { findInLibrary, loadLibrary } from "../../services/library";
 import * as mediaToolsClient from "../../services/media-tools-client";
-import * as plex from "../../services/plex";
-import * as radarr from "../../services/radarr";
-import * as sonarr from "../../services/sonarr";
 import { formatBytes } from "./formatters";
 
 export const checkServiceHealthTool = tool({
@@ -63,74 +61,37 @@ export const discoverMediaTool = tool({
 				};
 			}
 
-			const suggestions = await Promise.all(
-				results.map(async (r) => {
-					let alreadyInLibrary = false;
-					try {
-						// 1. Check Plex
-						const plexResults = await plex.searchPlex(r.title).catch(() => ({ Metadata: [] }));
-						const plexMetadata = plexResults?.Metadata || [];
-						const alreadyInPlex = plexMetadata.some((pm: any) => {
-							const titleMatch =
-								pm.title?.toLowerCase() === r.title?.toLowerCase();
-							const yearMatch = pm.year && r.year && Math.abs(pm.year - r.year) <= 1;
-							return titleMatch && yearMatch;
-						});
-
-						if (alreadyInPlex) {
-							alreadyInLibrary = true;
-						} else {
-							// 2. Check Radarr/Sonarr (if not already found in Plex)
-							if (r.mediaType === "movie") {
-								const radarrResults = await radarr.searchMovie(r.title).catch(() => []);
-								const alreadyInRadarr = radarrResults.some((rm: any) => {
-									const titleMatch =
-										rm.title?.toLowerCase() === r.title?.toLowerCase() ||
-										rm.originalTitle?.toLowerCase() === r.title?.toLowerCase();
-									const yearMatch =
-										rm.year && r.year && Math.abs(rm.year - r.year) <= 1;
-									return titleMatch && yearMatch && rm.id !== undefined && rm.id > 0;
-								});
-								alreadyInLibrary = alreadyInRadarr;
-							} else if (r.mediaType === "tv") {
-								const sonarrResults = await sonarr.searchSeries(r.title).catch(() => []);
-								const alreadyInSonarr = sonarrResults.some((sm: any) => {
-									const titleMatch =
-										sm.title?.toLowerCase() === r.title?.toLowerCase() ||
-										sm.originalTitle?.toLowerCase() === r.title?.toLowerCase();
-									const yearMatch =
-										sm.year && r.year && Math.abs(sm.year - r.year) <= 1;
-									return titleMatch && yearMatch && sm.id !== undefined && sm.id > 0;
-								});
-								alreadyInLibrary = alreadyInSonarr;
-							}
-						}
-					} catch (e) {
-						// Ignore errors
-					}
-
-					return {
-						title: r.title,
-						year: r.year,
-						type: r.mediaType,
-						rating: r.rating,
-						voteCount: r.voteCount,
-						genres: r.genres,
-						overview:
-							r.overview.slice(0, 200) + (r.overview.length > 200 ? "…" : ""),
-						posterUrl: r.posterPath
-							? `https://image.tmdb.org/t/p/w500${r.posterPath}`
-							: null,
-						warning: r.warning ?? null,
-						alreadyInLibrary,
-					};
-				})
-			);
+			const library = await loadLibrary();
+			const suggestions = results.map((r) => ({
+				title: r.title,
+				year: r.year,
+				type: r.mediaType,
+				rating: r.rating,
+				voteCount: r.voteCount,
+				genres: r.genres,
+				overview:
+					r.overview.slice(0, 200) + (r.overview.length > 200 ? "…" : ""),
+				posterUrl: r.posterPath
+					? `https://image.tmdb.org/t/p/w500${r.posterPath}`
+					: null,
+				warning: r.warning ?? null,
+				alreadyInLibrary: findInLibrary(library, {
+					kind: r.mediaType === "movie" ? "movie" : "show",
+					tmdbId: r.id,
+					title: r.title,
+					year: r.year,
+				}).inLibrary,
+			}));
+			const unchecked = suggestions.some((s) => s.alreadyInLibrary === null);
 
 			return {
 				message: `Found ${results.length} results from TMDB for '${query}'.`,
 				suggestions,
-				note: "Use 'searchMovie' or 'searchSeries' with the exact title to check availability or add to the download queue.",
+				note:
+					"Use 'searchMovie' or 'searchSeries' with the exact title to check availability or add to the download queue." +
+					(unchecked
+						? " 'alreadyInLibrary: null' means the library could not be checked for that title right now: do not say whether the user has it."
+						: ""),
 			};
 		} catch (err: any) {
 			console.error("discoverMediaTool TMDB error:", err?.message ?? err);

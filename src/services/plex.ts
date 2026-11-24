@@ -1,6 +1,7 @@
 import { executeOnProxy, isProxyEnabled } from "../agent/proxyClient";
 import type {
 	PlexContainer,
+	PlexMetadata,
 	PlexSearchResult,
 	PlexSession,
 } from "../types/plex";
@@ -245,9 +246,22 @@ async function fetchPlex<T>(endpoint: string, options: any = {}): Promise<T> {
 export async function searchPlex(query: string): Promise<PlexSearchResult> {
 	if (isProxyEnabled()) return executeOnProxy("plex", "searchPlex", [query]);
 	const result = await fetchPlex<{ MediaContainer: PlexSearchResult }>(
-		`/search?query=${encodeURIComponent(query)}`,
+		`/search?query=${encodeURIComponent(query)}&includeGuids=1`,
 	);
 	return result.MediaContainer;
+}
+
+/** Every movie or show of one library section, with its external ids. */
+export async function getLibraryItems(
+	sectionId: string,
+	kind: "movie" | "show",
+): Promise<PlexMetadata[]> {
+	if (isProxyEnabled())
+		return executeOnProxy("plex", "getLibraryItems", [sectionId, kind]);
+	const result = await fetchPlex<{ MediaContainer: PlexContainer }>(
+		`/library/sections/${encodeURIComponent(sectionId)}/all?type=${kind === "movie" ? 1 : 2}&includeGuids=1`,
+	);
+	return result.MediaContainer.Metadata ?? [];
 }
 
 export async function getRecentlyAdded(): Promise<PlexContainer> {

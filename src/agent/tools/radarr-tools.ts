@@ -1,7 +1,11 @@
 import { tool } from "ai";
 import { z } from "zod";
 import * as db from "../../services/database";
-import * as plex from "../../services/plex";
+import {
+	findInLibrary,
+	loadLibrary,
+	normalizeTitle,
+} from "../../services/library";
 import * as radarr from "../../services/radarr";
 import { withCache } from "./cache";
 import {
@@ -57,31 +61,22 @@ export const searchMovieTool = tool({
 		}
 
 		try {
-			const results = await radarr.searchMovie(normalizedTerm);
-			const plexResults = await plex
-				.searchPlex(normalizedTerm)
-				.catch(() => ({ Metadata: [] }));
-			const plexMetadata = plexResults?.Metadata || [];
+			const [results, library] = await Promise.all([
+				radarr.searchMovie(normalizedTerm),
+				loadLibrary(),
+			]);
 
 			// Limit results to avoid massive context payloads
 			return results.slice(0, 5).map((m) => {
-				const alreadyInPlex = plexMetadata.some((pm: any) => {
-					const imdbMatch = pm.guid?.match(/imdb:\/\/(tt\d+)/);
-					const tmdbMatch = pm.guid?.match(/tmdb:\/\/(\d+)/);
-					const pmImdbId = imdbMatch ? imdbMatch[1] : undefined;
-					const pmTmdbId = tmdbMatch ? tmdbMatch[1] : undefined;
-
-					if (m.imdbId && pmImdbId && m.imdbId === pmImdbId) return true;
-					if (m.tmdbId && pmTmdbId && String(m.tmdbId) === pmTmdbId)
-						return true;
-
-					const titleMatch =
-						pm.title?.toLowerCase() === m.title?.toLowerCase() ||
-						pm.title?.toLowerCase() === m.originalTitle?.toLowerCase();
-					const yearMatch =
-						pm.year && m.year && Math.abs(pm.year - m.year) <= 1;
-					return titleMatch && yearMatch;
+				const match = findInLibrary(library, {
+					kind: "movie",
+					tmdbId: m.tmdbId,
+					imdbId: m.imdbId,
+					title: m.title,
+					originalTitle: m.originalTitle,
+					year: m.year,
 				});
+				const plexTitle = match.plex?.title;
 
 				return {
 					title: m.title,
@@ -95,10 +90,14 @@ export const searchMovieTool = tool({
 					posterUrl:
 						m.images?.find((i) => i.coverType === "poster")?.remoteUrl ||
 						m.images?.find((i) => i.coverType === "poster")?.url,
-					hasFile: m.hasFile,
+					alreadyInRadarr: Boolean(match.movie) || (m.id ?? 0) > 0,
+					hasFile: match.movie?.hasFile ?? m.hasFile,
 					monitored: m.monitored,
 					ratings: m.ratings,
-					alreadyInPlex,
+					alreadyInPlex: match.inPlex,
+					...(plexTitle && normalizeTitle(plexTitle) !== normalizeTitle(m.title)
+						? { plexTitle }
+						: {}),
 				};
 			}) as any;
 		} catch (_error: any) {

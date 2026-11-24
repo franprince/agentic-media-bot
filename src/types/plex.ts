@@ -2,6 +2,8 @@ export interface PlexMetadata {
 	ratingKey: string;
 	key: string;
 	guid: string;
+	/** External ids ("tmdb://123"), sent by the current agents when includeGuids=1. */
+	Guid?: Array<{ id: string }>;
 	type: string; // "movie", "show", "episode"
 	title: string;
 	summary: string;

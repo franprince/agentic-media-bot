@@ -1,5 +1,14 @@
 import { tool } from "ai";
 import { z } from "zod";
+import {
+	findInLibrary,
+	findPlexCounterpart,
+	type LibraryQuery,
+	loadLibrary,
+	normalizeTitle,
+	plexExternalIds,
+	searchLibraryTitles,
+} from "../../services/library";
 import * as plex from "../../services/plex";
 import * as radarr from "../../services/radarr";
 import * as sonarr from "../../services/sonarr";
@@ -45,73 +54,121 @@ export const searchPlexByTitleOnlyTool = tool({
 			stripDiacritics(normalizedQuery),
 		]);
 
-		const allResults: any[] = [];
-
-		const runPlexSearch = async (q: string) => {
+		const libraryPromise = loadLibrary();
+		const titleSearchHits: any[] = [];
+		for (const q of attemptQueries) {
 			const result = await plex.searchPlex(q);
 			if (result.Metadata && result.Metadata.length > 0) {
-				allResults.push(...result.Metadata);
-			}
-		};
-
-		for (const q of attemptQueries) {
-			await runPlexSearch(q);
-		}
-
-		// Multilingual fallback: resolve candidate canonical titles via Radarr/Sonarr (TMDB/TVDB),
-		// then retry Plex searches with English + original titles.
-		if (allResults.length === 0) {
-			const fallbackQueries: string[] = [];
-
-			try {
-				const radarrMatches = await radarr.searchMovie(normalizedQuery);
-				for (const match of radarrMatches.slice(0, 3)) {
-					fallbackQueries.push(match.title);
-					if (match.originalTitle) fallbackQueries.push(match.originalTitle);
-				}
-			} catch {
-				// Best-effort only.
-			}
-
-			try {
-				const sonarrMatches = await sonarr.searchSeries(normalizedQuery);
-				for (const match of sonarrMatches.slice(0, 3)) {
-					fallbackQueries.push(match.title);
-					if (match.originalTitle) fallbackQueries.push(match.originalTitle);
-				}
-			} catch {
-				// Best-effort only.
-			}
-
-			const uniqueFallbackQueries = uniqueNonEmptyStrings([
-				...fallbackQueries,
-				...fallbackQueries.map((q) => stripDiacritics(q)),
-			]);
-
-			for (const q of uniqueFallbackQueries) {
-				await runPlexSearch(q);
+				titleSearchHits.push(...result.Metadata);
 			}
 		}
+		const library = await libraryPromise;
 
-		const uniqueResults = deduplicatePlexItems(allResults);
+		// Plex lists many items under their original-language title, which its
+		// title search cannot reach from the name the user knows. The library
+		// listings are matched by every name Sonarr and Radarr have for an item.
+		const libraryHits = searchLibraryTitles(library, normalizedQuery);
+
+		// Still nothing: the query may be a translated title. Resolve it to ids
+		// through Radarr/Sonarr (TMDB/TVDB) and look those ids up in the library.
+		let lookupFailed = false;
+		if (titleSearchHits.length === 0 && libraryHits.length === 0) {
+			const candidates: LibraryQuery[] = [];
+			try {
+				for (const m of (await radarr.searchMovie(normalizedQuery)).slice(0, 3)) {
+					candidates.push({ kind: "movie", ...m });
+				}
+			} catch {
+				lookupFailed = true;
+			}
+			try {
+				for (const s of (await sonarr.searchSeries(normalizedQuery)).slice(0, 3)) {
+					candidates.push({ kind: "show", ...s });
+				}
+			} catch {
+				lookupFailed = true;
+			}
+			for (const candidate of candidates) {
+				const match = findInLibrary(library, candidate);
+				if (!match.plex && !match.series && !match.movie) continue;
+				libraryHits.push({
+					kind: candidate.kind,
+					knownAs: (match.series ?? match.movie)?.title ?? candidate.title ?? "",
+					exact: false,
+					plex: match.plex,
+					series: match.series,
+					movie: match.movie,
+				});
+			}
+		}
+
+		const wanted = normalizeTitle(normalizedQuery);
+		const found: Array<{ item: any; knownAs?: string; exact: boolean }> = [
+			...libraryHits
+				.filter((hit) => hit.plex)
+				.map((hit) => ({ item: hit.plex, knownAs: hit.knownAs, exact: hit.exact })),
+			...titleSearchHits.map((item) => {
+				const kind = item.type === "movie" ? "movie" : item.type === "show" ? "show" : undefined;
+				const counterpart = kind ? findPlexCounterpart(library, kind, item) : {};
+				return {
+					item,
+					knownAs: (counterpart.series ?? counterpart.movie)?.title,
+					exact: normalizeTitle(item.title) === wanted,
+				};
+			}),
+		];
+		const knownAsByKey = new Map<string, string>();
+		for (const entry of found) {
+			if (entry.knownAs && entry.item.ratingKey && !knownAsByKey.has(entry.item.ratingKey)) {
+				knownAsByKey.set(entry.item.ratingKey, entry.knownAs);
+			}
+		}
+		const uniqueResults = deduplicatePlexItems(
+			[...found.filter((entry) => entry.exact), ...found.filter((entry) => !entry.exact)].map(
+				(entry) => entry.item,
+			),
+		);
+
 		if (uniqueResults.length === 0) {
+			const elsewhere = uniqueNonEmptyStrings(
+				libraryHits.map((hit) =>
+					hit.series
+						? `Sonarr has '${hit.series.title}' (${hit.series.year}) with ${hit.series.statistics?.episodeFileCount ?? 0} of ${hit.series.statistics?.episodeCount ?? 0} episodes downloaded.`
+						: hit.movie
+							? `Radarr has '${hit.movie.title}' (${hit.movie.year}), ${hit.movie.hasFile ? "with its file downloaded" : "not downloaded yet"}.`
+							: undefined,
+				),
+			).join(" ");
+
+			if (library.plex === null) {
+				return {
+					message: `The Plex library could not be checked for '${normalizedQuery}' right now. Do not tell the user the title is missing: say the check failed and offer to try again.${elsewhere ? ` ${elsewhere}` : ""}`,
+				} as any;
+			}
+			if (elsewhere) {
+				return {
+					message: `'${normalizedQuery}' is not in Plex. ${elsewhere}`,
+				} as any;
+			}
 			return {
-				message: `No results found in Plex library for '${normalizedQuery}'.`,
+				message: `No results found in Plex library for '${normalizedQuery}'.${lookupFailed ? " Titles in other languages could not be resolved right now, so it may be listed under another name." : ""}`,
 			} as any;
 		}
 
 		const items = uniqueResults.slice(0, 5);
 		return (await Promise.all(
 			items.map(async (m) => {
-				// Extract IDs from GUID if possible (e.g. com.plexapp.agents.imdb://tt12345)
-				const imdbMatch = m.guid?.match(/imdb:\/\/(tt\d+)/);
-				const tmdbMatch = m.guid?.match(/tmdb:\/\/(\d+)/);
+				const ids = plexExternalIds(m);
+				const knownAs = knownAsByKey.get(m.ratingKey);
 				const countries = m.ratingKey
 					? await plex.getItemCountryTags(String(m.ratingKey))
 					: [];
 
 				return {
 					title: m.title,
+					...(knownAs && normalizeTitle(knownAs) !== normalizeTitle(m.title)
+						? { alsoKnownAs: knownAs }
+						: {}),
 					type: m.type,
 					mediaType:
 						m.type === "movie"
@@ -121,8 +178,9 @@ export const searchPlexByTitleOnlyTool = tool({
 								: `[${m.type}]`,
 					year: m.year,
 					overview: m.summary,
-					imdbId: imdbMatch ? imdbMatch[1] : undefined,
-					tmdbId: tmdbMatch ? tmdbMatch[1] : undefined,
+					imdbId: ids.imdb,
+					tmdbId: ids.tmdb,
+					tvdbId: ids.tvdb,
 					originalTitle: m.originalTitle,
 					countries,
 					primaryCountry: countries[0],

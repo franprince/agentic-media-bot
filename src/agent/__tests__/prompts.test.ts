@@ -45,6 +45,15 @@ describe("buildSystemPromptTemplate", () => {
 		expect(buildSystemPromptTemplate(["series"])).toContain("getUnwatchedEpisodes");
 	});
 
+	it("tells the model how to read the library checks wherever their tools are offered", () => {
+		for (const group of ["movies", "series"] as any[]) {
+			expect(buildSystemPromptTemplate([group])).toContain("'alreadyInPlex' true means the user already has it");
+		}
+		expect(buildSystemPromptTemplate(["discovery"])).toContain("null means the check failed");
+		expect(buildSystemPromptTemplate(["library"])).toContain("'alsoKnownAs'");
+		expect(buildSystemPromptTemplate(["downloads"])).not.toContain("alreadyInPlex");
+	});
+
 	it("lists capabilities for small talk and for the full prompt only", () => {
 		expect(buildSystemPromptTemplate([])).toContain("CAPABILITIES");
 		expect(DEFAULT_SYSTEM_PROMPT).toContain("CAPABILITIES");
