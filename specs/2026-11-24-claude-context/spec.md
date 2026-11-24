@@ -1,6 +1,6 @@
 # Claude context: fuller history, session gap, no dead ends
 
-Date: 2026-11-24 · Status: Draft
+Date: 2026-11-24 · Status: Approved (2026-11-24)
 
 ## Problem
 
@@ -81,6 +81,10 @@ These are fixes to the loop all providers share, not provider wiring.
   request, say so plainly in the user's language and say what you can do.
 - If the reply is still empty once the marker is removed, the user gets a
   localised "I can't do that yet" message (es/en) instead of the generic error.
+  An empty reply that never held the marker keeps today's generic text.
+- The stored conversation holds what the user saw: the marker is removed from
+  the saved assistant message, and the localised message is saved when it was
+  sent. Otherwise the model would read its own marker back on the next turn.
 
 ### 3. History view for Claude
 
@@ -88,7 +92,11 @@ These are fixes to the loop all providers share, not provider wiring.
 
 - **Claude:** whole turns, newest first, **not compacted**, up to 60,000
   characters (about 17,000 tokens). The latest turn and the one before it are
-  always kept.
+  always kept. `AI_HISTORY_CHAR_BUDGET` does not apply to Claude, like the
+  `AI_MODEL*` variables.
+- The stored history is still trimmed to its last 20 messages on each new
+  message, so in practice Claude sees about five tool turns; the 60,000
+  characters are a ceiling for unusually large tool results.
 - **Other providers:** exactly today's behaviour (compaction, 4,000 characters,
   a third of that when routing did not narrow).
 
@@ -128,7 +136,9 @@ All checked by tests that make no API call.
    Claude view keeps the earlier turn and the `overview` / `posterUrl` of the
    previous search result; the default view is byte-identical to today's.
 2. Existing `history_budget`, `tool_router`, `prompts` and `step0_narrowing`
-   tests pass unchanged for the default profile.
+   tests pass unchanged for the default profile, with one exception: the
+   `prompts` assertion that the full prompt contains the marker rule, which
+   criterion 4 reverses.
 3. With Claude, a typed message after a 12-hour gap sees an empty prior
    history in the view, in routing and in the guard; a tap after the same gap
    keeps it; with another provider nothing is cleared.
@@ -148,4 +158,5 @@ includes a multi-turn case shaped like the failing conversation.
 
 ## Spec refinement
 
-pending
+declined (2026-11-24: "Continue to planning", which also approved the spec and
+authorised the plan and the build)
