@@ -80,6 +80,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
 7. **Personalization**
    - **Name Saving**: User can say "Call me Fran," and the bot will persist this in its database and greet the user by name.
    - **Context Management**: Conversation history is bounded and automatically trimmed to the last 20 messages. This prevents "sticky" context where the bot confuses current requests with old, unrelated topics.
+   - **Every Tool on Every Request (Claude)**: With the Claude provider the model always has every tool, so a request is never answered with the wrong tools, from memory instead of a lookup, or with an error because the tool it needed was left out. The other providers still get only the tools a message seems to need, because of their per-minute token caps.
    - **Recent Conversation as It Happened (Claude)**: With the Claude provider the bot reads the recent turns in full, including the synopsis and details it already gave, so it does not contradict an earlier answer. The other providers read a shorter, compacted view to fit their token limits.
    - **New Conversation After a Long Silence (Claude)**: With the Claude provider, a typed message (or voice note) sent more than 12 hours after the last activity starts a new conversation; the bot does not assume it is about a title discussed earlier. Tapping a button always continues the conversation that button belongs to, whatever its age.
    - **Requests the Bot Cannot Do**: When no tool covers a request (for example changing the quality of a movie already in the library), the bot says so plainly in the user's language and says what it can do. Internal markers and generic error texts are never shown for this case.
@@ -88,7 +89,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
 8. **Dynamic Status Feedback**
    - **Thinking Protocol**: While processing tools, the bot provides real-time status updates in the user's language with warm, specific phrasing (e.g., "Buscando películas en Plex..." instead of generic "Working on...").
    - **Localized Transition Banner**: Initial transition messages (such as "Thinking..." and restart catch-up notices) are shown in the same language as the user's message.
-   - **Accent-Resilient Language Detection**: Spanish should be detected correctly even when users omit accents (e.g., "peliculas" vs "películas"). English words that merely contain a Spanish word ("timestamps", "western", "restoration") do not count as Spanish.
+   - **Accent-Resilient Language Detection**: Spanish should be detected correctly even when users omit accents (e.g., "peliculas" vs "películas"). English words that merely contain a Spanish word ("timestamps", "western", "restoration") do not count as Spanish. A message with no clear sign of either language (a title, a number) is answered in the language of the conversation, including the first message after a 12-hour reset.
    - **Final Reply Language Guard**: Final answer text is forced to match the detected user language (Spanish/English) before sending. In an English conversation, a reply that is clearly English prose is sent as it is even when it names an accented or Spanish title ("Amélie", "El Camino").
 
 9. **Update Notifications & Changelogs**

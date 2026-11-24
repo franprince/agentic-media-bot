@@ -300,6 +300,8 @@ function toolResultContent(result: unknown): string {
 
 export interface ConvertedPrompt {
 	system: string | undefined;
+	/** The system messages in order; `system` is them joined. */
+	systemParts: string[];
 	messages: BetaMessageParam[];
 }
 
@@ -390,6 +392,7 @@ export function convertPrompt(prompt: LanguageModelV1Prompt): ConvertedPrompt {
 
 	return {
 		system: systemParts.length > 0 ? systemParts.join("\n\n") : undefined,
+		systemParts,
 		messages: repairMessages(raw),
 	};
 }
@@ -568,8 +571,13 @@ export class AnthropicChatModel implements LanguageModelV1 {
 			}
 		}
 
-		const { system: promptSystem, messages: converted } = convertPrompt(options.prompt);
-		let system = promptSystem;
+		const { systemParts: promptSystemParts, messages: converted } = convertPrompt(options.prompt);
+		const systemParts = [...promptSystemParts];
+		// Instructions added below go into the last system part.
+		const addToSystem = (text: string) => {
+			if (systemParts.length === 0) systemParts.push(text);
+			else systemParts[systemParts.length - 1] = `${systemParts[systemParts.length - 1]}\n\n${text}`;
+		};
 		let tools: BetaTool[] | undefined;
 		let toolChoice: Anthropic.Beta.Messages.BetaToolChoice | undefined;
 
@@ -594,21 +602,29 @@ export class AnthropicChatModel implements LanguageModelV1 {
 							"tool_choice is sent as auto (a forced call skips thinking); the tool is requested in the prompt instead.",
 					});
 					const target = choice.type === "tool" ? `the ${choice.toolName} tool` : "one of the tools";
-					system = [system, `You must call ${target} before answering.`].filter(Boolean).join("\n\n");
+					addToSystem(`You must call ${target} before answering.`);
 				}
 			}
 		} else if (mode.type === "object-json") {
-			system = [
-				system,
-				"Reply with a single JSON object only: no prose before or after it and no code fences.",
-			]
-				.filter(Boolean)
-				.join("\n\n");
+			addToSystem("Reply with a single JSON object only: no prose before or after it and no code fences.");
 		} else {
 			throw new Error(
 				`AnthropicChatModel does not support "${mode.type}" mode; use generateObject with mode: "json".`,
 			);
 		}
+
+		const system = systemParts.length > 0 ? systemParts.join("\n\n") : undefined;
+		// Two or more system parts: the first is the part that does not change
+		// between requests (see fillSystemPromptParts), so it gets its own cache
+		// breakpoint, which survives a change in the parts after it.
+		const systemField: Anthropic.Beta.Messages.MessageCreateParamsNonStreaming["system"] =
+			promptSystemParts.length >= 2
+				? systemParts.map((text, index) =>
+						index === 0
+							? { type: "text" as const, text, cache_control: { type: "ephemeral" as const } }
+							: { type: "text" as const, text },
+					)
+				: system;
 
 		// A trailing assistant turn is a prefill, which these models reject.
 		const messages = [...converted];
@@ -656,7 +672,7 @@ export class AnthropicChatModel implements LanguageModelV1 {
 			// prompt, tools and history on every step, so later steps read them
 			// from cache (faster first token, 0.1x input price).
 			cache_control: { type: "ephemeral" },
-			...(system ? { system } : {}),
+			...(systemField ? { system: systemField } : {}),
 			...(tools ? { tools } : {}),
 			...(toolChoice ? { tool_choice: toolChoice } : {}),
 			...(effort ? { output_config: { effort } } : {}),

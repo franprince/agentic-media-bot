@@ -1,4 +1,4 @@
-import { type CoreMessage, generateText } from "ai";
+import { type CoreMessage, generateText, NoSuchToolError } from "ai";
 import {
 	clearHistory,
 	getConversationUpdatedAt,
@@ -23,6 +23,7 @@ import {
 import {
 	buildSystemPromptTemplate,
 	fillSystemPrompt,
+	fillSystemPromptParts,
 	NEED_MORE_TOOLS_MARKER,
 } from "./prompts";
 import {
@@ -45,12 +46,12 @@ import {
 } from "./response";
 import {
 	detectConversationLanguage,
-	detectStatusLanguage,
 	formatToolCallsStatus,
 	type StatusLanguage,
 } from "./status";
 import {
 	ALL_GROUPS,
+	TOOL_GROUPS,
 	classifyGroups,
 	pickToolsForGroups,
 	type RoutingDecision,
@@ -73,6 +74,11 @@ import {
  * `options.fromButton` marks a button tap: it answers a specific earlier
  * message, so it always continues the stored conversation.
  */
+/** Tools that change something; a turn is not re-run once one of these ran. */
+function isActionTool(toolName: string): boolean {
+	return /^(add|remove|pause|resume|subscribe|unsubscribe|sync|channelDirector)/.test(toolName);
+}
+
 export async function processUserMessage(
 	userId: number,
 	userMessage?: string,
@@ -134,6 +140,13 @@ export async function processUserMessage(
 		}
 	}
 
+	// What the user wrote before this message, read before a reset can clear
+	// it: a message that shows no language keeps the conversation's.
+	const recentUserTexts = history
+		.filter((m) => m.role === "user" && typeof m.content === "string")
+		.slice(-4)
+		.map((m) => m.content as string);
+
 	// Add the user's message to the history ONLY if it's a new message
 	if (userMessage) {
 		// On Claude a typed message after a long silence starts a new
@@ -160,10 +173,6 @@ export async function processUserMessage(
 
 	try {
 		const statusSeedText = userMessage ?? getLastUserTextFromHistory(history);
-		const recentUserTexts = history
-			.filter((m) => m.role === "user" && typeof m.content === "string")
-			.slice(-5, -1)
-			.map((m) => m.content as string);
 		const statusLang: StatusLanguage = detectConversationLanguage(
 			statusSeedText,
 			recentUserTexts,
@@ -176,7 +185,12 @@ export async function processUserMessage(
 		const userName = getUserName(userId) || "Friend";
 
 		// --- Step 1: Tool Execution Loop (using FAST model) ---
-		const shouldDisableAddTools = shouldDisableAddActions(statusSeedText);
+		// With Claude every request carries every tool and the full prompt (see
+		// specs/2026-11-24-claude-all-tools): no routing, and a tool set that
+		// never changes, so tools and fixed rules are read from the prompt cache.
+		const offersEveryTool = isAnthropicProvider();
+		const shouldDisableAddTools =
+			!offersEveryTool && shouldDisableAddActions(statusSeedText);
 		const tools: any = {
 			searchMovie: botTools.searchMovieTool,
 			addMovie: botTools.addMovieTool,
@@ -236,11 +250,9 @@ export async function processUserMessage(
 		const priorHistory =
 			lastUserIndex >= 0 ? history.slice(0, lastUserIndex) : history;
 		const routedText = statusSeedText ?? "";
-		let routing: RoutingDecision = await selectToolGroups(
-			routedText,
-			priorHistory,
-			modelFast,
-		);
+		let routing: RoutingDecision = offersEveryTool
+			? { groups: [...ALL_GROUPS], source: "all", narrowed: false }
+			: await selectToolGroups(routedText, priorHistory, modelFast);
 		const toolsForGroups = (groups: ToolGroup[]) =>
 			pickToolsForGroups(tools, groups);
 		const narrowedTools = toolsForGroups(routing.groups);
@@ -314,8 +326,16 @@ export async function processUserMessage(
 			currentDate,
 			language: statusLang,
 		};
+		// Claude: the fixed rules are the system prompt and the user, date and
+		// language go in a system message after it, so a change there does not
+		// void the cached tools and rules. Other providers: one prompt.
+		const claudePromptParts = offersEveryTool
+			? fillSystemPromptParts(buildSystemPromptTemplate([...ALL_GROUPS]), promptContext)
+			: null;
 		const systemPromptFor = (groups: ToolGroup[]) =>
-			fillSystemPrompt(buildSystemPromptTemplate(groups), promptContext);
+			claudePromptParts
+				? claudePromptParts.fixed
+				: fillSystemPrompt(buildSystemPromptTemplate(groups), promptContext);
 		// With every tool schema in the request there is less room for history.
 		const historyBudgetFor = (decision: RoutingDecision) =>
 			decision.narrowed
@@ -330,15 +350,67 @@ export async function processUserMessage(
 						compactOlderTurns: false,
 					})
 				: prepareHistoryForModel(history, historyBudgetFor(decision));
+		const messagesFor = (decision: RoutingDecision): CoreMessage[] =>
+			claudePromptParts
+				? [{ role: "system", content: claudePromptParts.context }, ...historyViewFor(decision)]
+				: historyViewFor(decision);
 		const withTools = (toolSet: Record<string, any>) =>
 			Object.keys(toolSet).length > 0 ? { tools: toolSet } : {};
+
+		// Tools that ran this turn: a retry must not run an action twice.
+		const executedTools = new Set<string>();
+
+		// The model may call a real tool the routing left out; the AI SDK then
+		// throws instead of telling it. Offer that tool's groups, then every
+		// tool, and ask again: at most twice, and never once an action ran.
+		const withUnofferedToolRetry = async (params: any): Promise<any> => {
+			for (let attempt = 0; ; attempt++) {
+				try {
+					return await generateText(params);
+				} catch (error: any) {
+					if (!NoSuchToolError.isInstance(error) || attempt >= 2) throw error;
+					if ([...executedTools].some(isActionTool)) throw error;
+					const wanted = ALL_GROUPS.filter(
+						(group) =>
+							(TOOL_GROUPS[group] as readonly string[]).includes(error.toolName) &&
+							!routing.groups.includes(group),
+					);
+					if (wanted.length > 0) {
+						routing = {
+							groups: [...routing.groups, ...wanted],
+							source: routing.source,
+							narrowed: true,
+						};
+					} else if (routing.narrowed) {
+						routing = { groups: [...ALL_GROUPS], source: "fallback", narrowed: false };
+					} else {
+						throw error;
+					}
+					const widenedTools = guardConfirmations(
+						withProxyInterception(toolsForGroups(routing.groups)),
+						priorHistory,
+					);
+					console.log(
+						`🧭 Tool routing widened [unoffered tool '${error.toolName}']: ${routing.groups.join(", ")} → ${Object.keys(widenedTools).length} tools`,
+					);
+					const { tools: _previousTools, ...rest } = params;
+					params = {
+						...rest,
+						system: systemPromptFor(routing.groups),
+						messages: messagesFor(routing),
+						...withTools(widenedTools),
+					};
+				}
+			}
+		};
 
 		const firstPassParams = {
 			model: modelFast as any,
 			system: systemPromptFor(routing.groups),
-			messages: historyViewFor(routing),
+			messages: messagesFor(routing),
 			...withTools(finalTools),
 			onStepFinish: async (step: any) => {
+				for (const call of step.toolCalls ?? []) executedTools.add(call.toolName);
 				const thought = step.text?.trim();
 				const normalizedToolCalls = normalizeToolCallsForLogging(
 					step.toolCalls as any[],
@@ -374,7 +446,7 @@ export async function processUserMessage(
 
 		let firstPass: any;
 		try {
-			firstPass = await generateText(firstPassParams as any);
+			firstPass = await withUnofferedToolRetry(firstPassParams);
 		} catch (error: any) {
 			if (isInvalidToolArgumentsError(error)) {
 				if (onStep) {
@@ -390,18 +462,17 @@ export async function processUserMessage(
 					error?.toolArgs,
 					statusLang,
 				);
-				firstPass = await generateText({
+				firstPass = await withUnofferedToolRetry({
 					...firstPassParams,
 					messages: [
 						...firstPassParams.messages,
 						{ role: "user", content: repairPrompt },
 					],
-				} as any);
+				});
 			} else {
 				throw error;
 			}
 		}
-
 		// --- Safety net: the narrowed tool set was not enough ---
 		// The model answers NEED_MORE_TOOLS (see prompts.ts) when the request
 		// needs a tool it was not given. Widen once: ask the classifier which
@@ -435,12 +506,12 @@ export async function processUserMessage(
 			);
 			const { tools: _narrowTools, ...paramsWithoutTools } =
 				firstPassParams as any;
-			firstPass = await generateText({
+			firstPass = await withUnofferedToolRetry({
 				...paramsWithoutTools,
 				system: systemPromptFor(routing.groups),
-				messages: historyViewFor(routing),
+				messages: messagesFor(routing),
 				...withTools(widenedTools),
-			} as any);
+			});
 		}
 		if (firstPass.usage) {
 			console.log(
@@ -471,7 +542,7 @@ export async function processUserMessage(
 				model: modelCapable as any,
 				system: `${systemPromptFor(routing.groups)}\n\nSynthesize the final response. REMEMBER: Never use 'Poster:' text placeholders. If poster URLs are present in the tool results above, include them internally using the POSTER: <url> format at the very end of your message.`,
 				messages: [
-					...historyViewFor(routing),
+					...messagesFor(routing),
 					...scrubMarkerFromMessages(firstPass.response.messages, ""),
 				],
 			});
@@ -686,8 +757,9 @@ export async function processUserMessage(
 		return { text, imageUrl, buttons };
 	} catch (error) {
 		console.error("Error processing LLM response:", error);
-		const fallbackLang = detectStatusLanguage(
+		const fallbackLang = detectConversationLanguage(
 			userMessage ?? getLastUserTextFromHistory(history),
+			recentUserTexts,
 		);
 		return {
 			text:

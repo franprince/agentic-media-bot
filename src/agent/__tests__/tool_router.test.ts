@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, test } from "bun:test";
 import type { CoreMessage } from "ai";
 import {
 	ALL_GROUPS,
@@ -195,5 +195,23 @@ describe("pickToolsForGroups", () => {
 		for (const name of Object.values(TOOL_GROUPS).flat()) {
 			expect(botTools[exportName[name] ?? `${name}Tool`]).toBeDefined();
 		}
+	});
+});
+
+describe("a request for a synopsis", () => {
+	test("is not a download or a report", () => {
+		for (const message of ["haceme un resumen de Sunset Harbor", "give me a summary of Sunset Harbor"]) {
+			expect(sorted(keywordGroups(message))).toEqual(["movies", "reports", "series"]);
+		}
+		expect(sorted(keywordGroups("dame un resumen de la serie The Quiet Valley"))).toEqual(["series"]);
+		expect(sorted(keywordGroups("de que trata la pelicula Sunset Harbor"))).toEqual(["movies"]);
+	});
+
+	test("resuming torrents and the summary report still route as before", () => {
+		expect(sorted(keywordGroups("resume all torrents"))).toEqual(["downloads"]);
+		expect(keywordGroups("resumed downloads?").has("downloads")).toBe(true);
+		expect(sorted(keywordGroups("suscribime al resumen semanal"))).toEqual(["reports"]);
+		expect(sorted(keywordGroups("send me the weekly summary"))).toEqual(["reports"]);
+		expect(keywordGroups("mandame el resumen").has("reports")).toBe(true);
 	});
 });

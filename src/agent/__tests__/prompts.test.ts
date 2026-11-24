@@ -3,6 +3,7 @@ import {
 	buildSystemPromptTemplate,
 	DEFAULT_SYSTEM_PROMPT,
 	fillSystemPrompt,
+	fillSystemPromptParts,
 } from "../prompts";
 import { ALL_GROUPS } from "../toolRouter";
 
@@ -45,6 +46,12 @@ describe("buildSystemPromptTemplate", () => {
 		expect(buildSystemPromptTemplate(["series"])).toContain("getUnwatchedEpisodes");
 	});
 
+	it("tells the model that a newer tool result replaces an older one", () => {
+		for (const groups of [[], ["downloads"], [...ALL_GROUPS]] as any[]) {
+			expect(buildSystemPromptTemplate(groups)).toContain("trust the newest one");
+		}
+	});
+
 	it("tells the model how to read the library checks wherever their tools are offered", () => {
 		for (const group of ["movies", "series"] as any[]) {
 			expect(buildSystemPromptTemplate([group])).toContain("'alreadyInPlex' true means the user already has it");
@@ -79,5 +86,38 @@ describe("fillSystemPrompt", () => {
 		const context = { userId: 1, userName: "Fran", currentDate: "today" };
 		expect(fillSystemPrompt("x", { ...context, language: "es" })).toContain("in Spanish");
 		expect(fillSystemPrompt("x", { ...context, language: "en" })).toContain("in English");
+	});
+});
+
+describe("fillSystemPromptParts", () => {
+	const template = buildSystemPromptTemplate([...ALL_GROUPS]);
+	const ana = { userId: 1, userName: "Ana", currentDate: "Monday, March 2, 2026", language: "es" as const };
+	const bo = { userId: 2, userName: "Bo", currentDate: "Tuesday, March 3, 2026", language: "en" as const };
+
+	it("keeps the fixed rules free of anything that changes per user, day or language", () => {
+		const a = fillSystemPromptParts(template, ana);
+		const b = fillSystemPromptParts(template, bo);
+		expect(a.fixed).toBe(b.fixed);
+		expect(a.fixed).not.toContain("{{");
+		expect(a.fixed).not.toContain("Ana");
+		expect(a.fixed).not.toContain("2026");
+		expect(a.fixed).not.toContain("This conversation is in");
+		expect(a.fixed).toContain("RULES:");
+	});
+
+	it("puts the user, the date and the language in the context part", () => {
+		const { context } = fillSystemPromptParts(template, ana);
+		expect(context).toContain("User ID 1");
+		expect(context).toContain("Name Ana");
+		expect(context).toContain("Today is Monday, March 2, 2026");
+		expect(context).toContain("This conversation is in Spanish");
+	});
+
+	it("together carry the same text as the single prompt", () => {
+		const { fixed, context } = fillSystemPromptParts(template, ana);
+		const single = fillSystemPrompt(template, ana);
+		for (const line of single.split("\n").filter((l) => l.trim())) {
+			expect(`${fixed}\n${context}`).toContain(line.trim());
+		}
 	});
 });

@@ -480,3 +480,48 @@ describe("per-call usage log", () => {
 		}
 	});
 });
+
+describe("system blocks for caching", () => {
+	it("sends two system parts as blocks, with a cache breakpoint on the first only", async () => {
+		const { client, requests } = fakeClient([message([{ type: "text", text: "ok" }])]);
+		const model = new AnthropicChatModel("claude-haiku-5-5", { client, replayCache: new ThinkingReplayCache() });
+		await generateText({
+			model,
+			system: "fixed rules",
+			messages: [
+				{ role: "system", content: "CONTEXT: today" },
+				{ role: "user", content: "hi" },
+			],
+		});
+		expect(requests[0].system).toEqual([
+			{ type: "text", text: "fixed rules", cache_control: { type: "ephemeral" } },
+			{ type: "text", text: "CONTEXT: today" },
+		]);
+		expect(requests[0].cache_control).toEqual({ type: "ephemeral" });
+	});
+
+	it("keeps a single system part as a plain string", async () => {
+		const { client, requests } = fakeClient([message([{ type: "text", text: "ok" }])]);
+		const model = new AnthropicChatModel("claude-haiku-5-5", { client, replayCache: new ThinkingReplayCache() });
+		await generateText({ model, system: "only rules", prompt: "hi" });
+		expect(requests[0].system).toBe("only rules");
+	});
+
+	it("puts a forced-tool instruction in the last block", async () => {
+		const { client, requests } = fakeClient([message([{ type: "text", text: "ok" }])]);
+		const model = new AnthropicChatModel("claude-haiku-5-5", { client, replayCache: new ThinkingReplayCache() });
+		await generateText({
+			model,
+			system: "fixed rules",
+			messages: [
+				{ role: "system", content: "CONTEXT: today" },
+				{ role: "user", content: "hi" },
+			],
+			tools: { ping: tool({ description: "p", parameters: z.object({}), execute: async () => "pong" }) },
+			toolChoice: "required",
+		});
+		expect(requests[0].system[0]).toEqual({ type: "text", text: "fixed rules", cache_control: { type: "ephemeral" } });
+		expect(requests[0].system[1].text).toContain("CONTEXT: today");
+		expect(requests[0].system[1].text).toContain("You must call one of the tools");
+	});
+});

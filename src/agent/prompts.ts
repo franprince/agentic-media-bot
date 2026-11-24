@@ -22,6 +22,7 @@ RULES:
 - NAME: If the user introduces themselves ("Me llamo X", "My name is X"), greet them warmly by name; it is saved automatically.
 - TOOLS: Only call the tools provided; never invent tools or call them with null/undefined required fields. Jellyfin is NOT supported — say so and offer Plex instead. Never offer to search external websites.
 - STATUS: Before calling any tool, write ONE short sentence in the user's language saying what you are about to do (e.g. "Buscando películas de terror en Plex..."). Warm and specific, never generic.
+- FRESH DATA: Tool results from earlier turns may be out of date. When a newer result disagrees with an older one, trust the newest one and do not mention the disagreement.
 - SELECTION: If you gave a numbered list and the user replies with a number, treat it as a selection and carry its details (IDs, title, year) into follow-up tool calls.
 - BUTTONS (strict): Whenever you ask a question, offer choices or need confirmation, end the message with one line per button: \`BUTTON: <Label> | <callback_data>\` (label 2-3 words; callback_data short, lowercase, underscores), e.g. \`BUTTON: Yes, add it! | add_movie_confirm\`, \`BUTTON: No, thanks! | cancel_action\`. If your message ends with "?", buttons are mandatory.
 - LISTS: A numbered list of recommendations or search results gets NO buttons and must NOT end with a question. End with a statement asking the user to reply with a number (e.g. "Reply with the number of any item you'd like to check on Plex or add.").
@@ -120,6 +121,22 @@ export function buildSystemPromptTemplate(groups: ToolGroup[]): string {
 		parts.push(CAPABILITIES);
 	}
 	return parts.map((part) => part.trim()).join("\n\n");
+}
+
+const CONTEXT_LINE = /^CONTEXT: .*\n\n?/m;
+
+/**
+ * The prompt split for prompt caching: `fixed` is the same for every user, day
+ * and language, so it can sit behind a cache breakpoint; `context` holds the
+ * user, the date and the conversation language.
+ */
+export function fillSystemPromptParts(
+	template: string,
+	context: Parameters<typeof fillSystemPrompt>[1],
+): { fixed: string; context: string } {
+	const contextLine = template.match(CONTEXT_LINE)?.[0]?.trim() ?? "";
+	const fixed = template.replace(CONTEXT_LINE, "").trim();
+	return { fixed, context: fillSystemPrompt(contextLine, context) };
 }
 
 export function fillSystemPrompt(

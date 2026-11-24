@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.49.0] - 2026-11-24
+
+### Changed
+- **Every tool on every request with Claude**: With `AI_PROVIDER=anthropic` the model gets all 39 tools and the full prompt on every request, instead of the tool groups that keywords, the previous turn or a classifier request picked for the message. Routing was built for an 8,000-tokens-per-minute cap that Claude does not have, and it made requests fail or go unanswered: a synopsis request got only download and report tools, and some questions were answered from memory or with the wrong list. In an evaluation of 47 turns, every tool gave the expected first tool 47 times against 44 with routing, with no action taken unasked in either case.
+- **No classifier request and no "need more tools" retry on Claude**; the add tools also stay on a request for details (the confirmation step still prevents an unrequested add). The other providers keep routing unchanged.
+- **Prompt cache**: The user, the date and the conversation language moved out of the system prompt into a message after it, and the tools and fixed rules have their own cache breakpoint. In a live check, a second turn that switched from Spanish to English read 10,875 tokens from cache on its first request; before, most turns within five minutes of the previous one wrote the whole prompt again.
+
+### Notes
+- A request is now about 11,000 tokens before the conversation (it was 1,200–6,600 with routing).
+- Rerun of the 47 evaluation turns on the released code: expected first tool 47 of 47, no action taken unasked, 105 model requests (110 with routing), first request median 1.29 s (1.27 s), whole turn median 4.0 s (4.7 s). Cache reads were 1.03 million tokens against 67,000 written, about $0.03 for the 47 turns against $0.05 with routing. The turns ran back to back, so the cache stayed warm; a turn more than five minutes after the previous one starts cold.
+- Recommendation queries in the rerun carried no year ("comedy series", "thriller movies").
+- Not measured yet: cache use and latency over a day of real use.
+
+## [4.48.4] - 2026-11-24
+
+### Fixed
+- **A request for a synopsis no longer fails with an error**: "Haceme un resumen de …" matched the keyword for resuming torrents ("resum…") and the one for the summary report ("resumen"), so the model was given only download and report tools. "Resume" now matches only the English verb forms, and an unqualified "resumen" or "summary" offers the movie, series and report tools.
+- **A call to a tool that was not offered no longer ends the turn**: When the model asked for a tool that the routing had left out, the AI SDK threw an error and the user got "Sorry, I encountered an error". The bot now adds that tool's group (or every tool) and asks again, at most twice. This covers the first request, the retry after bad tool arguments and the widened request. It does not ask again once an action (add, remove, pause, resume, subscribe) ran in that turn, so nothing runs twice.
+- **The error message is in the conversation's language**: It used the same detector that misread accent-less Spanish.
+
+### Notes
+- The 4.48.3 rule telling the model to trust the newest tool result did not stop it from mentioning an old library conflict on the next turn: the stored conversation still holds those results and the bot's own sentence about them.
+- Messages whose only keyword belongs to downloads, system, reports, watchlist or ErsatzTV ("que es Diarios de motocicleta" → reports, "en que estado esta Severance" → system) still start with those tools only. With this release they recover with one more request instead of failing.
+- Checked live on a scratch database: the synopsis request was answered in Spanish; a misrouted request recovered through the existing "need more tools" path. The new retry is covered by tests with the SDK's own error class but has not fired live.
+
+## [4.48.3] - 2026-11-24
+
+### Fixed
+- **Spanish requests written without accents get a Spanish reply**: A message of more than two words with no listed Spanish word was treated as English, and the model was told to answer in English. Common request words now count as Spanish when they stand as whole words ("recomendame", "pasame", "quiero", "tenes", "algo", "pelis", "serie", "comicas", "nuevo"), and a longer message is English only when it has more English words than Spanish ones. A message with neither (a bare title, a number) takes the language of the conversation. Title-case titles inside a request ("agrega The Garden of Stones", "busca House of the Tides") do not count as English.
+- **The conversation language survives the 12-hour reset**: The earlier messages used to decide an unclear message were read after the reset had cleared them. They are now read before.
+- **Recommendations are no longer limited to one year the user did not ask for**: The tool's examples all carried a year, and the model added one to the query, which limits the search to that year. The examples no longer have one, and the tool says to add a year only when the user names it. In a check against TMDB, "comedy series" gave 6 suggestions from three years; "comedy series 2026" gave 2.
+- **Enough suggestions to choose from**: Every year is now topped up from TMDB's own list, not only the years the model left empty, without listing a title twice. For series the floor is 200 TMDB votes instead of 500, because series get far fewer votes than movies (comedy series with 500 votes: 1 in 2025, 2 in 2026); those under 500 carry the "Few votes" warning. In a live run, a request for five comedy series got five not in the library, in Spanish.
+- **Old tool results no longer contradict new ones in the reply**: The model is told that a newer tool result replaces an older one and not to mention the difference. Before, it quoted a library check from an earlier turn that disagreed with the current one.
+
+### Notes
+- Compared before and after on 255 phrasings, each with no history, a Spanish history and an English history: no Spanish message reads as English after the change. 62 checks changed, all toward Spanish: Spanish requests written without accents, and messages without words of either language in a Spanish conversation. In a Spanish conversation, an English sentence with no listed English word ("Alice in Borderland is next") now gets a Spanish reply.
+- A first message with no listed word of either language still reads as English. A lowercase English title in a Spanish request ("agrega the last of us") can still make it read as English.
+- Checked with the live model on one turn (scratch database, copy of a real conversation): Spanish reply, no year in the query, no remark about earlier tool results. One turn is not a measurement.
+
 ## [4.48.2] - 2026-11-24
 
 ### Fixed

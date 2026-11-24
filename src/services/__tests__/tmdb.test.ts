@@ -214,6 +214,47 @@ describe("TMDB Service — discoverMedia TMDB fallback", () => {
 		server.resetHandlers();
 	});
 
+	test("tops up a year the model did fill, without listing a title twice", async () => {
+		process.env.TMDB_READ_ACCESS_TOKEN = "test-token";
+		const currentYear = new Date().getFullYear();
+		mockGenerateObjectResponse = {
+			recommendations: [{ title: "Known Show", mediaType: "tv", imdbRating: 8 }],
+		};
+		const show = (id: number, name: string, votes = 900) => ({
+			id,
+			name,
+			first_air_date: `${currentYear}-03-01`,
+			overview: "A show.",
+			vote_average: 8,
+			vote_count: votes,
+			genre_ids: [35],
+		});
+		const floors: string[] = [];
+		server.use(
+			http.get("https://api.themoviedb.org/3/genre/:type/list", () =>
+				HttpResponse.json({ genres: [{ id: 35, name: "Comedy" }] }),
+			),
+			http.get("https://api.themoviedb.org/3/search/tv", () =>
+				HttpResponse.json({ results: [show(1, "Known Show")] }),
+			),
+			http.get("https://api.themoviedb.org/3/discover/tv", ({ request }) => {
+				const params = new URL(request.url).searchParams;
+				floors.push(params.get("vote_count.gte") ?? "");
+				const year = params.get("first_air_date.gte")?.slice(0, 4);
+				return HttpResponse.json({
+					results: year === String(currentYear) ? [show(1, "Known Show"), show(2, "Other Show", 240)] : [],
+				});
+			}),
+		);
+
+		const results = await discoverMedia(`comedy series ${currentYear}`, 10);
+
+		expect(results.map((result) => result.title).sort()).toEqual(["Known Show", "Other Show"]);
+		expect(floors).toEqual(["200"]);
+		expect(results.find((result) => result.title === "Other Show")?.warning).toBe("Few votes");
+		expect(results.find((result) => result.title === "Known Show")?.warning).toBeUndefined();
+	});
+
 	test("fills years the model returned nothing for from TMDB discover", async () => {
 		process.env.TMDB_READ_ACCESS_TOKEN = "test-token";
 		mockGenerateObjectResponse = { recommendations: [] };

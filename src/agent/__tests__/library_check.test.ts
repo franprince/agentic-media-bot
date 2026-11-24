@@ -130,6 +130,15 @@ async function discover(results: any[]) {
 	return (await discoverMediaTool.execute!({ query: "drama series" }, {} as any)) as any;
 }
 
+describe("discoverMedia: the query", () => {
+	test("is described without a year, and a year is added only when the user names one", () => {
+		const query = (discoverMediaTool.parameters as any).shape.query.description as string;
+
+		expect(query).not.toMatch(/20\d\d/);
+		expect(query).toContain("only if the user names one");
+	});
+});
+
 describe("discoverMedia: is a suggestion already in the library?", () => {
 	test("yes for a series that Plex lists under another title", async () => {
 		const result = await discover([suggestion({})]);
