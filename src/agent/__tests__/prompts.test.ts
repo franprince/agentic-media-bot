@@ -45,6 +45,12 @@ describe("buildSystemPromptTemplate", () => {
 		expect(buildSystemPromptTemplate(["series"])).toContain("getUnwatchedEpisodes");
 	});
 
+	it("tells the model that a newer tool result replaces an older one", () => {
+		for (const groups of [[], ["downloads"], [...ALL_GROUPS]] as any[]) {
+			expect(buildSystemPromptTemplate(groups)).toContain("trust the newest one");
+		}
+	});
+
 	it("tells the model how to read the library checks wherever their tools are offered", () => {
 		for (const group of ["movies", "series"] as any[]) {
 			expect(buildSystemPromptTemplate([group])).toContain("'alreadyInPlex' true means the user already has it");

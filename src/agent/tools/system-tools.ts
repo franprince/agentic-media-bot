@@ -40,12 +40,12 @@ export const checkServiceHealthTool = tool({
 
 export const discoverMediaTool = tool({
 	description:
-		"Discover critically acclaimed or top-rated movies and shows using TMDB. Useful for when the user asks for recommendations, especially recent releases.",
+		"Discover critically acclaimed or top-rated movies and shows using TMDB. Useful for when the user asks for recommendations. Without a year it covers the last three years.",
 	parameters: z.object({
 		query: z
 			.string()
 			.describe(
-				"The search query for discovery (e.g., 'comedy movies 2025', 'thriller series 2026', 'best drama 2025').",
+				"The search query for discovery (e.g., 'comedy series', 'thriller movies', 'korean drama series'). Add a year only if the user names one: a single year limits the results to that year.",
 			),
 	}),
 	execute: async ({ query }: { query: string }) => {
