@@ -1,6 +1,6 @@
 # Claude all tools: every tool and the full prompt on every request
 
-Date: 2026-11-24 · Version: 4.49.0 (proposed) · Status: Draft (proposal, not approved)
+Date: 2026-11-24 · Version: 4.49.0 (proposed) · Status: Approved 2026-11-24; Step 0 done, build not started
 
 This is phase 2 of [`2026-11-24-claude-context`](../2026-11-24-claude-context/spec.md).
 
@@ -166,6 +166,49 @@ The claude-context spec makes this the entry condition for phase 2.
   about 3–4 million input tokens: under $1 at Haiku 5.5 prices, less with
   cache reads.
 
+## Step 0 results (2026-11-24)
+
+Run on Claude Haiku 5.5 with the settings the bot uses (effort `medium`,
+adaptive thinking), 40 single-message cases and two multi-turn cases (47 turns
+per arm), one run per case, against the real Plex, Sonarr, Radarr, TMDB and
+download services with action tools stubbed. The "every tool" arm sent all 39
+tools and the full prompt but kept today's prompt layout, so it does not show
+the cache gain of design point 3.
+
+| | Routed (today) | Every tool |
+|---|---:|---:|
+| Expected first tool | 44 of 47 | **47 of 47** |
+| Action tool without the user asking | 0 | 0 |
+| Errors | 0 | 0 |
+| Model requests | 110 | 109 |
+| Tokens sent (cache read / write) | 492,000 (211,000 / 279,000) | 1,140,000 (594,000 / 545,000) |
+| Approximate cost of the 47 turns | $0.05 | $0.09 |
+| First request, median | 1,274 ms | 1,361 ms |
+| Whole turn, median | 4,652 ms | 4,205 ms |
+
+- **Where routing was wrong:** "que es Diarios de motocicleta" (reports only)
+  and "contame de The Hitchhiker's Guide to the Galaxy" (ErsatzTV only) were
+  answered from the model's memory without a lookup; "qué agregué
+  últimamente?" got the download queues instead of Plex's recently added list.
+  With every tool all three used the right tool.
+- **Details request with the add tools offered:** no add tool was called; the
+  reply gave the details only.
+- **"Sí, agregala" after a pick:** both arms called `addMovie` without
+  `confirm` and showed the confirmation step.
+- **Request count did not drop:** the classifier and widening requests that
+  every tool saves (3 → 1 on the unsupported request, 4 → 2 on "en que estado
+  esta Severance") were offset by turns where the model checked a second
+  source (`searchMovie` then `searchSeries`).
+- **Cost:** about $0.002 per turn with every tool against $0.001 routed, with
+  today's layout. The fixed-prefix layout should move most of the written
+  tokens to reads; that is measured after the build (criterion 4).
+- **Limits:** one run per case, cases and expected tools written for this
+  evaluation, no repeat to measure variance.
+
+Criteria 1 (tool choice, no unrequested action) and 5 (first-request latency,
++0.09 s) are met by this run. The evaluation cost about $0.15 including the
+recommendation tool's own requests.
+
 ## Edge cases
 
 - **First turn after a long gap:** cold whatever the tool set; it writes
@@ -195,7 +238,7 @@ The claude-context spec makes this the entry condition for phase 2.
 5. **Latency:** over a day of use, the median first-request time is no more
    than 0.5 s above today's (1.2–2.7 s on 2026-11-24).
 
-## Decisions for the user
+## Decisions
 
-1. Approve the proposal, and approach A over B.
-2. Approve Step 0 (billed, under $1) before any build.
+1. Proposal and Step 0 approved on 2026-11-24 ("Approve, run eval").
+2. Open: approach A (Claude only) over B, and the go-ahead to build.
