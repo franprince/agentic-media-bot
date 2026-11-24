@@ -13,8 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Prompt cache**: The user, the date and the conversation language moved out of the system prompt into a message after it, and the tools and fixed rules have their own cache breakpoint. In a live check, a second turn that switched from Spanish to English read 10,875 tokens from cache on its first request; before, most turns within five minutes of the previous one wrote the whole prompt again.
 
 ### Notes
-- A request is now about 11,000 tokens before the conversation (it was 1,200–6,600 with routing). In the evaluation, which still used the old prompt layout, that cost about $0.002 per turn against $0.001; the new layout reads most of it from cache on later turns.
-- The number of model requests per turn did not drop in the evaluation (109 against 110): the classifier and retry requests went away, and on some turns the model checked a second source.
+- A request is now about 11,000 tokens before the conversation (it was 1,200–6,600 with routing).
+- Rerun of the 47 evaluation turns on the released code: expected first tool 47 of 47, no action taken unasked, 105 model requests (110 with routing), first request median 1.29 s (1.27 s), whole turn median 4.0 s (4.7 s). Cache reads were 1.03 million tokens against 67,000 written, about $0.03 for the 47 turns against $0.05 with routing. The turns ran back to back, so the cache stayed warm; a turn more than five minutes after the previous one starts cold.
+- Recommendation queries in the rerun carried no year ("comedy series", "thriller movies").
 - Not measured yet: cache use and latency over a day of real use.
 
 ## [4.48.4] - 2026-11-24

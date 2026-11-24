@@ -242,4 +242,4 @@ recommendation tool's own requests.
 
 1. Proposal and Step 0 approved on 2026-11-24 ("Approve, run eval").
 2. Approach A (Claude only) and the build approved on 2026-11-24 ("Build, Claude only").
-3. Measured after the build: a second turn that switched language read 10,875 tokens from cache on its first request (criterion 4). Criterion 5 over a day of real use is still open.
+3. Measured after the build: a second turn that switched language read 10,875 tokens from cache on its first request (criterion 4). Rerun of the 47 Step 0 turns on the released code, no spies: expected first tool 47 of 47, no unrequested action, 105 requests, first request median 1,286 ms, turn median 4,031 ms, 1.03 million tokens read from cache against 67,000 written (about $0.03, against $0.05 routed). The turns ran back to back, which keeps the cache warm. Criterion 5 over a day of real use is still open.
