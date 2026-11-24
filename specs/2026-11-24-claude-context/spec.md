@@ -1,6 +1,6 @@
 # Claude context: fuller history, session gap, no dead ends
 
-Date: 2026-11-24 · Status: Approved (2026-11-24)
+Date: 2026-11-24 · Version: 4.48.0 · Status: Done (approved 2026-11-24)
 
 ## Problem
 

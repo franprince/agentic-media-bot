@@ -79,6 +79,9 @@ A conversational Telegram bot that controls a user's home media server stack, ca
 7. **Personalization**
    - **Name Saving**: User can say "Call me Fran," and the bot will persist this in its database and greet the user by name.
    - **Context Management**: Conversation history is bounded and automatically trimmed to the last 20 messages. This prevents "sticky" context where the bot confuses current requests with old, unrelated topics.
+   - **Recent Conversation as It Happened (Claude)**: With the Claude provider the bot reads the recent turns in full, including the synopsis and details it already gave, so it does not contradict an earlier answer. The other providers read a shorter, compacted view to fit their token limits.
+   - **New Conversation After a Long Silence (Claude)**: With the Claude provider, a typed message (or voice note) sent more than 12 hours after the last activity starts a new conversation; the bot does not assume it is about a title discussed earlier. Tapping a button always continues the conversation that button belongs to, whatever its age.
+   - **Requests the Bot Cannot Do**: When no tool covers a request (for example changing the quality of a movie already in the library), the bot says so plainly in the user's language and says what it can do. Internal markers and generic error texts are never shown for this case.
    - **Warm Tone**: The bot maintains a friendly, emoji-rich personality (✨🤖).
 
 8. **Dynamic Status Feedback**
