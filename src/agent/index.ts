@@ -1,4 +1,4 @@
-import { type CoreMessage, generateText } from "ai";
+import { type CoreMessage, generateText, NoSuchToolError } from "ai";
 import {
 	clearHistory,
 	getConversationUpdatedAt,
@@ -45,12 +45,12 @@ import {
 } from "./response";
 import {
 	detectConversationLanguage,
-	detectStatusLanguage,
 	formatToolCallsStatus,
 	type StatusLanguage,
 } from "./status";
 import {
 	ALL_GROUPS,
+	TOOL_GROUPS,
 	classifyGroups,
 	pickToolsForGroups,
 	type RoutingDecision,
@@ -73,6 +73,11 @@ import {
  * `options.fromButton` marks a button tap: it answers a specific earlier
  * message, so it always continues the stored conversation.
  */
+/** Tools that change something; a turn is not re-run once one of these ran. */
+function isActionTool(toolName: string): boolean {
+	return /^(add|remove|pause|resume|subscribe|unsubscribe|sync|channelDirector)/.test(toolName);
+}
+
 export async function processUserMessage(
 	userId: number,
 	userMessage?: string,
@@ -336,12 +341,60 @@ export async function processUserMessage(
 		const withTools = (toolSet: Record<string, any>) =>
 			Object.keys(toolSet).length > 0 ? { tools: toolSet } : {};
 
+		// Tools that ran this turn: a retry must not run an action twice.
+		const executedTools = new Set<string>();
+
+		// The model may call a real tool the routing left out; the AI SDK then
+		// throws instead of telling it. Offer that tool's groups, then every
+		// tool, and ask again: at most twice, and never once an action ran.
+		const withUnofferedToolRetry = async (params: any): Promise<any> => {
+			for (let attempt = 0; ; attempt++) {
+				try {
+					return await generateText(params);
+				} catch (error: any) {
+					if (!NoSuchToolError.isInstance(error) || attempt >= 2) throw error;
+					if ([...executedTools].some(isActionTool)) throw error;
+					const wanted = ALL_GROUPS.filter(
+						(group) =>
+							(TOOL_GROUPS[group] as readonly string[]).includes(error.toolName) &&
+							!routing.groups.includes(group),
+					);
+					if (wanted.length > 0) {
+						routing = {
+							groups: [...routing.groups, ...wanted],
+							source: routing.source,
+							narrowed: true,
+						};
+					} else if (routing.narrowed) {
+						routing = { groups: [...ALL_GROUPS], source: "fallback", narrowed: false };
+					} else {
+						throw error;
+					}
+					const widenedTools = guardConfirmations(
+						withProxyInterception(toolsForGroups(routing.groups)),
+						priorHistory,
+					);
+					console.log(
+						`🧭 Tool routing widened [unoffered tool '${error.toolName}']: ${routing.groups.join(", ")} → ${Object.keys(widenedTools).length} tools`,
+					);
+					const { tools: _previousTools, ...rest } = params;
+					params = {
+						...rest,
+						system: systemPromptFor(routing.groups),
+						messages: historyViewFor(routing),
+						...withTools(widenedTools),
+					};
+				}
+			}
+		};
+
 		const firstPassParams = {
 			model: modelFast as any,
 			system: systemPromptFor(routing.groups),
 			messages: historyViewFor(routing),
 			...withTools(finalTools),
 			onStepFinish: async (step: any) => {
+				for (const call of step.toolCalls ?? []) executedTools.add(call.toolName);
 				const thought = step.text?.trim();
 				const normalizedToolCalls = normalizeToolCallsForLogging(
 					step.toolCalls as any[],
@@ -377,7 +430,7 @@ export async function processUserMessage(
 
 		let firstPass: any;
 		try {
-			firstPass = await generateText(firstPassParams as any);
+			firstPass = await withUnofferedToolRetry(firstPassParams);
 		} catch (error: any) {
 			if (isInvalidToolArgumentsError(error)) {
 				if (onStep) {
@@ -393,18 +446,17 @@ export async function processUserMessage(
 					error?.toolArgs,
 					statusLang,
 				);
-				firstPass = await generateText({
+				firstPass = await withUnofferedToolRetry({
 					...firstPassParams,
 					messages: [
 						...firstPassParams.messages,
 						{ role: "user", content: repairPrompt },
 					],
-				} as any);
+				});
 			} else {
 				throw error;
 			}
 		}
-
 		// --- Safety net: the narrowed tool set was not enough ---
 		// The model answers NEED_MORE_TOOLS (see prompts.ts) when the request
 		// needs a tool it was not given. Widen once: ask the classifier which
@@ -438,12 +490,12 @@ export async function processUserMessage(
 			);
 			const { tools: _narrowTools, ...paramsWithoutTools } =
 				firstPassParams as any;
-			firstPass = await generateText({
+			firstPass = await withUnofferedToolRetry({
 				...paramsWithoutTools,
 				system: systemPromptFor(routing.groups),
 				messages: historyViewFor(routing),
 				...withTools(widenedTools),
-			} as any);
+			});
 		}
 		if (firstPass.usage) {
 			console.log(
@@ -689,8 +741,9 @@ export async function processUserMessage(
 		return { text, imageUrl, buttons };
 	} catch (error) {
 		console.error("Error processing LLM response:", error);
-		const fallbackLang = detectStatusLanguage(
+		const fallbackLang = detectConversationLanguage(
 			userMessage ?? getLastUserTextFromHistory(history),
+			recentUserTexts,
 		);
 		return {
 			text:

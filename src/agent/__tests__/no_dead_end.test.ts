@@ -249,3 +249,80 @@ describe("status updates", () => {
 		expect(statuses.some((status) => status.includes(MARKER))).toBe(false);
 	});
 });
+
+describe("a call to a tool that was not offered", () => {
+	beforeEach(() => {
+		mockGenerateText.mockReset();
+		mockHistoryVal = [];
+		process.env.AI_PROVIDER = "google";
+		process.env.AI_MODEL_FAST = "fast-model";
+		process.env.AI_MODEL_CAPABLE = "capable-model";
+	});
+
+	it("offers that tool and asks again instead of failing the turn", async () => {
+		mockGenerateText.mockImplementationOnce(async (params: any) => {
+			throw new ai.NoSuchToolError({ toolName: "searchSeries", availableTools: Object.keys(params.tools) });
+		});
+		mockGenerateText.mockResolvedValueOnce(reply("Sunset Harbor is a comedy about a hotel."));
+
+		const result = await processUserMessage(55571, "pause all torrents and tell me about Sunset Harbor");
+
+		expect(mockGenerateText).toHaveBeenCalledTimes(2);
+		expect(Object.keys(requestAt(0).tools)).not.toContain("searchSeries");
+		expect(Object.keys(requestAt(1).tools)).toContain("searchSeries");
+		expect(Object.keys(requestAt(1).tools)).toContain("pauseAllTorrents");
+		expect(result.text).toBe("Sunset Harbor is a comedy about a hotel.");
+	});
+
+	it("widens again when the retry calls another tool that is missing, then offers everything", async () => {
+		const unoffered = (toolName: string) => async (params: any) => {
+			throw new ai.NoSuchToolError({ toolName, availableTools: Object.keys(params.tools) });
+		};
+		mockGenerateText.mockImplementationOnce(unoffered("searchSeries"));
+		mockGenerateText.mockImplementationOnce(unoffered("getWatchlist"));
+		mockGenerateText.mockResolvedValueOnce(reply("Here it is."));
+
+		const result = await processUserMessage(55573, "pause all torrents");
+
+		expect(mockGenerateText).toHaveBeenCalledTimes(3);
+		expect(Object.keys(requestAt(1).tools)).toContain("searchSeries");
+		expect(Object.keys(requestAt(1).tools)).not.toContain("getWatchlist");
+		expect(Object.keys(requestAt(2).tools)).toContain("getWatchlist");
+		expect(result.text).toBe("Here it is.");
+	});
+
+	it("does not ask again once an action ran in that turn", async () => {
+		mockGenerateText.mockImplementationOnce(async (params: any) => {
+			await params.onStepFinish({ text: "", toolCalls: [{ toolName: "pauseAllTorrents", args: {} }] });
+			throw new ai.NoSuchToolError({ toolName: "searchSeries", availableTools: Object.keys(params.tools) });
+		});
+
+		const result = await processUserMessage(55574, "pausá todas las descargas y contame de Sunset Harbor");
+
+		expect(mockGenerateText).toHaveBeenCalledTimes(1);
+		expect(result.text).toBe("Lo siento, tuve un error al procesar tu pedido.");
+	});
+
+	it("answers the error in the conversation's language", async () => {
+		mockHistoryVal = [
+			{ role: "user", content: "qué películas nuevas hay" },
+			{ role: "assistant", content: [{ type: "text", text: "Hay varias." }] },
+		];
+		mockGenerateText.mockRejectedValueOnce(new Error("network down"));
+
+		const result = await processUserMessage(55575, "Sunset Harbor 2024 completa");
+
+		expect(result.text).toBe("Lo siento, tuve un error al procesar tu pedido.");
+	});
+
+	it("offers every tool when the name is not one of the bot's tools", async () => {
+		mockGenerateText.mockImplementationOnce(async (params: any) => {
+			throw new ai.NoSuchToolError({ toolName: "madeUpTool", availableTools: Object.keys(params.tools) });
+		});
+		mockGenerateText.mockResolvedValueOnce(reply("Done."));
+
+		await processUserMessage(55572, "pause all torrents");
+
+		expect(Object.keys(requestAt(1).tools).length).toBeGreaterThan(30);
+	});
+});
