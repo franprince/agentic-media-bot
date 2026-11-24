@@ -367,6 +367,10 @@ async function searchTmdbTv(
  */
 const TMDB_FALLBACK_PER_YEAR = 3;
 const TMDB_FALLBACK_MIN_VOTES = 500;
+// Series get far fewer TMDB votes than movies: at 500, a year can have one or
+// two comedy series. Those under 500 carry the same "Few votes" warning as the
+// model's own suggestions.
+const TMDB_FALLBACK_MIN_VOTES_TV = 200;
 
 /** Top-rated, well-voted titles of one year straight from TMDB discover. */
 async function discoverYearFromTmdb(
@@ -405,7 +409,7 @@ async function discoverYearFromTmdb(
 			range,
 			extractGenreIds(query, "tv"),
 			"vote_average.desc",
-			TMDB_FALLBACK_MIN_VOTES,
+			TMDB_FALLBACK_MIN_VOTES_TV,
 		);
 		for (const show of (shows.results ?? []).slice(0, TMDB_FALLBACK_PER_YEAR)) {
 			results.push({
@@ -420,6 +424,7 @@ async function discoverYearFromTmdb(
 					.map((id) => genreMaps.tv[id] ?? "")
 					.filter(Boolean),
 				posterPath: show.poster_path ?? null,
+				...((show.vote_count ?? 0) < TMDB_FALLBACK_MIN_VOTES ? { warning: "Few votes" } : {}),
 			});
 		}
 	}
@@ -590,22 +595,23 @@ If you do not know enough titles from ${year} (for example a year after your tra
 		}),
 	);
 
-	// Years the model could not fill (it does not know recent releases, the
-	// request failed, or nothing passed the vote filters) are filled from
-	// TMDB's own discover endpoint, so the tool does not come back empty.
-	const coveredYears = new Set(allResults.map((result) => result.year));
+	// Every year is topped up from TMDB's own discover endpoint: the model
+	// often knows few or no titles of a recent year, and some suggestions are
+	// already in the library, so a request for five would otherwise get two.
+	const seen = new Set(allResults.map((result) => `${result.mediaType}:${result.id}`));
 	await Promise.all(
-		yearsToFetch
-			.filter((year) => !coveredYears.has(year))
-			.map(async (year) => {
-				try {
-					allResults.push(
-						...(await discoverYearFromTmdb(query, mediaType, year, genreMaps)),
-					);
-				} catch (err) {
-					console.error(`Error fetching TMDB discover fallback for year ${year}:`, err);
+		yearsToFetch.map(async (year) => {
+			try {
+				for (const result of await discoverYearFromTmdb(query, mediaType, year, genreMaps)) {
+					const key = `${result.mediaType}:${result.id}`;
+					if (seen.has(key)) continue;
+					seen.add(key);
+					allResults.push(result);
 				}
-			}),
+			} catch (err) {
+				console.error(`Error fetching TMDB discover fallback for year ${year}:`, err);
+			}
+		}),
 	);
 
 	// Sort by rating descending and cap at limit
