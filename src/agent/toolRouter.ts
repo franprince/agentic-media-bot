@@ -188,6 +188,13 @@ const KEYWORD_RULES: KeywordRule[] = [
 		groups: ["downloads"],
 	},
 	{
+		// Past tense ("what did we download last?"): the queue tools only show
+		// what is still downloading; what arrived is in the library.
+		pattern:
+			/\b(downloaded|descargad[oa]s?|descargamos|descargaste|bajad[oa]s?|bajamos|bajaste)\b/,
+		groups: ["library", "downloads"],
+	},
+	{
 		pattern:
 			/\b(salud|health|online|offline|caid[oa]s?|down|funciona\w*|working|status|estado|servicios?|services?|disco|disk|espacio|space|storage|almacenamiento|radarr|sonarr|plex|qbittorrent|nzbget)\b/,
 		groups: ["system"],
