@@ -88,7 +88,7 @@ A conversational Telegram bot that controls a user's home media server stack, ca
 8. **Dynamic Status Feedback**
    - **Thinking Protocol**: While processing tools, the bot provides real-time status updates in the user's language with warm, specific phrasing (e.g., "Buscando películas en Plex..." instead of generic "Working on...").
    - **Localized Transition Banner**: Initial transition messages (such as "Thinking..." and restart catch-up notices) are shown in the same language as the user's message.
-   - **Accent-Resilient Language Detection**: Spanish should be detected correctly even when users omit accents (e.g., "peliculas" vs "películas"). English words that merely contain a Spanish word ("timestamps", "western", "restoration") do not count as Spanish.
+   - **Accent-Resilient Language Detection**: Spanish should be detected correctly even when users omit accents (e.g., "peliculas" vs "películas"). English words that merely contain a Spanish word ("timestamps", "western", "restoration") do not count as Spanish. A message with no clear sign of either language (a title, a number) is answered in the language of the conversation, including the first message after a 12-hour reset.
    - **Final Reply Language Guard**: Final answer text is forced to match the detected user language (Spanish/English) before sending. In an English conversation, a reply that is clearly English prose is sent as it is even when it names an accented or Spanish title ("Amélie", "El Camino").
 
 9. **Update Notifications & Changelogs**

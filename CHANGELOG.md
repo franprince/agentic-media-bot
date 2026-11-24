@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.48.3] - 2026-11-24
+
+### Fixed
+- **Spanish requests written without accents get a Spanish reply**: A message of more than two words with no listed Spanish word was treated as English, and the model was told to answer in English. Common request words now count as Spanish when they stand as whole words ("recomendame", "pasame", "quiero", "tenes", "algo", "pelis", "serie", "comicas", "nuevo"), and a longer message is English only when it has more English words than Spanish ones. A message with neither (a bare title, a number) takes the language of the conversation. Title-case titles inside a request ("agrega The Garden of Stones") do not count as English.
+- **The conversation language survives the 12-hour reset**: The earlier messages used to decide an unclear message were read after the reset had cleared them. They are now read before.
+- **Recommendations are no longer limited to one year the user did not ask for**: The tool's examples all carried a year, and the model added one to the query, which limits the search to that year. The examples no longer have one, and the tool says to add a year only when the user names it. In a check against TMDB, "comedy series" gave 6 suggestions from three years; "comedy series 2026" gave 2.
+- **Old tool results no longer contradict new ones in the reply**: The model is told that a newer tool result replaces an older one and not to mention the difference. Before, it quoted a library check from an earlier turn that disagreed with the current one.
+
+### Notes
+- Compared before and after on 255 phrasings, each with no history, a Spanish history and an English history: no Spanish message reads as English after the change. 62 checks changed, all toward Spanish: Spanish requests written without accents, and messages without words of either language in a Spanish conversation.
+- A first message with no listed word of either language still reads as English. A lowercase English title in a Spanish request ("agrega the last of us") can still make it read as English.
+- Not verified with the live model: the reply language and the effect of the new prompt rule.
+
 ## [4.48.2] - 2026-11-24
 
 ### Fixed
