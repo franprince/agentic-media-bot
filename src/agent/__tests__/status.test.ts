@@ -73,3 +73,44 @@ describe("conversation language: colloquial Spanish and button payloads", () => 
 		expect(isButtonPayload("add the departed")).toBe(false);
 	});
 });
+
+describe("Spanish that depends on inflected or doubled words", () => {
+	it("recognises plural and enclitic forms of a listed word", () => {
+		expect(detectStatusLanguage("buscame la ultima de Nolan")).toBe("es");
+		expect(detectStatusLanguage("peliculas de terror")).toBe("es");
+		expect(detectStatusLanguage("agregala a mi lista")).toBe("es");
+		expect(detectStatusLanguage("faltantes de Marvel")).toBe("es");
+	});
+
+	it("recognises a longer message whose only listed word is tengo, esta or esto", () => {
+		expect(detectStatusLanguage("tengo Breaking Bad completa?")).toBe("es");
+		expect(detectStatusLanguage("esta serie termino?")).toBe("es");
+		expect(detectStatusLanguage("esto sirve para algo?")).toBe("es");
+		expect(detectConversationLanguage("tengo Breaking Bad completa?", [])).toBe("es");
+	});
+
+	it("recognises forms of estar and words that used to match inside another", () => {
+		expect(detectStatusLanguage("estoy aburrido hoy")).toBe("es");
+		expect(detectStatusLanguage("estan bajando ahora mismo?")).toBe("es");
+		expect(detectStatusLanguage("estaba viendo Dune ayer")).toBe("es");
+		expect(detectStatusLanguage("espero que ande")).toBe("es");
+		expect(detectStatusLanguage("colas de descarga largas")).toBe("es");
+		expect(detectStatusLanguage("la respuesta correcta")).toBe("es");
+		expect(detectStatusLanguage("obtengo un error raro")).toBe("es");
+	});
+});
+
+describe("English words that contain a Spanish word", () => {
+	it("does not read them as Spanish", () => {
+		expect(detectStatusLanguage("The log has no timestamps for that download")).toBe("en");
+		expect(detectStatusLanguage("A long restaurant scene opens the film")).toBe("en");
+		expect(detectStatusLanguage("It is a real estate drama")).toBe("en");
+		expect(detectStatusLanguage("Nicolas Cage stars in this western")).toBe("en");
+		expect(detectStatusLanguage("The Last Emperor was added yesterday")).toBe("en");
+		expect(detectStatusLanguage("It is a 4K restoration and a milestone")).toBe("en");
+	});
+
+	it("keeps an English request English", () => {
+		expect(detectConversationLanguage("show me the timestamps of my downloads", [])).toBe("en");
+	});
+});

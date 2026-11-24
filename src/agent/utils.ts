@@ -1,6 +1,6 @@
 import type { CoreMessage } from "ai";
 import { normalizeCountryName } from "../services/plex";
-import { detectStatusLanguage, type StatusLanguage } from "./status";
+import { detectStatusLanguage, readsAsEnglish, type StatusLanguage } from "./status";
 
 export function getLastUserTextFromHistory(
 	history: CoreMessage[],
@@ -107,7 +107,7 @@ export function shouldRewriteForTargetLanguage(
 ): boolean {
 	const detected = detectStatusLanguage(text);
 	if (target === "es") return detected !== "es";
-	return detected === "es";
+	return detected === "es" && !readsAsEnglish(text);
 }
 
 export function buildLanguageRewritePrompt(target: StatusLanguage): string {

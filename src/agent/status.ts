@@ -57,13 +57,16 @@ function countSpanishSignals(text: string): number {
 		"cuando",
 		"donde",
 		"como",
-		"esta",
-		"esto",
 		"este",
 		"estos",
 		"estas",
+		"estoy",
+		"estan",
+		"estamos",
+		"estaba",
+		"estar",
+		"estado",
 		"tienes",
-		"tengo",
 		"hay",
 		"lista",
 		"está",
@@ -71,6 +74,38 @@ function countSpanishSignals(text: string): number {
 		"algunas",
 		"aquí",
 	];
+
+	// Enough on their own: a longer message whose only Spanish word is one of
+	// these ("tengo Dune completa?", "estoy aburrido hoy") must read as Spanish.
+	const doubleWeight = new Set([
+		"tengo",
+		"esta",
+		"esto",
+		"estas",
+		"estos",
+		"estoy",
+		"estan",
+		"estamos",
+		"estaba",
+		"estar",
+		"estado",
+	]);
+	// These occur inside English words ("timestamps", "restored", "western",
+	// "emperor"), so they only count at the end of a word ("respuesta",
+	// "espero") ...
+	const wordEndOnly = new Set(["esta", "esto", "este", "pero"]);
+	// ... or at the start of one ("holaaa", "colas", "estaban"; not
+	// "Nicholas" or "chocolate").
+	const wordStartOnly = new Set([
+		"hola",
+		"cola",
+		"estoy",
+		"estan",
+		"estamos",
+		"estaba",
+		"estar",
+		"estado",
+	]);
 
 	// Colloquial (Rioplatense) commands and Spanish-only words, matched as
 	// whole words only ("parte" must not match "The Departed").
@@ -102,24 +137,19 @@ function countSpanishSignals(text: string): number {
 		if (new RegExp(`(^|[^\\p{L}])${word}($|[^\\p{L}])`, "iu").test(text)) score += 1;
 	}
 
-	const matchedWords = new Set<string>();
-
 	for (const s of signals) {
+		let found: boolean;
 		if (s.length <= 3) {
 			// Use word boundary for short or shared words to avoid matching substrings in English words
-			const regex = new RegExp(`\\b${s}\\b`, "i");
-			if (regex.test(text)) {
-				score += 1;
-				matchedWords.add(s);
-			}
+			found = new RegExp(`\\b${s}\\b`, "i").test(text);
+		} else if (wordEndOnly.has(s)) {
+			found = new RegExp(`${s}\\b`, "i").test(text);
+		} else if (wordStartOnly.has(s)) {
+			found = new RegExp(`\\b${s}`, "i").test(text);
 		} else {
-			if (t.includes(s)) {
-				// Avoid double counting if a shorter version of the word already matched
-				// e.g. "pelicula" and "peliculas"
-				score += 1;
-				matchedWords.add(s);
-			}
+			found = t.includes(s);
 		}
+		if (found) score += doubleWeight.has(s) ? 2 : 1;
 	}
 
 	return score;
@@ -130,6 +160,37 @@ export function detectStatusLanguage(
 ): StatusLanguage {
 	if (!text) return "en";
 	return countSpanishSignals(text) >= 2 ? "es" : "en";
+}
+
+// Words that exist in both languages ("no", "me", "con", "has") are in neither list.
+const ENGLISH_ONLY_WORDS = new Set(
+	"the and is are was were you your it its of to in for with that this have not can here there what which from but will would on at or if be been i my we they their i'm i've it's can't don't".split(
+		" ",
+	),
+);
+const SPANISH_ONLY_WORDS = new Set(
+	"el la los las un una unos unas de del que y en es está están se lo le te mi tu su para por pero como más si sí también cuando donde muy este esta esto eso esa aquí".split(
+		" ",
+	),
+);
+
+/**
+ * True when a reply is clearly English prose even though it carries Spanish
+ * signals such as an accented name or a Spanish title. Titles in bold or in
+ * quotes are not counted. With too little prose to judge it returns false,
+ * and the signal detector decides.
+ */
+export function readsAsEnglish(text: string): boolean {
+	if (/[¿¡]/.test(text)) return false;
+	const prose = text.replace(/\*\*[^*]+\*\*|"[^"\n]+"|“[^”\n]+”/g, " ");
+	const words = prose.toLowerCase().replace(/’/g, "'").match(/[\p{L}']+/gu) ?? [];
+	let english = 0;
+	let spanish = 0;
+	for (const word of words) {
+		if (ENGLISH_ONLY_WORDS.has(word)) english++;
+		else if (SPANISH_ONLY_WORDS.has(word)) spanish++;
+	}
+	return english >= 4 && english >= 2 * spanish;
 }
 
 /**
