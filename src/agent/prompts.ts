@@ -123,6 +123,22 @@ export function buildSystemPromptTemplate(groups: ToolGroup[]): string {
 	return parts.map((part) => part.trim()).join("\n\n");
 }
 
+const CONTEXT_LINE = /^CONTEXT: .*\n\n?/m;
+
+/**
+ * The prompt split for prompt caching: `fixed` is the same for every user, day
+ * and language, so it can sit behind a cache breakpoint; `context` holds the
+ * user, the date and the conversation language.
+ */
+export function fillSystemPromptParts(
+	template: string,
+	context: Parameters<typeof fillSystemPrompt>[1],
+): { fixed: string; context: string } {
+	const contextLine = template.match(CONTEXT_LINE)?.[0]?.trim() ?? "";
+	const fixed = template.replace(CONTEXT_LINE, "").trim();
+	return { fixed, context: fillSystemPrompt(contextLine, context) };
+}
+
 export function fillSystemPrompt(
 	template: string,
 	context: {
