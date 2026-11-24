@@ -158,6 +158,8 @@ All checked by tests that make no API call.
 
 ## Phase 2 (separate spec, not approved here)
 
+Proposed in [`2026-11-24-claude-all-tools`](../2026-11-24-claude-all-tools/spec.md).
+
 Fixed prompt and all tools for Claude on every request. It removes the
 classifier and widening requests and lets the prompt cache hold across turns,
 but tool choice among 39 tools on Haiku is unmeasured. Entry condition: the
