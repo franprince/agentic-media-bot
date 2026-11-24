@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.48.1] - 2026-11-24
+
+### Fixed
+- **English replies are no longer rewritten "into English"**: The final language check read some English replies as Spanish and sent them to the model a second time. English words that contain a Spanish word ("timestamps", "restoration", "western", "The Last Emperor") no longer count as Spanish, and in an English conversation a reply that is clearly English prose is sent as it is even when it names an accented or Spanish title ("Amélie", "El Camino"). In the logged turn that showed it, the extra request took 1.8 of 9.7 seconds.
+- **English messages with those words are no longer treated as Spanish**: "show me the timestamps of my downloads" was read as a Spanish message.
+- **Questions about finished downloads reach the Plex library**: A question with a past-tense download verb ("downloaded", "descargamos", "bajamos") is now routed to the library tools as well as the download queue, so Plex's recently added list is available to the model. Before, it only had the queue, which shows what is still downloading.
+
+### Notes
+- Spanish detection is unchanged for the phrasings tested, including forms that only matched inside another word before ("estoy", "estaban", "espero", "respuesta", "obtengo"). A word that has "esta", "esto", "este" or "pero" somewhere other than its end ("estes") no longer adds to the Spanish count.
+- The recently added list carries no dates: the bot can say what arrived in Plex most recently, not when.
+
 ## [4.48.0] - 2026-11-24
 
 ### Added

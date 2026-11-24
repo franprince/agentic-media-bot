@@ -62,6 +62,23 @@ describe("keywordGroups", () => {
 	it("finds nothing in a bare title", () => {
 		expect(keywordGroups("Parasite").size).toBe(0);
 	});
+
+	it("sends a question about finished downloads to the library as well as the queue", () => {
+		expect(sorted(keywordGroups("has anything been downloaded since Monday?"))).toEqual([
+			"downloads",
+			"library",
+		]);
+		expect(sorted(keywordGroups("que descargamos ayer"))).toEqual(["downloads", "library"]);
+		expect(sorted(keywordGroups("qué fue lo último que bajamos?"))).toEqual([
+			"downloads",
+			"library",
+		]);
+	});
+
+	it("does not treat a request to download a title as a question about the past", () => {
+		expect(sorted(keywordGroups("download Last Night in Soho"))).toEqual(["movies", "series"]);
+		expect(sorted(keywordGroups("bajame Dune"))).toEqual(["movies", "series"]);
+	});
 });
 
 describe("message classification helpers", () => {
@@ -108,6 +125,17 @@ describe("selectToolGroups", () => {
 	it("uses keywords without any model call", async () => {
 		const decision = await selectToolGroups("cómo van las descargas?", []);
 		expect(decision).toEqual({ groups: ["downloads"], source: "keyword", narrowed: true });
+	});
+
+	it("offers the recently-added tool for a question about finished downloads", async () => {
+		const decision = await selectToolGroups("has anything been downloaded since Monday?", []);
+		expect(decision.source).toBe("keyword");
+		const tools = pickToolsForGroups(
+			Object.fromEntries(Object.values(TOOL_GROUPS).flat().map((name) => [name, true])),
+			decision.groups,
+		);
+		expect(Object.keys(tools)).toContain("getRecentlyAddedPlex");
+		expect(Object.keys(tools)).toContain("getMovieQueue");
 	});
 
 	it("sends no tools for small talk", async () => {
