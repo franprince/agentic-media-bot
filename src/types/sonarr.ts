@@ -9,7 +9,9 @@ export interface SonarrSeries {
 	genres?: string[];
 	year: number;
 	tvdbId: number;
+	tmdbId?: number;
 	imdbId?: string;
+	alternateTitles?: Array<{ title: string }>;
 	monitored?: boolean;
 	images?: Array<{ coverType: string; url: string; remoteUrl?: string }>;
 	ratings?: {

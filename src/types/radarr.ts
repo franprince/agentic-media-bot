@@ -2,6 +2,7 @@ export interface RadarrMovie {
 	id?: number;
 	title: string;
 	originalTitle?: string;
+	alternateTitles?: Array<{ title: string }>;
 	overview?: string;
 	year: number;
 	tmdbId: number;
