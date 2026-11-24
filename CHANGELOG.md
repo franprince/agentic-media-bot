@@ -5,12 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.48.0] - 2026-11-24
+
+### Added
+- **Fuller conversation for Claude**: With `AI_PROVIDER=anthropic` the model now receives the recent turns as they happened, with synopses and posters, instead of the compacted view built for a provider capped at 8,000 tokens per minute. That view made the bot contradict itself: on the third message of a conversation it held two of four turns and the previous search result had lost its synopsis. Ceiling: 60,000 characters (`src/agent/historyBudget.ts`); the stored history is still trimmed to its last 20 messages, so in practice this is about five tool turns.
+- **New conversation after 12 hours (Claude)**: A typed message more than 12 hours after the last activity starts a new conversation, so a title from days ago is no longer read as the one being discussed. A button tap always continues the conversation its message belongs to. The `conversations` table gets an `updated_at` column, added automatically on startup.
+- **Per-call usage log (Claude)**: Each request logs uncached input, cache-read, cache-write and output tokens, the elapsed time and the stop reason (`📊 Claude call: ...`), so prompt caching and latency can be measured from the journal.
+
+### Fixed
+- **No dead end when no tool covers a request**: Asked for something no tool does (for example changing the quality of a movie already in the library), the bot answered "I had trouble formulating a response" and showed the internal `NEED_MORE_TOOLS` marker as a status update. It now says plainly, in the user's language, that it cannot do that yet and what it can do. The marker is never shown and never saved into the conversation. This fix applies to every provider.
+- **Recommendation prompt test**: `tmdb.test.ts` asserted the prompt as it was before `4.47.0`.
+
+### Notes
+- For the other providers (`ollama`, Google), tool routing, the history budget and the prompt for a narrowed tool set are unchanged; the only difference is the dead-end fix above, which changes one rule of the prompt when every tool is offered. `AI_HISTORY_CHAR_BUDGET` does not apply to Claude.
+- The bot still widens the tool set once. If it widens to some groups and the model still asks for more, the user gets the "can't do that yet" message without every tool having been offered.
+- A conversation saved before this version has no activity time and counts as expired: with Claude, each user's first typed message after the update starts a new conversation.
+
+See `specs/2026-11-24-claude-context/`.
+
 ## [4.47.0] - 2026-11-20
 
 ### Added
-- **Claude provider (`AI_PROVIDER=anthropic`)**: The bot can run on Claude through the official Anthropic SDK (`@anthropic-ai/sdk`, key in `ANTHROPIC_API_KEY`). `src/agent/anthropic.ts` is an AI SDK language model, so the agent loop, tools, confirmation guard and stored history are unchanged. It follows the current Claude request rules (no sampling parameters, no forced tool choice, no prefill, adaptive thinking with a `max_tokens` floor), repairs history stored under other providers (orphaned tool calls, incompatible tool ids), sends thinking blocks back within a tool loop only while the conversation before them is unchanged, runs tools only when the model stopped to call them (never after a refusal or a cut-off reply), and enables server-side refusal fallbacks on Opus/Sonnet. `AI_REASONING_EFFORT` sets Claude's effort (`low`–`max`).
-- **Recommended model, measured**: `claude-haiku-5-5` for both `AI_MODEL_FAST` and `AI_MODEL_CAPABLE`. On a 14-case Spanish/English bake-off (tool choice, two-step confirmation, reply language) plus the router classifier, Haiku 5.5, Sonnet 5.5 and Opus 5.5 all passed every agent case; Haiku did it at ~$0.0008 per turn and ~2.8 s, about 19× cheaper than Sonnet and 40× cheaper than Opus. With no model set the default is `claude-opus-5-5`.
-- `verify-config` checks the Anthropic key, rejects non-`claude-*` model names, and pings each configured model; `setup.ts` offers `anthropic` as a provider.
+- **Claude provider (`AI_PROVIDER=anthropic`)**: The bot can run on **Claude Haiku 5.5** through the official Anthropic SDK (`@anthropic-ai/sdk`, key in `ANTHROPIC_API_KEY`). `src/agent/anthropic.ts` is an AI SDK language model, so the agent loop, tools, confirmation guard and stored history are unchanged. It follows Haiku 5.5's request rules (no sampling parameters, no prefill, adaptive thinking with a `max_tokens` floor, no forced tool choice), repairs history stored under other providers (orphaned tool calls, incompatible tool ids), sends thinking blocks back within a tool loop only while the conversation before them is unchanged, and runs tools only when the model stopped to call them (never after a refusal or a cut-off reply). `AI_REASONING_EFFORT` sets Claude's effort (`low`–`max`, default `medium`).
+- **Why Haiku 5.5, measured**: on a 14-case Spanish/English bake-off (tool choice, two-step confirmation, reply language) plus the router classifier, Haiku 5.5, Sonnet 5.5 and Opus 5.5 all passed every agent case; Haiku did it at ~$0.0008 per turn and ~2.8 s, about 19× cheaper than Sonnet and 40× cheaper than Opus. The provider uses Haiku only; `AI_MODEL_FAST` / `AI_MODEL_CAPABLE` are ignored with it.
+- **Faster replies on Claude**: automatic prompt caching on every request (later tool-loop steps read the prompt from cache), and the recommendation lists behind `discoverMedia` run with thinking off and low effort (each call 4–6 s → ~1 s). A "find me a nice comedy series" turn went from ~19 s to ~5.6 s.
+- `verify-config` checks the Anthropic key and pings Haiku 5.5; `setup.ts` offers `anthropic` as a provider.
 
 ### Fixed
 - **Confirmation buttons**: Add/remove confirmations now show only the tool's buttons (real IDs, default settings) instead of also appending the model's generic copies (`add_movie_confirm`), which a stricter instruction-follower such as Claude produced on every confirmation. The add button names the default quality profile it uses ("✅ Yes, Add Movie (HD-1080p)"). Callback data is capped at Telegram's 64 bytes so an over-long model button cannot make the whole reply fail.

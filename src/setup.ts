@@ -79,14 +79,7 @@ if (config.AI_PROVIDER === "google") {
 } else if (config.AI_PROVIDER === "anthropic") {
 	console.log("Get your API key at: https://platform.claude.com/settings/keys");
 	config.ANTHROPIC_API_KEY = prompt("Enter your Anthropic API Key:") || "";
-	config.AI_MODEL_FAST =
-		prompt("Claude model for the tool loop [claude-haiku-5-5]:", "claude-haiku-5-5") ||
-		"claude-haiku-5-5";
-	config.AI_MODEL_CAPABLE =
-		prompt(
-			`Claude model for synthesis / rewrites [${config.AI_MODEL_FAST}]:`,
-			config.AI_MODEL_FAST,
-		) || config.AI_MODEL_FAST;
+	// The bot always uses Claude Haiku 5.5 with this provider; no model to pick.
 } else {
 	config.OLLAMA_BASE_URL =
 		prompt(

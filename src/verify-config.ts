@@ -3,7 +3,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { generateText } from "ai";
 import { Bot } from "grammy";
 import { createAnthropicModel } from "./agent/anthropic";
-import { getCapableModelName, getFastModelName } from "./agent/provider";
+import { getFastModelName } from "./agent/provider";
 import { getTimezone } from "./services/database";
 import * as plex from "./services/plex";
 import * as qbittorrent from "./services/qbittorrent";
@@ -52,21 +52,13 @@ export async function verifyConfig(exitOnFailure: boolean = true) {
 				if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) {
 					throw new Error("ANTHROPIC_API_KEY is missing.");
 				}
-				const models = [...new Set([getFastModelName(), getCapableModelName()])];
-				const notClaude = models.filter((name) => !name.startsWith("claude-"));
-				if (notClaude.length > 0) {
-					throw new Error(
-						`AI_MODEL_FAST / AI_MODEL_CAPABLE / AI_MODEL must name Claude models with AI_PROVIDER=anthropic (got: ${notClaude.join(", ")}).`,
-					);
-				}
-				for (const name of models) {
-					await generateText({
-						model: createAnthropicModel(name),
-						prompt: "Reply with the single word: ok",
-						maxRetries: 1,
-					});
-				}
-				return `Success: ${models.join(" and ")} responded.`;
+				const model = getFastModelName();
+				await generateText({
+					model: createAnthropicModel(model),
+					prompt: "Reply with the single word: ok",
+					maxRetries: 1,
+				});
+				return `Success: ${model} responded.`;
 			},
 		},
 		{

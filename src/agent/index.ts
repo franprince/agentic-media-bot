@@ -1,5 +1,7 @@
 import { type CoreMessage, generateText } from "ai";
 import {
+	clearHistory,
+	getConversationUpdatedAt,
 	getHistory,
 	getUserName,
 	saveHistory,
@@ -14,6 +16,7 @@ import {
 } from "./intent";
 import { guardConfirmations } from "./confirmGuard";
 import {
+	CLAUDE_HISTORY_CHAR_BUDGET,
 	DEFAULT_HISTORY_CHAR_BUDGET,
 	prepareHistoryForModel,
 } from "./historyBudget";
@@ -27,12 +30,17 @@ import {
 	getCapableModelName,
 	getFastModel,
 	getFastModelName,
+	isAnthropicProvider,
 } from "./provider";
 import { executeOnProxy, isProxyEnabled } from "./proxyClient";
+import { isSessionExpired } from "./session";
 import {
 	buildExactCountPrefix,
 	buildPlexBrowseAuthoritativeText,
 	extractToolResultsFromMessages,
+	noToolReply,
+	scrubMarker,
+	scrubMarkerFromMessages,
 	selectReplyButtons,
 } from "./response";
 import {
@@ -62,11 +70,14 @@ import {
 
 /**
  * Process a user message using the AI agent.
+ * `options.fromButton` marks a button tap: it answers a specific earlier
+ * message, so it always continues the stored conversation.
  */
 export async function processUserMessage(
 	userId: number,
 	userMessage?: string,
 	onStep?: (status: string) => Promise<void>,
+	options: { fromButton?: boolean } = {},
 ): Promise<{
 	text: string;
 	imageUrl?: string;
@@ -125,10 +136,23 @@ export async function processUserMessage(
 
 	// Add the user's message to the history ONLY if it's a new message
 	if (userMessage) {
-		// Clear history if it's too long or stale
-		// Check for long gap (> 12 hours) from the metadata of the last message if available
-		// For now, we'll just trim to keep it simple and effective.
-		history = trimHistory(userId, 20);
+		// On Claude a typed message after a long silence starts a new
+		// conversation, so a stale turn is not read as the current topic. The
+		// activity time is read before the trim, which can save the row.
+		const startsNewConversation =
+			isAnthropicProvider() &&
+			!options.fromButton &&
+			history.length > 0 &&
+			isSessionExpired(getConversationUpdatedAt(userId), Date.now());
+		if (startsNewConversation) {
+			clearHistory(userId);
+			history = [];
+			console.log(
+				"🧹 Conversation idle for more than 12 hours: starting a new one.",
+			);
+		} else {
+			history = trimHistory(userId, 20);
+		}
 
 		history.push({ role: "user", content: userMessage });
 		saveHistory(userId, history);
@@ -297,13 +321,22 @@ export async function processUserMessage(
 			decision.narrowed
 				? DEFAULT_HISTORY_CHAR_BUDGET
 				: Math.floor(DEFAULT_HISTORY_CHAR_BUDGET / 3);
+		// Claude has no tokens-per-minute cap: it gets the recent turns as they
+		// happened. The budgeted, compacted view is for the capped providers.
+		const sendsFullHistory = isAnthropicProvider();
+		const historyViewFor = (decision: RoutingDecision) =>
+			sendsFullHistory
+				? prepareHistoryForModel(history, CLAUDE_HISTORY_CHAR_BUDGET, {
+						compactOlderTurns: false,
+					})
+				: prepareHistoryForModel(history, historyBudgetFor(decision));
 		const withTools = (toolSet: Record<string, any>) =>
 			Object.keys(toolSet).length > 0 ? { tools: toolSet } : {};
 
 		const firstPassParams = {
 			model: modelFast as any,
 			system: systemPromptFor(routing.groups),
-			messages: prepareHistoryForModel(history, historyBudgetFor(routing)),
+			messages: historyViewFor(routing),
 			...withTools(finalTools),
 			onStepFinish: async (step: any) => {
 				const thought = step.text?.trim();
@@ -326,7 +359,12 @@ export async function processUserMessage(
 					}
 
 					// For thought-only steps, avoid sending long final answers as status updates.
-					if (thought && thought.length <= 140 && !thought.includes("\n")) {
+					if (
+						thought &&
+						thought.length <= 140 &&
+						!thought.includes("\n") &&
+						!thought.includes(NEED_MORE_TOOLS_MARKER)
+					) {
 						await onStep(`🔄 ${thought} `);
 					}
 				}
@@ -400,15 +438,9 @@ export async function processUserMessage(
 			firstPass = await generateText({
 				...paramsWithoutTools,
 				system: systemPromptFor(routing.groups),
-				messages: prepareHistoryForModel(history, historyBudgetFor(routing)),
+				messages: historyViewFor(routing),
 				...withTools(widenedTools),
 			} as any);
-		}
-		if ((firstPass.text || "").includes(NEED_MORE_TOOLS_MARKER)) {
-			// Never show the internal marker to the user.
-			firstPass.text = (firstPass.text || "")
-				.replace(NEED_MORE_TOOLS_MARKER, "")
-				.trim();
 		}
 		if (firstPass.usage) {
 			console.log(
@@ -439,12 +471,23 @@ export async function processUserMessage(
 				model: modelCapable as any,
 				system: `${systemPromptFor(routing.groups)}\n\nSynthesize the final response. REMEMBER: Never use 'Poster:' text placeholders. If poster URLs are present in the tool results above, include them internally using the POSTER: <url> format at the very end of your message.`,
 				messages: [
-					...prepareHistoryForModel(history, historyBudgetFor(routing)),
-					...firstPass.response.messages,
+					...historyViewFor(routing),
+					...scrubMarkerFromMessages(firstPass.response.messages, ""),
 				],
 			});
 
 			response = synthesis;
+		}
+
+		// Never show the internal marker to the user, and never save it: the
+		// model would read it back as its own answer on the next turn. A reply
+		// that was nothing but the marker becomes a plain "not yet" message.
+		let replyText: string = response.text || "";
+		let noToolFallback = "";
+		if (replyText.includes(NEED_MORE_TOOLS_MARKER)) {
+			const cleaned = scrubMarker(replyText);
+			noToolFallback = cleaned ? "" : noToolReply(statusLang);
+			replyText = cleaned || noToolFallback;
 		}
 
 		if (response.toolResults.length > 0) {
@@ -463,17 +506,19 @@ export async function processUserMessage(
 
 		// Add the agent's full response (including tool interactions) to the history
 		if (response === firstPass) {
-			history.push(...firstPass.response.messages);
+			history.push(
+				...scrubMarkerFromMessages(firstPass.response.messages, noToolFallback),
+			);
 		} else {
 			// Include everything from first pass PLUS the final synthesis message
 			history.push(
-				...firstPass.response.messages,
-				...response.response.messages,
+				...scrubMarkerFromMessages(firstPass.response.messages, ""),
+				...scrubMarkerFromMessages(response.response.messages, noToolFallback),
 			);
 		}
 		saveHistory(userId, history);
 
-		let text = response.text || "I had trouble formulating a response.";
+		let text = replyText || "I had trouble formulating a response.";
 		let imageUrl: string | undefined;
 		let buttons: Array<{ text: string; data: string }> | undefined;
 

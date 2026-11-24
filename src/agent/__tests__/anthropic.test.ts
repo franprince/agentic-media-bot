@@ -1,13 +1,13 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it, spyOn } from "bun:test";
 import { generateObject, generateText, tool } from "ai";
 import { z } from "zod";
 import {
 	AnthropicChatModel,
 	ThinkingReplayCache,
 	convertPrompt,
+	formatUsageLog,
 	getAnthropicEffort,
 	sanitizeToolId,
-	supportsServerFallback,
 } from "../anthropic";
 
 /** A fake Anthropic client that records request bodies and replays responses. */
@@ -49,7 +49,7 @@ afterEach(() => {
 describe("request shape", () => {
 	it("drops sampling params, keeps thinking adaptive and never forces tool_choice", async () => {
 		const { client, requests } = fakeClient([message([{ type: "text", text: "hola" }])]);
-		const model = new AnthropicChatModel("claude-opus-5-5", { client, replayCache: new ThinkingReplayCache() });
+		const model = new AnthropicChatModel("claude-haiku-5-5", { client, replayCache: new ThinkingReplayCache() });
 		await generateText({
 			model,
 			temperature: 0.3,
@@ -69,18 +69,11 @@ describe("request shape", () => {
 		expect(body.tools[0].input_schema.$schema).toBeUndefined();
 	});
 
-	it("enables server-side fallbacks on Opus 5.5 / Sonnet 5.5 only", async () => {
-		expect(supportsServerFallback("claude-opus-5-5")).toBe(true);
-		expect(supportsServerFallback("claude-sonnet-5-5")).toBe(true);
-		expect(supportsServerFallback("claude-haiku-5-5")).toBe(false);
-
-		const { client, requests } = fakeClient([message([{ type: "text", text: "a" }]), message([{ type: "text", text: "b" }])]);
-		await generateText({ model: new AnthropicChatModel("claude-opus-5-5", { client }), prompt: "x" });
+	it("never sends server-side fallbacks (Haiku 5.5 has none)", async () => {
+		const { client, requests } = fakeClient([message([{ type: "text", text: "a" }])]);
 		await generateText({ model: new AnthropicChatModel("claude-haiku-5-5", { client }), prompt: "x" });
-		expect(requests[0].fallbacks).toBe("default");
-		expect(requests[0].betas).toContain("server-side-fallback-2026-07-01");
-		expect(requests[1].fallbacks).toBeUndefined();
-		expect(requests[1].betas).not.toContain("server-side-fallback-2026-07-01");
+		expect(requests[0].fallbacks).toBeUndefined();
+		expect(requests[0].betas).toEqual(["thinking-binding-controls-2026-08-01"]);
 	});
 
 	it("floors max_tokens so thinking cannot starve a short classifier answer", async () => {
@@ -107,7 +100,7 @@ describe("request shape", () => {
 	it("never ends on an assistant turn (prefill is a 400)", async () => {
 		const { client, requests } = fakeClient([message([{ type: "text", text: "final" }])]);
 		await generateText({
-			model: new AnthropicChatModel("claude-sonnet-5-5", { client }),
+			model: new AnthropicChatModel("claude-haiku-5-5", { client }),
 			messages: [
 				{ role: "user", content: "hi" },
 				{ role: "assistant", content: "draft" },
@@ -120,7 +113,7 @@ describe("request shape", () => {
 	it("merges system messages from the messages array into system", async () => {
 		const { client, requests } = fakeClient([message([{ type: "text", text: "ok" }])]);
 		await generateText({
-			model: new AnthropicChatModel("claude-sonnet-5-5", { client }),
+			model: new AnthropicChatModel("claude-haiku-5-5", { client }),
 			messages: [
 				{ role: "system", content: "rewrite in Spanish" },
 				{ role: "user", content: "hello" },
@@ -240,7 +233,7 @@ describe("JSON mode", () => {
 			message([thinking("s"), { type: "text", text: '```json\n{"recommendations":[{"title":"Dune"}]}\n```' }]),
 		]);
 		const { object } = await generateObject({
-			model: new AnthropicChatModel("claude-sonnet-5-5", { client }),
+			model: new AnthropicChatModel("claude-haiku-5-5", { client }),
 			mode: "json",
 			schema: z.object({ recommendations: z.array(z.object({ title: z.string() })) }),
 			prompt: "recommend",
@@ -287,46 +280,6 @@ describe("review round 1 regressions", () => {
 			});
 			expect(pause.runs).toBe(0);
 		}
-	});
-
-	it("runs only the fallback model's tool calls, once, and does not cache its thinking", async () => {
-		const pause = countingTool();
-		const cache = new ThinkingReplayCache();
-		const { client } = fakeClient([
-			message(
-				[
-					thinking("declined"),
-					{ type: "tool_use", id: "toolu_a", name: "pauseAll", input: {} },
-					{ type: "fallback", from: { model: "claude-opus-5-5" }, to: { model: "claude-opus-5" } },
-					thinking("fallback-sig"),
-					{ type: "tool_use", id: "toolu_b", name: "pauseAll", input: {} },
-				],
-				"tool_use",
-			),
-			message([{ type: "text", text: "Paused." }]),
-		]);
-		await generateText({
-			model: new AnthropicChatModel("claude-opus-5-5", { client, replayCache: cache }),
-			prompt: "pause everything",
-			tools: { pauseAll: pause.tool },
-			maxSteps: 3,
-		});
-		expect(pause.runs).toBe(1);
-		expect(cache.size).toBe(0);
-	});
-
-	it("does not cache thinking from a sticky fallback reported only in usage.iterations", async () => {
-		const cache = new ThinkingReplayCache();
-		const sticky = message([thinking("s"), { type: "tool_use", id: "toolu_s", name: "t", input: {} }], "tool_use");
-		(sticky.usage as any).iterations = [{ type: "fallback_message" }];
-		const { client } = fakeClient([sticky, message([{ type: "text", text: "done" }])]);
-		await generateText({
-			model: new AnthropicChatModel("claude-opus-5-5", { client, replayCache: cache }),
-			prompt: "q",
-			tools: { t: tool({ parameters: z.object({}), execute: async () => "r" }) },
-			maxSteps: 3,
-		});
-		expect(cache.size).toBe(0);
 	});
 
 	it("does not restore a cached turn whose tool call was edited", () => {
@@ -457,5 +410,73 @@ describe("review round 3 regressions", () => {
 		expect(messages).toEqual([
 			{ role: "user", content: [{ type: "text", text: "[Attachment not supported by this model: audio/ogg]" }] },
 		]);
+	});
+});
+
+describe("latency options", () => {
+	it("enables automatic prompt caching on every request", async () => {
+		const { client, requests } = fakeClient([message([{ type: "text", text: "ok" }])]);
+		await generateText({ model: new AnthropicChatModel("claude-haiku-5-5", { client }), prompt: "x" });
+		expect(requests[0].cache_control).toEqual({ type: "ephemeral" });
+	});
+
+	it("takes a per-call effort and thinking-off override", async () => {
+		const { client, requests } = fakeClient([message([{ type: "text", text: "{}" }])]);
+		await generateText({
+			model: new AnthropicChatModel("claude-haiku-5-5", { client }),
+			prompt: "x",
+			experimental_providerMetadata: { anthropic: { effort: "low", thinking: "off" } },
+		});
+		expect(requests[0].thinking).toEqual({ type: "disabled" });
+		expect(requests[0].output_config).toEqual({ effort: "low" });
+	});
+
+	it("caps effort at high when thinking is turned off", async () => {
+		process.env.AI_REASONING_EFFORT = "max";
+		const { client, requests } = fakeClient([message([{ type: "text", text: "ok" }])]);
+		await generateText({
+			model: new AnthropicChatModel("claude-haiku-5-5", { client }),
+			prompt: "x",
+			experimental_providerMetadata: { anthropic: { thinking: "off" } },
+		});
+		expect(requests[0].thinking).toEqual({ type: "disabled" });
+		expect(requests[0].output_config).toEqual({ effort: "high" });
+	});
+});
+
+describe("per-call usage log", () => {
+	it("formats the four token counts, the time and the stop reason", () => {
+		expect(
+			formatUsageLog(
+				{ input_tokens: 12, cache_read_input_tokens: 6349, cache_creation_input_tokens: 512, output_tokens: 176 },
+				1423.4,
+				"end_turn",
+			),
+		).toBe("📊 Claude call: input 12 · cache read 6349 · cache write 512 · output 176 · 1423 ms · stop end_turn");
+	});
+
+	it("prints missing counts as 0 and a missing stop reason as unknown", () => {
+		expect(formatUsageLog(undefined, 5, null)).toBe(
+			"📊 Claude call: input 0 · cache read 0 · cache write 0 · output 0 · 5 ms · stop unknown",
+		);
+	});
+
+	it("logs one line per request and leaves the summed prompt tokens unchanged", async () => {
+		const response = message([{ type: "text", text: "ok" }]);
+		response.usage = { input_tokens: 12, output_tokens: 176, cache_read_input_tokens: 6349, cache_creation_input_tokens: 512 };
+		const { client } = fakeClient([response]);
+		const logSpy = spyOn(console, "log").mockImplementation(() => {});
+		try {
+			const result = await generateText({ model: new AnthropicChatModel("claude-haiku-5-5", { client }), prompt: "x" });
+			const lines = logSpy.mock.calls.map((call) => String(call[0])).filter((line) => line.startsWith("📊 Claude call:"));
+			expect(lines.length).toBe(1);
+			expect(lines[0]).toMatch(
+				/^📊 Claude call: input 12 · cache read 6349 · cache write 512 · output 176 · \d+ ms · stop end_turn$/,
+			);
+			expect(result.usage.promptTokens).toBe(6873);
+			expect(result.usage.completionTokens).toBe(176);
+		} finally {
+			logSpy.mockRestore();
+		}
 	});
 });
