@@ -114,3 +114,39 @@ describe("English words that contain a Spanish word", () => {
 		expect(detectConversationLanguage("show me the timestamps of my downloads", [])).toBe("en");
 	});
 });
+
+describe("a request with no clear sign of either language", () => {
+	const spanishConversation = ["qué películas nuevas hay", "dale, gracias"];
+	const englishConversation = ["what movies came out this week", "thanks"];
+
+	test("accent-less Rioplatense requests read as Spanish on their own", () => {
+		expect(detectConversationLanguage("recomendame 4 pelis de terror", [])).toBe("es");
+		expect(detectConversationLanguage("pasame series comicas cortas", [])).toBe("es");
+		expect(detectConversationLanguage("quiero ver algo corto", [])).toBe("es");
+		expect(detectConversationLanguage("tenes alguna serie nueva", [])).toBe("es");
+		expect(detectStatusLanguage("recomendame 4 pelis de terror")).toBe("es");
+	});
+
+	test("without English words, the conversation decides", () => {
+		expect(detectConversationLanguage("Sunset Harbor 2024 completa", spanishConversation)).toBe("es");
+		expect(detectConversationLanguage("Sunset Harbor 2024 completa", englishConversation)).toBe("en");
+	});
+
+	test("a title-case title inside a Spanish request does not make it English", () => {
+		expect(detectConversationLanguage("agrega The Garden of Stones", spanishConversation)).toBe("es");
+		expect(detectConversationLanguage("busca The Last Lighthouse por favor", [])).toBe("es");
+	});
+
+	test("an English request still reads as English in a Spanish conversation", () => {
+		expect(detectConversationLanguage("I mean the other one", spanishConversation)).toBe("en");
+		expect(detectConversationLanguage("recommend me 5 comedy series", spanishConversation)).toBe("en");
+		expect(detectConversationLanguage("Is sonarr up right now", spanishConversation)).toBe("en");
+		expect(detectConversationLanguage("The Garden of Stones is great, add it", spanishConversation)).toBe("en");
+		expect(detectConversationLanguage("pause all torrents", spanishConversation)).toBe("en");
+		expect(detectConversationLanguage("how much disk space is left", spanishConversation)).toBe("en");
+	});
+
+	test("words added for Spanish only count as whole words", () => {
+		expect(detectConversationLanguage("the lateness of the comedian algorithm", [])).toBe("en");
+	});
+});

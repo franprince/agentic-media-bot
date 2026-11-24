@@ -134,6 +134,13 @@ export async function processUserMessage(
 		}
 	}
 
+	// What the user wrote before this message, read before a reset can clear
+	// it: a message that shows no language keeps the conversation's.
+	const recentUserTexts = history
+		.filter((m) => m.role === "user" && typeof m.content === "string")
+		.slice(-4)
+		.map((m) => m.content as string);
+
 	// Add the user's message to the history ONLY if it's a new message
 	if (userMessage) {
 		// On Claude a typed message after a long silence starts a new
@@ -160,10 +167,6 @@ export async function processUserMessage(
 
 	try {
 		const statusSeedText = userMessage ?? getLastUserTextFromHistory(history);
-		const recentUserTexts = history
-			.filter((m) => m.role === "user" && typeof m.content === "string")
-			.slice(-5, -1)
-			.map((m) => m.content as string);
 		const statusLang: StatusLanguage = detectConversationLanguage(
 			statusSeedText,
 			recentUserTexts,

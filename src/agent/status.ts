@@ -132,6 +132,32 @@ function countSpanishSignals(text: string): number {
 		"che",
 		"dos",
 		"tres",
+		// Requests written without accents ("recomendame 4 pelis de terror").
+		"recomendame",
+		"recomenda",
+		"recomendá",
+		"pasame",
+		"buscame",
+		"dame",
+		"quiero",
+		"tenes",
+		"tenés",
+		"algo",
+		"alguna",
+		"alguno",
+		"peli",
+		"pelis",
+		"serie",
+		"comica",
+		"comicas",
+		"cómica",
+		"cómicas",
+		"comedia",
+		"nueva",
+		"nuevas",
+		"nuevo",
+		"nuevos",
+		"ver",
 	];
 	for (const word of wholeWordSignals) {
 		if (new RegExp(`(^|[^\\p{L}])${word}($|[^\\p{L}])`, "iu").test(text)) score += 1;
@@ -211,6 +237,31 @@ export function isButtonPayload(text: string | undefined | null): boolean {
 	return !!text && BUTTON_PAYLOAD.test(text.trim());
 }
 
+// Content words that, with the function words above, mark a request as
+// English ("download dune part two", "recommend me 5 comedy series").
+const ENGLISH_REQUEST_WORDS = new Set(
+	"please add added download downloaded recommend find search show shows movie movies watch watching remove delete pause resume all torrent torrents queue library space disk left good best latest last next episode episodes season status check give tell get list like more other now up done finished thanks thank how any some".split(" "),
+);
+
+// Title-case runs that are probably titles ("The Garden of Stones"): two or
+// more capitalized words, or one that is not the first word of the message.
+const TITLE_RUN =
+	/(?:^|\s)((?:[A-Z][\p{L}'’]*)(?:\s+(?:(?:of|the|a|an|and|in|on|to|for|with|at|from)\s+)?[A-Z][\p{L}'’]*)*)/gu;
+
+function withoutTitles(text: string): string {
+	return text.trim().replace(TITLE_RUN, (match, run: string, offset: number) => {
+		const isFirstWord = offset === 0 || text.trim().slice(0, offset).trim() === "";
+		const words = run.split(/\s+/).filter((word) => /^[A-Z]/.test(word));
+		return words.length >= 2 || !isFirstWord ? match.replace(run, " ") : match;
+	});
+}
+
+/** English words in a message, titles left out. */
+function countEnglishWords(text: string): number {
+	const words = withoutTitles(text).toLowerCase().replace(/’/g, "'").match(/[\p{L}']+/gu) ?? [];
+	return words.filter((word) => ENGLISH_ONLY_WORDS.has(word) || ENGLISH_REQUEST_WORDS.has(word)).length;
+}
+
 export function detectConversationLanguage(
 	text: string | undefined | null,
 	recentUserTexts: string[] = [],
@@ -218,9 +269,17 @@ export function detectConversationLanguage(
 	if (isButtonPayload(text)) return detectStatusLanguage(recentUserTexts.join(" "));
 	if (detectStatusLanguage(text) === "es") return "es";
 	const words = (text ?? "").trim().split(/\s+/).filter(Boolean);
-	if (words.length > 2) return "en";
+	const spanish = text ? countSpanishSignals(text) : 0;
+	if (words.length > 2) {
+		// A longer message is English only on English evidence; a title or a
+		// bare name ("Sunset Harbor 2024 completa") keeps the conversation's.
+		const english = countEnglishWords(text ?? "");
+		if (english > spanish) return "en";
+		if (spanish > english) return "es";
+		return detectStatusLanguage(recentUserTexts.join(" "));
+	}
 	// One or two words: a single Spanish signal ("hola", "gracias") is enough.
-	if (text && countSpanishSignals(text) >= 1) return "es";
+	if (spanish >= 1) return "es";
 	return detectStatusLanguage(recentUserTexts.join(" "));
 }
 

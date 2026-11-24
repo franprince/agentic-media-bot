@@ -187,6 +187,17 @@ describe("session gap", () => {
 		]);
 	});
 
+	it("keeps the language of the conversation it replaced for a message that shows none", async () => {
+		await processUserMessage(77779, "Sunset Harbor 2024 completa");
+
+		expect(clearSpy).toHaveBeenCalledTimes(1);
+		const systems = mockGenerateText.mock.calls
+			.map((call: any[]) => call[0].system)
+			.filter((system: unknown) => typeof system === "string" && system.includes("This conversation is in"));
+		expect(systems.length).toBeGreaterThan(0);
+		for (const system of systems) expect(system).toContain("This conversation is in Spanish");
+	});
+
 	it("treats a conversation with no recorded activity as expired", async () => {
 		mockUpdatedAt = null;
 
