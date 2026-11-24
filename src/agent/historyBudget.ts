@@ -22,6 +22,18 @@ export const DEFAULT_HISTORY_CHAR_BUDGET =
 		? configuredBudget
 		: 4000;
 
+/**
+ * Ceiling for a provider with no tokens-per-minute cap (Claude): the recent
+ * turns go out as they happened. The 20-message trim of the stored history
+ * usually binds first; this only stops an unusually large tool result.
+ */
+export const CLAUDE_HISTORY_CHAR_BUDGET = 60_000;
+
+export type HistoryViewOptions = {
+	/** False sends older turns as they happened instead of compacting them. */
+	compactOlderTurns?: boolean;
+};
+
 const DROPPED_KEYS = new Set([
 	"overview",
 	"summary",
@@ -105,12 +117,15 @@ export function splitIntoTurns(history: CoreMessage[]): CoreMessage[][] {
 /**
  * Returns the messages to send to the model.
  * The latest turn (the message being answered) is always kept, uncompacted,
- * and so is the turn before it (compacted), whatever the budget.
+ * and so is the turn before it (compacted unless `compactOlderTurns` is
+ * false), whatever the budget.
  */
 export function prepareHistoryForModel(
 	history: CoreMessage[],
 	charBudget: number = DEFAULT_HISTORY_CHAR_BUDGET,
+	options: HistoryViewOptions = {},
 ): CoreMessage[] {
+	const compactOlderTurns = options.compactOlderTurns !== false;
 	const turns = splitIntoTurns(history);
 	if (turns.length === 0) return history.filter((m) => m.role === "user");
 
@@ -119,7 +134,8 @@ export function prepareHistoryForModel(
 	let used = sizeOf(latest);
 
 	for (let i = turns.length - 2; i >= 0; i--) {
-		const compacted = (turns[i] as CoreMessage[]).map(compactMessage);
+		const turn = turns[i] as CoreMessage[];
+		const compacted = compactOlderTurns ? turn.map(compactMessage) : turn;
 		const size = sizeOf(compacted);
 		// The turn right before the latest is always kept: "4" or "sí" means
 		// nothing without the list or question it answers.

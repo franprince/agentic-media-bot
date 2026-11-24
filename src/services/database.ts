@@ -14,9 +14,24 @@ const db = new Database(join(DATA_DIR, "bot_data.sqlite"), { create: true });
 db.run(`
   CREATE TABLE IF NOT EXISTS conversations (
     user_id INTEGER PRIMARY KEY,
-    history TEXT NOT NULL
+    history TEXT NOT NULL,
+    updated_at INTEGER
   )
 `);
+
+/**
+ * Adds conversations.updated_at (epoch milliseconds of the last save) to a
+ * database created before the column existed. Existing rows keep NULL.
+ */
+export function ensureConversationTimestampColumn(database: Database): void {
+	const columns = database
+		.query("PRAGMA table_info(conversations)")
+		.all() as { name: string }[];
+	if (columns.some((column) => column.name === "updated_at")) return;
+	database.run("ALTER TABLE conversations ADD COLUMN updated_at INTEGER");
+}
+
+ensureConversationTimestampColumn(db);
 
 db.run(`
   CREATE TABLE IF NOT EXISTS metadata (
@@ -262,9 +277,20 @@ export function saveHistory(userId: number, history: CoreMessage[]) {
 	// Sanitize history before saving to prevent injection attacks
 	const sanitizedHistory = sanitizeConversationHistory(history);
 	db.run(
-		"INSERT OR REPLACE INTO conversations (user_id, history) VALUES (?, ?)",
-		[userId, JSON.stringify(sanitizedHistory)],
+		"INSERT OR REPLACE INTO conversations (user_id, history, updated_at) VALUES (?, ?, ?)",
+		[userId, JSON.stringify(sanitizedHistory), Date.now()],
 	);
+}
+
+/**
+ * When the user's conversation was last saved (epoch milliseconds), or null
+ * if there is none or it was saved before the timestamp was recorded.
+ */
+export function getConversationUpdatedAt(userId: number): number | null {
+	const row = db
+		.query("SELECT updated_at FROM conversations WHERE user_id = ?")
+		.get(userId) as { updated_at: number | null } | null;
+	return row?.updated_at ?? null;
 }
 
 /**

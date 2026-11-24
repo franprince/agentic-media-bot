@@ -1,10 +1,11 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it, spyOn } from "bun:test";
 import { generateObject, generateText, tool } from "ai";
 import { z } from "zod";
 import {
 	AnthropicChatModel,
 	ThinkingReplayCache,
 	convertPrompt,
+	formatUsageLog,
 	getAnthropicEffort,
 	sanitizeToolId,
 } from "../anthropic";
@@ -440,5 +441,42 @@ describe("latency options", () => {
 		});
 		expect(requests[0].thinking).toEqual({ type: "disabled" });
 		expect(requests[0].output_config).toEqual({ effort: "high" });
+	});
+});
+
+describe("per-call usage log", () => {
+	it("formats the four token counts, the time and the stop reason", () => {
+		expect(
+			formatUsageLog(
+				{ input_tokens: 12, cache_read_input_tokens: 6349, cache_creation_input_tokens: 512, output_tokens: 176 },
+				1423.4,
+				"end_turn",
+			),
+		).toBe("📊 Claude call: input 12 · cache read 6349 · cache write 512 · output 176 · 1423 ms · stop end_turn");
+	});
+
+	it("prints missing counts as 0 and a missing stop reason as unknown", () => {
+		expect(formatUsageLog(undefined, 5, null)).toBe(
+			"📊 Claude call: input 0 · cache read 0 · cache write 0 · output 0 · 5 ms · stop unknown",
+		);
+	});
+
+	it("logs one line per request and leaves the summed prompt tokens unchanged", async () => {
+		const response = message([{ type: "text", text: "ok" }]);
+		response.usage = { input_tokens: 12, output_tokens: 176, cache_read_input_tokens: 6349, cache_creation_input_tokens: 512 };
+		const { client } = fakeClient([response]);
+		const logSpy = spyOn(console, "log").mockImplementation(() => {});
+		try {
+			const result = await generateText({ model: new AnthropicChatModel("claude-haiku-5-5", { client }), prompt: "x" });
+			const lines = logSpy.mock.calls.map((call) => String(call[0])).filter((line) => line.startsWith("📊 Claude call:"));
+			expect(lines.length).toBe(1);
+			expect(lines[0]).toMatch(
+				/^📊 Claude call: input 12 · cache read 6349 · cache write 512 · output 176 · \d+ ms · stop end_turn$/,
+			);
+			expect(result.usage.promptTokens).toBe(6873);
+			expect(result.usage.completionTokens).toBe(176);
+		} finally {
+			logSpy.mockRestore();
+		}
 	});
 });

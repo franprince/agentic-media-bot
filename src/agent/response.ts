@@ -1,3 +1,5 @@
+import type { CoreMessage } from "ai";
+import { NEED_MORE_TOOLS_MARKER } from "./prompts";
 import type { StatusLanguage } from "./status";
 
 type ToolResultLike = {
@@ -202,4 +204,60 @@ export function selectReplyButtons(
 		valid.push({ ...btn, text, data });
 	}
 	return valid.length > 0 ? valid : undefined;
+}
+
+/** Sent when no tool covers a request and the model gave no answer of its own. */
+export function noToolReply(lang: StatusLanguage): string {
+	return lang === "es"
+		? "Eso todavía no lo puedo hacer. 😕 Puedo buscar, agregar y quitar películas y series, revisar tus descargas y tu biblioteca de Plex, y recomendarte qué ver."
+		: "I can't do that yet. 😕 I can search, add and remove movies and series, check your downloads and your Plex library, and recommend what to watch.";
+}
+
+/** Removes the internal marker; text left without a letter or digit counts as empty. */
+export function scrubMarker(text: string): string {
+	const cleaned = text.replaceAll(NEED_MORE_TOOLS_MARKER, "").trim();
+	return /[\p{L}\p{N}]/u.test(cleaned) ? cleaned : "";
+}
+
+/**
+ * Cleans the marker out of assistant text before it is saved, so the model
+ * never reads it back as its own earlier answer. Text emptied by the cleaning
+ * is dropped, except in the last assistant message — the reply the user got —
+ * where it takes `fallback` when there is one. Returns new messages.
+ */
+export function scrubMarkerFromMessages(
+	messages: CoreMessage[],
+	fallback: string,
+): CoreMessage[] {
+	const hasMarker = (text: unknown): text is string =>
+		typeof text === "string" && text.includes(NEED_MORE_TOOLS_MARKER);
+	const finalReply = messages.map((message) => message.role).lastIndexOf("assistant");
+	const scrubbed: CoreMessage[] = [];
+	messages.forEach((message, index) => {
+		if (message.role !== "assistant") {
+			scrubbed.push(message);
+			return;
+		}
+		const emptied = index === finalReply ? fallback : "";
+		if (typeof message.content === "string") {
+			if (!hasMarker(message.content)) {
+				scrubbed.push(message);
+				return;
+			}
+			const text = scrubMarker(message.content) || emptied;
+			if (text) scrubbed.push({ ...message, content: text });
+			return;
+		}
+		const parts: any[] = [];
+		for (const part of message.content as any[]) {
+			if (part?.type !== "text" || !hasMarker(part.text)) {
+				parts.push(part);
+				continue;
+			}
+			const text = scrubMarker(part.text) || emptied;
+			if (text) parts.push({ ...part, text });
+		}
+		if (parts.length > 0) scrubbed.push({ ...message, content: parts } as CoreMessage);
+	});
+	return scrubbed;
 }

@@ -186,6 +186,7 @@ export async function handleUserText(
 	userId: number,
 	userText: string,
 	username: string | number,
+	options: { fromButton?: boolean } = {},
 ) {
 	if (userText.startsWith("/")) return;
 	console.log(`📩 Message from @${username} (${userId}): ${userText}`);
@@ -213,6 +214,7 @@ export async function handleUserText(
 		userId,
 		userText,
 		onStep,
+		options,
 	);
 
 	try {
@@ -346,6 +348,6 @@ How can I help you today?
 		const username = ctx.from.username || ctx.from.first_name;
 
 		await ctx.answerCallbackQuery();
-		await handleUserText(ctx, userId, userText, username);
+		await handleUserText(ctx, userId, userText, username, { fromButton: true });
 	});
 }

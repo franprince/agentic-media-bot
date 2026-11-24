@@ -25,8 +25,13 @@ RULES:
 - SELECTION: If you gave a numbered list and the user replies with a number, treat it as a selection and carry its details (IDs, title, year) into follow-up tool calls.
 - BUTTONS (strict): Whenever you ask a question, offer choices or need confirmation, end the message with one line per button: \`BUTTON: <Label> | <callback_data>\` (label 2-3 words; callback_data short, lowercase, underscores), e.g. \`BUTTON: Yes, add it! | add_movie_confirm\`, \`BUTTON: No, thanks! | cancel_action\`. If your message ends with "?", buttons are mandatory.
 - LISTS: A numbered list of recommendations or search results gets NO buttons and must NOT end with a question. End with a statement asking the user to reply with a number (e.g. "Reply with the number of any item you'd like to check on Plex or add.").
-- If the request needs a capability your current tools do not cover, reply with exactly ${NEED_MORE_TOOLS_MARKER} and nothing else.
 `;
+
+/** While some tools were left out, the model can ask for them (see index.ts). */
+const NEED_MORE_TOOLS_RULE = `- If the request needs a capability your current tools do not cover, reply with exactly ${NEED_MORE_TOOLS_MARKER} and nothing else.`;
+
+/** With every tool offered there is nothing to widen to: answer the user. */
+const UNSUPPORTED_RULE = `- UNSUPPORTED: If none of your tools can do what the user asks, say so plainly in their language and mention what you can do instead. Never claim it was done.`;
 
 /** Presentation rules for anything that shows movies or series. */
 const MEDIA = `
@@ -96,7 +101,10 @@ function has(groups: ToolGroup[], ...wanted: ToolGroup[]): boolean {
  * ({{userId}}, {{userName}}, {{currentDate}}) are left for the caller.
  */
 export function buildSystemPromptTemplate(groups: ToolGroup[]): string {
-	const parts = [CORE];
+	const offersEveryTool = groups.length === ALL_GROUPS.length;
+	const parts = [
+		`${CORE.trim()}\n${offersEveryTool ? UNSUPPORTED_RULE : NEED_MORE_TOOLS_RULE}`,
+	];
 	if (has(groups, "movies", "series", "library", "discovery", "watchlist")) {
 		parts.push(MEDIA);
 	}

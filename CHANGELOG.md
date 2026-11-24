@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.48.0] - 2026-11-24
+
+### Added
+- **Fuller conversation for Claude**: With `AI_PROVIDER=anthropic` the model now receives the recent turns as they happened, with synopses and posters, instead of the compacted view built for a provider capped at 8,000 tokens per minute. That view made the bot contradict itself: on the third message of a conversation it held two of four turns and the previous search result had lost its synopsis. Ceiling: 60,000 characters (`src/agent/historyBudget.ts`); the stored history is still trimmed to its last 20 messages, so in practice this is about five tool turns.
+- **New conversation after 12 hours (Claude)**: A typed message more than 12 hours after the last activity starts a new conversation, so a title from days ago is no longer read as the one being discussed. A button tap always continues the conversation its message belongs to. The `conversations` table gets an `updated_at` column, added automatically on startup.
+- **Per-call usage log (Claude)**: Each request logs uncached input, cache-read, cache-write and output tokens, the elapsed time and the stop reason (`📊 Claude call: ...`), so prompt caching and latency can be measured from the journal.
+
+### Fixed
+- **No dead end when no tool covers a request**: Asked for something no tool does (for example changing the quality of a movie already in the library), the bot answered "I had trouble formulating a response" and showed the internal `NEED_MORE_TOOLS` marker as a status update. It now says plainly, in the user's language, that it cannot do that yet and what it can do. The marker is never shown and never saved into the conversation. This fix applies to every provider.
+- **Recommendation prompt test**: `tmdb.test.ts` asserted the prompt as it was before `4.47.0`.
+
+### Notes
+- For the other providers (`ollama`, Google), tool routing, the history budget and the prompt for a narrowed tool set are unchanged; the only difference is the dead-end fix above, which changes one rule of the prompt when every tool is offered. `AI_HISTORY_CHAR_BUDGET` does not apply to Claude.
+- The bot still widens the tool set once. If it widens to some groups and the model still asks for more, the user gets the "can't do that yet" message without every tool having been offered.
+- A conversation saved before this version has no activity time and counts as expired: with Claude, each user's first typed message after the update starts a new conversation.
+
+See `specs/2026-11-24-claude-context/`.
+
 ## [4.47.0] - 2026-11-20
 
 ### Added

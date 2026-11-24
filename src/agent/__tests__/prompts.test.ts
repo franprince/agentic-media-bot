@@ -12,9 +12,20 @@ describe("buildSystemPromptTemplate", () => {
 			const prompt = buildSystemPromptTemplate(groups);
 			expect(prompt).toContain("NO MARKDOWN TABLES");
 			expect(prompt).toContain("BUTTON: <Label> | <callback_data>");
-			expect(prompt).toContain("NEED_MORE_TOOLS");
 			expect(prompt).toContain("Jellyfin is NOT supported");
 		}
+	});
+
+	it("asks for the marker only while there are tools left to widen to", () => {
+		for (const groups of [[], ["downloads"], ["movies", "series"]] as any[]) {
+			const prompt = buildSystemPromptTemplate(groups);
+			expect(prompt).toContain("reply with exactly NEED_MORE_TOOLS");
+			expect(prompt).not.toContain("UNSUPPORTED");
+		}
+		const everything = buildSystemPromptTemplate([...ALL_GROUPS]);
+		expect(everything).not.toContain("NEED_MORE_TOOLS");
+		expect(everything).toContain("UNSUPPORTED");
+		expect(everything).toContain("say so plainly in their language");
 	});
 
 	it("includes only the sections of the active groups", () => {

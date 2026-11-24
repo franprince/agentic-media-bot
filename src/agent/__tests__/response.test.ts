@@ -3,8 +3,12 @@ import {
 	buildExactCountPrefix,
 	buildPlexBrowseAuthoritativeText,
 	extractToolResultsFromMessages,
+	noToolReply,
+	scrubMarker,
+	scrubMarkerFromMessages,
 	selectReplyButtons,
 } from "../response";
+import { detectStatusLanguage } from "../status";
 
 describe("response helpers", () => {
 	test("builds Spanish exact-count prefix for country/genre Plex tools", () => {
@@ -235,5 +239,78 @@ describe("selectReplyButtons", () => {
 		expect(result?.map((b) => b.text)).toEqual(["A", "C"]);
 		expect(new TextEncoder().encode(result![1]!.data).length).toBeLessThanOrEqual(64);
 		expect(selectReplyButtons(undefined, [], false)).toBeUndefined();
+	});
+});
+
+describe("the reply for a request no tool covers", () => {
+	test("reads as its own language, so it never triggers a rewrite request", () => {
+		expect(detectStatusLanguage(noToolReply("es"))).toBe("es");
+		expect(detectStatusLanguage(noToolReply("en"))).toBe("en");
+		expect(noToolReply("es")).not.toBe(noToolReply("en"));
+	});
+});
+
+describe("scrubMarker", () => {
+	test("removes the marker and treats leftover punctuation as empty", () => {
+		expect(scrubMarker("NEED_MORE_TOOLS")).toBe("");
+		expect(scrubMarker("NEED_MORE_TOOLS.")).toBe("");
+		expect(scrubMarker(" `NEED_MORE_TOOLS` \n")).toBe("");
+		expect(scrubMarker("NEED_MORE_TOOLS I cannot do that. NEED_MORE_TOOLS")).toBe("I cannot do that.");
+		expect(scrubMarker("Hola Fran")).toBe("Hola Fran");
+	});
+});
+
+describe("scrubMarkerFromMessages", () => {
+	const toolCall = { type: "tool-call", toolCallId: "c1", toolName: "searchMovie", args: { term: "Dune" } };
+	const toolResult = {
+		role: "tool",
+		content: [{ type: "tool-result", toolCallId: "c1", toolName: "searchMovie", result: { note: "NEED_MORE_TOOLS" } }],
+	};
+
+	test("replaces a marker-only reply with the fallback and leaves the input alone", () => {
+		const messages: any[] = [{ role: "assistant", content: [{ type: "text", text: "NEED_MORE_TOOLS" }] }];
+		const scrubbed = scrubMarkerFromMessages(messages, "No puedo.");
+		expect(scrubbed).toEqual([{ role: "assistant", content: [{ type: "text", text: "No puedo." }] }]);
+		expect(messages[0].content[0].text).toBe("NEED_MORE_TOOLS");
+	});
+
+	test("keeps tool calls and tool results, dropping only the emptied text", () => {
+		const messages: any[] = [
+			{ role: "assistant", content: [{ type: "text", text: "NEED_MORE_TOOLS" }, toolCall] },
+			toolResult,
+			{ role: "assistant", content: "Found Dune. NEED_MORE_TOOLS" },
+		];
+		expect(scrubMarkerFromMessages(messages, "")).toEqual([
+			{ role: "assistant", content: [toolCall] },
+			toolResult,
+			{ role: "assistant", content: "Found Dune." },
+		] as any);
+	});
+
+	test("returns messages without the marker unchanged, empty text parts included", () => {
+		const messages: any[] = [
+			{ role: "user", content: "NEED_MORE_TOOLS" },
+			{ role: "assistant", content: [{ type: "text", text: "" }, toolCall] },
+			toolResult,
+		];
+		expect(scrubMarkerFromMessages(messages, "fallback")).toEqual(messages);
+	});
+
+	test("gives the fallback to the final reply only, not to an earlier step", () => {
+		const messages: any[] = [
+			{ role: "assistant", content: [{ type: "text", text: "NEED_MORE_TOOLS" }, toolCall] },
+			toolResult,
+			{ role: "assistant", content: [{ type: "text", text: "NEED_MORE_TOOLS" }] },
+		];
+		expect(scrubMarkerFromMessages(messages, "No puedo.")).toEqual([
+			{ role: "assistant", content: [toolCall] },
+			toolResult,
+			{ role: "assistant", content: [{ type: "text", text: "No puedo." }] },
+		] as any);
+	});
+
+	test("drops an assistant message left with nothing when there is no fallback", () => {
+		const messages: any[] = [{ role: "assistant", content: "NEED_MORE_TOOLS" }];
+		expect(scrubMarkerFromMessages(messages, "")).toEqual([]);
 	});
 });

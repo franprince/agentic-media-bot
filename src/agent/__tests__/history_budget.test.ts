@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import type { CoreMessage } from "ai";
 import {
+	CLAUDE_HISTORY_CHAR_BUDGET,
 	compactToolResult,
 	prepareHistoryForModel,
 	splitIntoTurns,
@@ -85,5 +86,104 @@ describe("prepareHistoryForModel", () => {
 		const view = prepareHistoryForModel([...orphaned, { role: "user", content: "hola" }] as CoreMessage[]);
 		expect(view).toEqual([{ role: "user", content: "hola" }]);
 		expect(splitIntoTurns(orphaned as CoreMessage[])).toEqual([]);
+	});
+});
+
+/**
+ * Four turns shaped like a conversation that went wrong: a recommendation, a
+ * library check, a synopsis from a search, then a new message about it.
+ */
+function fourTurnConversation(): CoreMessage[] {
+	return [
+		{ role: "user", content: "recomendame algo de ciencia ficción" },
+		{ role: "assistant", content: [{ type: "text", text: `1. Dune\n2. Arrival\n${LONG}` }] },
+
+		{ role: "user", content: "quiero ver Dune, ¿la tengo?" },
+		{
+			role: "assistant",
+			content: [{ type: "tool-call", toolCallId: "c2", toolName: "searchPlexByTitleOnly", args: { title: "Dune" } }],
+		},
+		{
+			role: "tool",
+			content: [{ type: "tool-result", toolCallId: "c2", toolName: "searchPlexByTitleOnly", result: { totalFound: 0 } }],
+		},
+		{ role: "assistant", content: [{ type: "text", text: `No está en tu biblioteca. ${LONG}` }] },
+
+		{ role: "user", content: "¿de qué trata?" },
+		{
+			role: "assistant",
+			content: [{ type: "tool-call", toolCallId: "c3", toolName: "searchMovie", args: { term: "Dune" } }],
+		},
+		{
+			role: "tool",
+			content: [
+				{
+					type: "tool-result",
+					toolCallId: "c3",
+					toolName: "searchMovie",
+					result: [{ title: "Dune", year: 2021, tmdbId: 438631, overview: LONG, posterUrl: "http://x/dune.jpg" }],
+				},
+			],
+		},
+		{ role: "assistant", content: [{ type: "text", text: `Dune (2021)\n\n${LONG}` }] },
+
+		{ role: "user", content: "agregala" },
+	] as CoreMessage[];
+}
+
+describe("history view profiles", () => {
+	it("default view: unchanged — two turns, the previous search result compacted", () => {
+		const view = prepareHistoryForModel(fourTurnConversation(), 2000);
+		const expected = [
+			{ role: "user", content: "¿de qué trata?" },
+			{
+				role: "assistant",
+				content: [{ type: "tool-call", toolCallId: "c3", toolName: "searchMovie", args: { term: "Dune" } }],
+			},
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "c3",
+						toolName: "searchMovie",
+						result: [{ title: "Dune", year: 2021, tmdbId: 438631 }],
+					},
+				],
+			},
+			{ role: "assistant", content: [{ type: "text", text: `Dune (2021)\n\n${LONG}` }] },
+			{ role: "user", content: "agregala" },
+		];
+		expect(JSON.stringify(view)).toBe(JSON.stringify(expected));
+	});
+
+	it("Claude view: every recent turn as it happened, synopsis and poster included", () => {
+		const history = fourTurnConversation();
+		const view = prepareHistoryForModel(history, CLAUDE_HISTORY_CHAR_BUDGET, { compactOlderTurns: false });
+		expect(JSON.stringify(view)).toBe(JSON.stringify(history));
+		const previousResult = (view[8] as any).content[0].result[0];
+		expect(previousResult.overview).toBe(LONG);
+		expect(previousResult.posterUrl).toBe("http://x/dune.jpg");
+		expect(view[0]).toEqual({ role: "user", content: "recomendame algo de ciencia ficción" });
+	});
+
+	it("Claude view: still drops an oversized old turn, and keeps the previous turn whole", () => {
+		const oversized = [
+			{ role: "user", content: "listá todo" },
+			{ role: "assistant", content: [{ type: "text", text: "y".repeat(CLAUDE_HISTORY_CHAR_BUDGET + 1) }] },
+		] as CoreMessage[];
+		const history = [...oversized, ...searchTurn("dune"), { role: "user", content: "1" }] as CoreMessage[];
+		const view = prepareHistoryForModel(history, CLAUDE_HISTORY_CHAR_BUDGET, { compactOlderTurns: false });
+		expect(view[0]).toEqual({ role: "user", content: "dune" });
+		expect((view[2] as any).content[0].result[0].overview).toBe(LONG);
+
+		const previousIsOversized = [...oversized, { role: "user", content: "1" }] as CoreMessage[];
+		expect(
+			prepareHistoryForModel(previousIsOversized, CLAUDE_HISTORY_CHAR_BUDGET, { compactOlderTurns: false }),
+		).toEqual(previousIsOversized);
+	});
+
+	it("the ceiling for Claude is 60,000 characters", () => {
+		expect(CLAUDE_HISTORY_CHAR_BUDGET).toBe(60_000);
 	});
 });

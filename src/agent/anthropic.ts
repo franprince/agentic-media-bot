@@ -503,6 +503,18 @@ function mapFinishReason(stopReason: string | null | undefined): LanguageModelV1
 	}
 }
 
+/** One line per request: what was read from cache, what was written, how long it took. */
+export function formatUsageLog(usage: any, elapsedMs: number, stopReason: string | null | undefined): string {
+	return [
+		`📊 Claude call: input ${usage?.input_tokens ?? 0}`,
+		`cache read ${usage?.cache_read_input_tokens ?? 0}`,
+		`cache write ${usage?.cache_creation_input_tokens ?? 0}`,
+		`output ${usage?.output_tokens ?? 0}`,
+		`${Math.round(elapsedMs)} ms`,
+		`stop ${stopReason ?? "unknown"}`,
+	].join(" · ");
+}
+
 function stripCodeFence(text: string): string {
 	const match = text.trim().match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
 	return match?.[1] ?? text;
@@ -656,10 +668,12 @@ export class AnthropicChatModel implements LanguageModelV1 {
 	async doGenerate(options: LanguageModelV1CallOptions) {
 		const { body, warnings } = this.buildRequest(options);
 		const client = this.client ?? getSharedClient();
+		const startedAt = performance.now();
 		const response: BetaMessage = await client.beta.messages.create(body, {
 			signal: options.abortSignal,
 			headers: options.headers as Record<string, string> | undefined,
 		});
+		console.log(formatUsageLog(response.usage, performance.now() - startedAt, response.stop_reason));
 
 		const answer = response.content;
 
