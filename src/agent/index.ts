@@ -33,6 +33,9 @@ import {
 	buildExactCountPrefix,
 	buildPlexBrowseAuthoritativeText,
 	extractToolResultsFromMessages,
+	noToolReply,
+	scrubMarker,
+	scrubMarkerFromMessages,
 	selectReplyButtons,
 } from "./response";
 import {
@@ -326,7 +329,12 @@ export async function processUserMessage(
 					}
 
 					// For thought-only steps, avoid sending long final answers as status updates.
-					if (thought && thought.length <= 140 && !thought.includes("\n")) {
+					if (
+						thought &&
+						thought.length <= 140 &&
+						!thought.includes("\n") &&
+						!thought.includes(NEED_MORE_TOOLS_MARKER)
+					) {
 						await onStep(`🔄 ${thought} `);
 					}
 				}
@@ -404,12 +412,18 @@ export async function processUserMessage(
 				...withTools(widenedTools),
 			} as any);
 		}
+		// Never show the internal marker to the user, and never save it: the
+		// model would read it back as its own answer on the next turn.
+		let noToolFallback = "";
 		if ((firstPass.text || "").includes(NEED_MORE_TOOLS_MARKER)) {
-			// Never show the internal marker to the user.
-			firstPass.text = (firstPass.text || "")
-				.replace(NEED_MORE_TOOLS_MARKER, "")
-				.trim();
+			const cleaned = scrubMarker(firstPass.text || "");
+			noToolFallback = cleaned ? "" : noToolReply(statusLang);
+			firstPass.text = cleaned || noToolFallback;
 		}
+		const firstPassMessages = scrubMarkerFromMessages(
+			firstPass.response.messages,
+			noToolFallback,
+		);
 		if (firstPass.usage) {
 			console.log(
 				`📊 Tokens [FAST]: prompt ${firstPass.usage.promptTokens}, completion ${firstPass.usage.completionTokens}`,
@@ -463,13 +477,10 @@ export async function processUserMessage(
 
 		// Add the agent's full response (including tool interactions) to the history
 		if (response === firstPass) {
-			history.push(...firstPass.response.messages);
+			history.push(...firstPassMessages);
 		} else {
 			// Include everything from first pass PLUS the final synthesis message
-			history.push(
-				...firstPass.response.messages,
-				...response.response.messages,
-			);
+			history.push(...firstPassMessages, ...response.response.messages);
 		}
 		saveHistory(userId, history);
 
