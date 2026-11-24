@@ -246,7 +246,7 @@ const ENGLISH_REQUEST_WORDS = new Set(
 // Title-case runs that are probably titles ("The Garden of Stones"): two or
 // more capitalized words, or one that is not the first word of the message.
 const TITLE_RUN =
-	/(?:^|\s)((?:[A-Z][\p{L}'’]*)(?:\s+(?:(?:of|the|a|an|and|in|on|to|for|with|at|from)\s+)?[A-Z][\p{L}'’]*)*)/gu;
+	/(?:^|\s)((?:[A-Z][\p{L}'’]*)(?:\s+(?:(?:of|the|a|an|and|in|on|to|for|with|at|from)\s+)*[A-Z][\p{L}'’]*)*)/gu;
 
 function withoutTitles(text: string): string {
 	return text.trim().replace(TITLE_RUN, (match, run: string, offset: number) => {

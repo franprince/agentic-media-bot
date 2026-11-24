@@ -135,6 +135,8 @@ describe("a request with no clear sign of either language", () => {
 	test("a title-case title inside a Spanish request does not make it English", () => {
 		expect(detectConversationLanguage("agrega The Garden of Stones", spanishConversation)).toBe("es");
 		expect(detectConversationLanguage("busca The Last Lighthouse por favor", [])).toBe("es");
+		expect(detectConversationLanguage("busca House of the Tides", [])).toBe("es");
+		expect(detectConversationLanguage("agrega Return of the King of Ash", spanishConversation)).toBe("es");
 	});
 
 	test("an English request still reads as English in a Spanish conversation", () => {
