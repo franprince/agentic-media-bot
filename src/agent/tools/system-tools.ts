@@ -40,12 +40,12 @@ export const checkServiceHealthTool = tool({
 
 export const discoverMediaTool = tool({
 	description:
-		"Discover critically acclaimed or top-rated movies and shows using TMDB. Useful for when the user asks for recommendations. Without a year it covers the last three years.",
+		"Discover critically acclaimed or top-rated movies and shows using TMDB. Useful for when the user asks for recommendations. Without years it covers the last three years; for classics, an era or a decade, put the years in the query.",
 	parameters: z.object({
 		query: z
 			.string()
 			.describe(
-				"The search query for discovery (e.g., 'comedy series', 'thriller movies', 'korean drama series'). Add a year only if the user names one: a single year limits the results to that year.",
+				"The search query for discovery (e.g., 'comedy series', 'thriller movies', 'korean drama series'). Add a year only if the user names one: a single year limits the results to that year. For classics, old titles, an era or a decade, give a year range (e.g. 'comedy movies 1970-1989', '80s horror movies', 'classic comedy movies').",
 			),
 	}),
 	execute: async ({ query }: { query: string }) => {
@@ -84,8 +84,16 @@ export const discoverMediaTool = tool({
 			}));
 			const unchecked = suggestions.some((s) => s.alreadyInLibrary === null);
 
+			const range = tmdb.extractYearRange(query);
+			const years = range.gte && range.lte
+				? `${range.gte.slice(0, 4)}–${range.lte.slice(0, 4)}`
+				: range.gte
+					? `from ${range.gte.slice(0, 4)}`
+					: range.lte
+						? `up to ${range.lte.slice(0, 4)}`
+						: "the last three years";
 			return {
-				message: `Found ${results.length} results from TMDB for '${query}'.`,
+				message: `Found ${results.length} results from TMDB for '${query}' (released ${years}).`,
 				suggestions,
 				note:
 					"Use 'searchMovie' or 'searchSeries' with the exact title to check availability or add to the download queue." +

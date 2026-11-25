@@ -79,7 +79,7 @@ interface YearRange {
 
 /** Extract a year range from a free-text query string */
 export function extractYearRange(query: string): YearRange {
-	const rangeMatch = query.match(/(?:^|\s+)(20\d{2})\s*(?:-|to|a|y|until)\s*(20\d{2})(?:\s+|$)/i);
+	const rangeMatch = query.match(/(?:^|\s+)((?:19|20)\d{2})\s*(?:-|to|a|y|until)\s*((?:19|20)\d{2})(?:\s+|$)/i);
 	if (rangeMatch) {
 		const y1 = parseInt(rangeMatch[1]!, 10);
 		const y2 = parseInt(rangeMatch[2]!, 10);
@@ -101,7 +101,7 @@ export function extractYearRange(query: string): YearRange {
 		};
 	}
 
-	const sinceMatch = query.match(/(?:^|\s+)(?:since|desde)\s+(20\d{2})(?:\s+|$)/i);
+	const sinceMatch = query.match(/(?:^|\s+)(?:since|desde)\s+((?:19|20)\d{2})(?:\s+|$)/i);
 	if (sinceMatch) {
 		return {
 			gte: `${sinceMatch[1]}-01-01`,
@@ -109,7 +109,7 @@ export function extractYearRange(query: string): YearRange {
 		};
 	}
 
-	const untilMatch = query.match(/(?:^|\s+)(?:until|hasta)\s+(20\d{2})(?:\s+|$)/i);
+	const untilMatch = query.match(/(?:^|\s+)(?:until|hasta)\s+((?:19|20)\d{2})(?:\s+|$)/i);
 	if (untilMatch) {
 		return {
 			gte: null,
@@ -117,7 +117,7 @@ export function extractYearRange(query: string): YearRange {
 		};
 	}
 
-	const singleMatch = query.match(/(?:^|\s+)(20\d{2})(?:\s+|$)/);
+	const singleMatch = query.match(/(?:^|\s+)((?:19|20)\d{2})(?:\s+|$)/);
 	if (singleMatch) {
 		const year = singleMatch[1];
 		return {
@@ -126,8 +126,28 @@ export function extractYearRange(query: string): YearRange {
 		};
 	}
 
+	// Decades: "80s", "1990s", "2000s", "años 70", "los 80". Two digits only
+	// for the 30s–90s, so "los 10 mejores" is not the 2010s.
+	const decadeMatch =
+		query.match(/(?:^|\s)((?:19|20)\d0|[3-9]0)'?s\b/i) ??
+		query.match(/(?:^|\s)(?:años|anos|decada del|década del|los)\s+((?:19|20)\d0|[3-9]0)(?=\s|$)/i);
+	if (decadeMatch) {
+		const raw = decadeMatch[1]!;
+		const start = raw.length === 4 ? parseInt(raw, 10) : 1900 + parseInt(raw, 10);
+		return { gte: `${start}-01-01`, lte: `${start + 9}-12-31` };
+	}
+
+	// Era words without years ("classic", "clásicas", "viejas", "old").
+	if (/\b(classics?|cl[aá]sic[oa]s?|old(ies)?|viej[oa]s|antigu[oa]s)\b/i.test(query)) {
+		return { gte: `${CLASSIC_FROM_YEAR}-01-01`, lte: `${new Date().getFullYear() - CLASSIC_MIN_AGE}-12-31` };
+	}
+
 	return { gte: null, lte: null };
 }
+
+/** "Classic" means at least this many years old, from this year on. */
+const CLASSIC_MIN_AGE = 25;
+const CLASSIC_FROM_YEAR = 1930;
 
 /** Determine whether the query is asking for movies, TV, or both */
 function extractMediaType(query: string): "movie" | "tv" | "both" {
@@ -431,6 +451,57 @@ async function discoverYearFromTmdb(
 	return results;
 }
 
+/** Spans up to this many years get one model list per year. */
+const MAX_YEARS_PER_YEAR_SEARCH = 6;
+const SPAN_MIN_VOTES = { movie: 1000, tv: 300 } as const;
+
+/** Top-rated, well-voted titles of a whole span from TMDB discover. */
+async function discoverSpanFromTmdb(
+	query: string,
+	mediaType: "movie" | "tv" | "both",
+	range: YearRange,
+	limit: number,
+): Promise<TmdbResult[]> {
+	const genreMaps: Record<"movie" | "tv", Record<number, string>> = {
+		movie: await fetchGenreMap("movie"),
+		tv: await fetchGenreMap("tv"),
+	};
+	const results: TmdbResult[] = [];
+	if (mediaType !== "tv") {
+		const movies = await discoverMovies(range, extractGenreIds(query, "movie"), "vote_average.desc", SPAN_MIN_VOTES.movie);
+		for (const movie of movies.results ?? []) {
+			results.push({
+				id: movie.id,
+				title: movie.title,
+				mediaType: "movie",
+				year: parseYear(movie.release_date),
+				overview: movie.overview,
+				rating: Math.round((movie.vote_average ?? 0) * 10) / 10,
+				voteCount: movie.vote_count ?? 0,
+				genres: (movie.genre_ids ?? []).map((id) => genreMaps.movie[id] ?? "").filter(Boolean),
+				posterPath: movie.poster_path ?? null,
+			});
+		}
+	}
+	if (mediaType !== "movie") {
+		const shows = await discoverTv(range, extractGenreIds(query, "tv"), "vote_average.desc", SPAN_MIN_VOTES.tv);
+		for (const show of shows.results ?? []) {
+			results.push({
+				id: show.id,
+				title: show.name,
+				mediaType: "tv",
+				year: parseYear(show.first_air_date),
+				overview: show.overview,
+				rating: Math.round((show.vote_average ?? 0) * 10) / 10,
+				voteCount: show.vote_count ?? 0,
+				genres: (show.genre_ids ?? []).map((id) => genreMaps.tv[id] ?? "").filter(Boolean),
+				posterPath: show.poster_path ?? null,
+			});
+		}
+	}
+	return results.sort((a, b) => b.rating - a.rating).slice(0, limit);
+}
+
 export async function discoverMedia(
 	query: string,
 	limit = 10,
@@ -442,13 +513,19 @@ export async function discoverMedia(
 	const gteYear = yearRange.gte ? parseInt(yearRange.gte.split("-")[0]!, 10) : null;
 	const lteYear = yearRange.lte ? parseInt(yearRange.lte.split("-")[0]!, 10) : null;
 
+	// A span wider than the per-year cap (an era, a decade range, "classic")
+	// is one TMDB discover request over the whole span: the model's per-year
+	// lists are for recent years, and the cap would keep only the last six.
+	if (gteYear && lteYear && Math.abs(lteYear - gteYear) + 1 > MAX_YEARS_PER_YEAR_SEARCH) {
+		return discoverSpanFromTmdb(query, mediaType, yearRange, limit);
+	}
+
 	// If a range is specified, we fetch year-by-year in parallel to avoid concentration.
 	let yearsToFetch: number[] = [];
 	if (gteYear && lteYear) {
 		const start = Math.min(gteYear, lteYear);
 		const end = Math.max(gteYear, lteYear);
-		// Cap the range to prevent excessive parallel requests (max 6 years)
-		const actualStart = Math.max(start, end - 5);
+		const actualStart = Math.max(start, end - (MAX_YEARS_PER_YEAR_SEARCH - 1));
 		for (let y = end; y >= actualStart; y--) {
 			yearsToFetch.push(y);
 		}

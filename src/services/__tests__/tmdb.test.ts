@@ -303,3 +303,74 @@ describe("TMDB Service — discoverMedia TMDB fallback", () => {
 		});
 	});
 });
+
+describe("TMDB Service — older periods", () => {
+	const thisYear = new Date().getFullYear();
+
+	afterEach(() => {
+		server.resetHandlers();
+	});
+
+	test("reads 19xx years, decades and era words", () => {
+		expect(extractYearRange("comedy movies 1960-1999")).toEqual({ gte: "1960-01-01", lte: "1999-12-31" });
+		expect(extractYearRange("thrillers from 1975 to 1985")).toEqual({ gte: "1975-01-01", lte: "1985-12-31" });
+		expect(extractYearRange("horror in 1982")).toEqual({ gte: "1982-01-01", lte: "1982-12-31" });
+		expect(extractYearRange("80s action movies")).toEqual({ gte: "1980-01-01", lte: "1989-12-31" });
+		expect(extractYearRange("comedies from the 1990s")).toEqual({ gte: "1990-01-01", lte: "1999-12-31" });
+		expect(extractYearRange("peliculas de los años 70")).toEqual({ gte: "1970-01-01", lte: "1979-12-31" });
+		expect(extractYearRange("2000s sci-fi series")).toEqual({ gte: "2000-01-01", lte: "2009-12-31" });
+		for (const query of ["classic comedy movies", "comedias clásicas", "peliculas viejas de terror", "old westerns"]) {
+			expect(extractYearRange(query)).toEqual({ gte: "1930-01-01", lte: `${thisYear - 25}-12-31` });
+		}
+		expect(extractYearRange("funny movies")).toEqual({ gte: null, lte: null });
+		expect(extractYearRange("las 10 mejores comedias")).toEqual({ gte: null, lte: null });
+		expect(extractYearRange("los 10 mejores thrillers")).toEqual({ gte: null, lte: null });
+	});
+
+	test("searches a span wider than six years in one TMDB request, with no model requests", async () => {
+		process.env.TMDB_READ_ACCESS_TOKEN = "test-token";
+		promptsSent = [];
+		const requests: URLSearchParams[] = [];
+		server.use(
+			http.get("https://api.themoviedb.org/3/genre/:type/list", () =>
+				HttpResponse.json({ genres: [{ id: 35, name: "Comedy" }] }),
+			),
+			http.get("https://api.themoviedb.org/3/discover/movie", ({ request }) => {
+				requests.push(new URL(request.url).searchParams);
+				return HttpResponse.json({
+					total_results: 2,
+					results: [
+						{ id: 501, title: "The Office Party", release_date: "1961-04-01", overview: "A party.", vote_average: 8.2, vote_count: 2800, genre_ids: [35] },
+						{ id: 502, title: "Rain Dance", release_date: "1953-02-01", overview: "Singing.", vote_average: 8.1, vote_count: 3700, genre_ids: [35] },
+					],
+				});
+			}),
+		);
+
+		const results = await discoverMedia("classic comedy movies", 15);
+
+		expect(promptsSent).toHaveLength(0);
+		expect(requests).toHaveLength(1);
+		expect(requests[0]?.get("primary_release_date.gte")).toBe("1930-01-01");
+		expect(requests[0]?.get("primary_release_date.lte")).toBe(`${thisYear - 25}-12-31`);
+		expect(requests[0]?.get("vote_count.gte")).toBe("1000");
+		expect(requests[0]?.get("with_genres")).toBe("35");
+		expect(results.map((r) => [r.title, r.year])).toEqual([["The Office Party", 1961], ["Rain Dance", 1953]]);
+	});
+
+	test("asks series for fewer votes than movies over a wide span", async () => {
+		process.env.TMDB_READ_ACCESS_TOKEN = "test-token";
+		const floors: string[] = [];
+		server.use(
+			http.get("https://api.themoviedb.org/3/genre/:type/list", () => HttpResponse.json({ genres: [] })),
+			http.get("https://api.themoviedb.org/3/discover/tv", ({ request }) => {
+				floors.push(new URL(request.url).searchParams.get("vote_count.gte") ?? "");
+				return HttpResponse.json({ total_results: 0, results: [] });
+			}),
+		);
+
+		await discoverMedia("sitcom series 1980-1999", 15);
+
+		expect(floors).toEqual(["300"]);
+	});
+});

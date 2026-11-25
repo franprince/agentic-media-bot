@@ -262,11 +262,35 @@ function countEnglishWords(text: string): number {
 	return words.filter((word) => ENGLISH_ONLY_WORDS.has(word) || ENGLISH_REQUEST_WORDS.has(word)).length;
 }
 
+/** The language a message shows on its own, or null when it shows none. */
+function languageShownBy(text: string): StatusLanguage | null {
+	if (isButtonPayload(text)) return null;
+	if (detectStatusLanguage(text) === "es") return "es";
+	const english = countEnglishWords(text);
+	const spanish = countSpanishSignals(text);
+	if (english > spanish) return "en";
+	if (spanish > english) return "es";
+	return null;
+}
+
+/**
+ * The language of the newest earlier message that shows one. Joining them
+ * let older messages outvote the latest: an English request after three
+ * Spanish ones, then a tap on its button, got a Spanish reply.
+ */
+function languageOfEarlierMessages(recentUserTexts: string[]): StatusLanguage {
+	for (let i = recentUserTexts.length - 1; i >= 0; i--) {
+		const language = languageShownBy(recentUserTexts[i] ?? "");
+		if (language) return language;
+	}
+	return detectStatusLanguage(recentUserTexts.join(" "));
+}
+
 export function detectConversationLanguage(
 	text: string | undefined | null,
 	recentUserTexts: string[] = [],
 ): StatusLanguage {
-	if (isButtonPayload(text)) return detectStatusLanguage(recentUserTexts.join(" "));
+	if (isButtonPayload(text)) return languageOfEarlierMessages(recentUserTexts);
 	if (detectStatusLanguage(text) === "es") return "es";
 	const words = (text ?? "").trim().split(/\s+/).filter(Boolean);
 	const spanish = text ? countSpanishSignals(text) : 0;
@@ -276,11 +300,11 @@ export function detectConversationLanguage(
 		const english = countEnglishWords(text ?? "");
 		if (english > spanish) return "en";
 		if (spanish > english) return "es";
-		return detectStatusLanguage(recentUserTexts.join(" "));
+		return languageOfEarlierMessages(recentUserTexts);
 	}
 	// One or two words: a single Spanish signal ("hola", "gracias") is enough.
 	if (spanish >= 1) return "es";
-	return detectStatusLanguage(recentUserTexts.join(" "));
+	return languageOfEarlierMessages(recentUserTexts);
 }
 
 type ToolCallLike = {

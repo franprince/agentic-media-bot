@@ -136,6 +136,9 @@ describe("discoverMedia: the query", () => {
 
 		expect(query).not.toMatch(/20\d\d/);
 		expect(query).toContain("only if the user names one");
+		expect(query).toContain("1970-1989");
+		const description = discoverMediaTool.description as string;
+		expect(description).toContain("classics");
 	});
 });
 
